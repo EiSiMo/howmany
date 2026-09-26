@@ -5,6 +5,7 @@ description = "Benchmark for quantify counting prototypes"
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.5.3",
+    "onnxruntime>=1.30.0",
     "opencv-python-headless>=5.0.0.93",
     "pillow>=12.3.0",
     "torch>=2.14.0",
@@ -45,3 +46,7 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
+
+[[tool.mypy.overrides]]
+module = ["onnxruntime", "onnxruntime.*"]
+ignore_missing_imports = true

@@ -32,6 +32,7 @@ A trainable prototype also defines `train(image_dir: Path) -> None`, which train
 Run from `benchmark/`:
 - Run a prototype: `uv run run.py prototypes/prototype-N.py` (`--exemplars 1` for a single-tap setting, results get a `-1-exemplar` suffix)
 - Deploy a prototype that runs its model on Modal (see its docstring) before running it: `uv run modal deploy prototypes/prototype-N.py`
+- Export GeCo2 to ONNX for prototype 4 (writes `data/geco2-*.onnx`): `uv run modal run prototypes/prototype-3.py`
 - Train a prototype on Modal: `uv run modal run remote.py --prototype prototypes/prototype-N.py`
 - Rebuild the manifest: `uv run build_manifest.py --size 100 --seed 0 --split test`
 - Tests: `uv run pytest`
