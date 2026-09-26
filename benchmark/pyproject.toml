@@ -3,7 +3,10 @@ name = "quantify-benchmark"
 version = "0.1.0"
 description = "Benchmark for quantify counting prototypes"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy>=2.5.3",
+    "opencv-python-headless>=5.0.0.93",
+]
 
 [dependency-groups]
 dev = [
