@@ -1,0 +1,27 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --project benchmark ruff format
+        language: system
+        types: [python]
+        files: ^benchmark/
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --project benchmark ruff check --fix
+        language: system
+        types: [python]
+        files: ^benchmark/
+      - id: mypy
+        name: mypy
+        entry: bash -c 'cd benchmark && uv run mypy'
+        language: system
+        files: ^benchmark/
+        pass_filenames: false
+      - id: pytest
+        name: pytest
+        entry: bash -c 'cd benchmark && uv run pytest -q'
+        language: system
+        files: ^benchmark/
+        pass_filenames: false

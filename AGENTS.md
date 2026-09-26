@@ -19,6 +19,22 @@ A fully open source, fully local Android app that counts objects in a photo, suc
 - Once the stack is chosen, set up pre-commit hooks for formatter, linter, type checks and tests. Never bypass them.
 - Commit and push autonomously after each meaningful green step. Use Conventional Commits.
 
+## Stack & Commands
+The Android app stack is not chosen yet. Feasibility is first measured with the benchmark.
+
+### Benchmark (`benchmark/`)
+Python 3.12+, managed with uv. Measures how far a counting prototype's counts deviate from known counts on a fixed random sample of 100 FSC-147 test images (`manifest.csv`). Images are downloaded on demand into `benchmark/data/` (gitignored, not redistributed).
+
+A prototype is a file `benchmark/prototypes/prototype-N.py` defining `quantify(image_path: Path) -> int`. Results go to `benchmark/results/prototype-N.csv` and `.summary.json`, and are committed.
+
+Run from `benchmark/`:
+- Run a prototype: `uv run run.py prototypes/prototype-N.py`
+- Rebuild the manifest: `uv run build_manifest.py --size 100 --seed 0 --split test`
+- Tests: `uv run pytest`
+- Lint/format: `uv run ruff check . && uv run ruff format .`
+- Type check: `uv run mypy`
+- Pre-commit hooks (once per clone, from repo root): `uv run --project benchmark pre-commit install`
+
 ## Conventions
 - Code, identifiers, comments, strings and commit messages in English. User-facing text lives in localization resources, never hardcoded.
 - Fail loudly: handle errors or propagate them with context, never swallow them.
