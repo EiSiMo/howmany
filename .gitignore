@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 benchmark/data/
+NOTES.md
