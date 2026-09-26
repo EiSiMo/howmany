@@ -25,3 +25,15 @@ repos:
         language: system
         files: ^benchmark/
         pass_filenames: false
+      - id: android-format
+        name: android format
+        entry: bash -c 'cd android && ./gradlew -q spotlessApply'
+        language: system
+        files: ^android/
+        pass_filenames: false
+      - id: android-check
+        name: android lint and unit tests
+        entry: bash -c 'cd android && ./gradlew -q lintDebug testDebugUnitTest'
+        language: system
+        files: ^android/
+        pass_filenames: false

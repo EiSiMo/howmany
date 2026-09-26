@@ -20,7 +20,15 @@ A fully open source, fully local Android app that counts objects in a photo, suc
 - Commit and push autonomously after each meaningful green step. Use Conventional Commits.
 
 ## Stack & Commands
-The Android app stack is not chosen yet. Feasibility is first measured with the benchmark.
+### App (`android/`)
+Kotlin, Jetpack Compose, ONNX Runtime Android, built with Gradle (Kotlin DSL, version catalog in `gradle/libs.versions.toml`); no Android Studio needed. Formatting with Spotless (ktfmt, kotlinlang style). The app bundles GeCo2 as exported by the benchmark (`benchmark/data/geco2-int8.onnx`, not committed): export it before building. `counting/` is the counting module (`ObjectCounter`); the rest is UI.
+
+Run from `android/` (JDK 21, Android SDK in `local.properties`, phone with USB debugging attached):
+- Build and install: `./gradlew installDebug`
+- Unit tests: `./gradlew testDebugUnitTest`
+- Device tests (count a benchmark image on the phone, log timings; `adb logcat -s ObjectCounterTest`): `./gradlew connectedDebugAndroidTest`
+- Lint: `./gradlew lintDebug`
+- Format: `./gradlew spotlessApply`
 
 ### Benchmark (`benchmark/`)
 Python 3.12+, managed with uv. Measures how far a counting prototype's counts deviate from known counts on a fixed random sample of 100 FSC-147 test images (`manifest.csv`). Images are downloaded on demand into `benchmark/data/` (gitignored, not redistributed).

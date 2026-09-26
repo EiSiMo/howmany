@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Quantify</string>
+    <string name="pick_photo">Pick photo</string>
+    <string name="count">Count</string>
+    <string name="mark_example">Drag a box around one object</string>
+    <string name="counting">Counting…</string>
+    <plurals name="result">
+        <item quantity="one">%1$d object in %2$.1f s</item>
+        <item quantity="other">%1$d objects in %2$.1f s</item>
+    </plurals>
+</resources>

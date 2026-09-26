@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_photo">Foto wählen</string>
+    <string name="count">Zählen</string>
+    <string name="mark_example">Zieh einen Rahmen um ein Objekt</string>
+    <string name="counting">Zähle…</string>
+    <plurals name="result">
+        <item quantity="one">%1$d Objekt in %2$.1f s</item>
+        <item quantity="other">%1$d Objekte in %2$.1f s</item>
+    </plurals>
+</resources>
