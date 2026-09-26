@@ -1,6 +1,6 @@
 """Draw a reproducible random sample of FSC-147 images and write it to manifest.csv.
 
-Usage: uv run build_manifest.py [--size 100] [--seed 0] [--split test]
+Usage: uv run build_manifest.py [--size 100] [--seed 0] [--split test] [--output manifest.csv]
 """
 
 import argparse
@@ -8,6 +8,7 @@ import csv
 import json
 import logging
 import random
+from pathlib import Path
 
 from dataset import DATA_DIR, MANIFEST_FIELDS, MANIFEST_PATH, ensure_annotations
 
@@ -20,6 +21,7 @@ def main() -> None:
     parser.add_argument("--size", type=int, default=100)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--split", default="test", choices=("train", "val", "test"))
+    parser.add_argument("--output", type=Path, default=MANIFEST_PATH)
     args = parser.parse_args()
 
     ensure_annotations()
@@ -34,7 +36,7 @@ def main() -> None:
 
     images = random.Random(args.seed).sample(sorted(splits[args.split]), args.size)
 
-    with MANIFEST_PATH.open("w", newline="") as file:
+    with args.output.open("w", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(MANIFEST_FIELDS)
         for image in images:
@@ -46,7 +48,7 @@ def main() -> None:
             writer.writerow(
                 (image, categories[image], len(annotation["points"]), json.dumps(exemplars))
             )
-    logging.info("Wrote %d samples to %s", len(images), MANIFEST_PATH)
+    logging.info("Wrote %d samples to %s", len(images), args.output)
 
 
 if __name__ == "__main__":
