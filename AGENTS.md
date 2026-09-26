@@ -30,7 +30,7 @@ A prototype is a file `benchmark/prototypes/prototype-N.py` defining `quantify(i
 A trainable prototype also defines `train(image_dir: Path) -> None`, which trains on the FSC-147 train split and saves its weights as `prototype-N.pt` next to it (committed). Training runs on a Modal cloud GPU (`remote.py`); the train images are cached in the Modal volume `quantify-data`. Log in once with `uv run modal setup`.
 
 Run from `benchmark/`:
-- Run a prototype: `uv run run.py prototypes/prototype-N.py`
+- Run a prototype: `uv run run.py prototypes/prototype-N.py` (`--exemplars 1` for a single-tap setting, results get a `-1-exemplar` suffix)
 - Deploy a prototype that runs its model on Modal (see its docstring) before running it: `uv run modal deploy prototypes/prototype-N.py`
 - Train a prototype on Modal: `uv run modal run remote.py --prototype prototypes/prototype-N.py`
 - Rebuild the manifest: `uv run build_manifest.py --size 100 --seed 0 --split test`

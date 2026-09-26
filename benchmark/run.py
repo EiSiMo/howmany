@@ -4,7 +4,7 @@ A prototype is a Python file that defines
 `quantify(image_path: Path, exemplars: Sequence[Box]) -> int`, where exemplars are a few example
 instances of the object to count, as a user would mark them.
 
-Usage: uv run run.py prototypes/prototype-0.py
+Usage: uv run run.py prototypes/prototype-0.py [--exemplars 1]
 """
 
 import argparse
@@ -106,13 +106,23 @@ def format_summary(name: str, summary: Summary) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("prototype", type=Path, help="path to a prototype file")
+    parser.add_argument(
+        "--exemplars",
+        type=int,
+        choices=(1, 2, 3),
+        default=3,
+        help="exemplar boxes per image; results of fewer than 3 get an -N-exemplar suffix",
+    )
     args = parser.parse_args()
 
+    name = args.prototype.stem
+    if args.exemplars != 3:
+        name += f"-{args.exemplars}-exemplar"
     quantify = load_prototype(args.prototype)
-    results = evaluate(quantify, load_samples())
+    results = evaluate(quantify, load_samples(exemplars=args.exemplars))
     summary = summarize(results)
-    write_results(args.prototype.stem, results, summary)
-    print(format_summary(args.prototype.stem, summary))
+    write_results(name, results, summary)
+    print(format_summary(name, summary))
 
 
 if __name__ == "__main__":

@@ -84,8 +84,13 @@ def _to_box(values: list[float]) -> Box:
     return (x1, y1, x2, y2)
 
 
-def load_samples(manifest_path: Path = MANIFEST_PATH, image_dir: Path = IMAGE_DIR) -> list[Sample]:
-    """Read the manifest and make sure every listed image is available locally."""
+def load_samples(
+    manifest_path: Path = MANIFEST_PATH, image_dir: Path = IMAGE_DIR, exemplars: int | None = None
+) -> list[Sample]:
+    """Read the manifest and make sure every listed image is available locally.
+
+    exemplars limits how many exemplar boxes each sample keeps, e.g. 1 for a single tap.
+    """
     with manifest_path.open(newline="") as file:
         rows = list(csv.DictReader(file))
 
@@ -94,8 +99,8 @@ def load_samples(manifest_path: Path = MANIFEST_PATH, image_dir: Path = IMAGE_DI
         image_path = image_dir / row["image"]
         if not image_path.exists():
             download(f"{FSC147_BASE_URL}/{FSC147_IMAGE_DIR}/{row['image']}", image_path)
-        exemplars = tuple(_to_box(box) for box in json.loads(row["exemplars"]))
-        samples.append(Sample(image_path, row["category"], int(row["count"]), exemplars))
+        boxes = tuple(_to_box(box) for box in json.loads(row["exemplars"]))[:exemplars]
+        samples.append(Sample(image_path, row["category"], int(row["count"]), boxes))
     return samples
 
 

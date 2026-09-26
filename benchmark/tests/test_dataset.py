@@ -83,3 +83,15 @@ def test_load_samples_reads_exemplars_from_manifest(tmp_path: Path) -> None:
             tmp_path / "a.jpg", "coins", 7, ((10.0, 20.0, 30.0, 40.0), (50.0, 60.0, 70.0, 80.0))
         )
     ]
+
+
+def test_load_samples_can_limit_exemplars(tmp_path: Path) -> None:
+    (tmp_path / "a.jpg").write_bytes(b"image")
+    manifest = tmp_path / "manifest.csv"
+    manifest.write_text(
+        'image,category,count,exemplars\na.jpg,coins,7,"[[10, 20, 30, 40], [50, 60, 70, 80]]"\n'
+    )
+
+    samples = dataset.load_samples(manifest, tmp_path, exemplars=1)
+
+    assert samples[0].exemplars == ((10.0, 20.0, 30.0, 40.0),)
