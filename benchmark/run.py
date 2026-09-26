@@ -14,6 +14,7 @@ import logging
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from types import ModuleType
 
 from dataset import BENCHMARK_DIR, Sample, load_samples
 from metrics import Result, Summary, summarize
@@ -25,12 +26,17 @@ RESULTS_DIR = BENCHMARK_DIR / "results"
 Quantify = Callable[[Path], int]
 
 
-def load_prototype(path: Path) -> Quantify:
+def load_module(path: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
     if spec is None or spec.loader is None:
         raise ValueError(f"Cannot load prototype from {path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    return module
+
+
+def load_prototype(path: Path) -> Quantify:
+    module = load_module(path)
     quantify = getattr(module, "quantify", None)
     if not callable(quantify):
         raise ValueError(f"{path} does not define a quantify(image_path) function")

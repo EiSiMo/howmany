@@ -9,13 +9,7 @@ import json
 import logging
 import random
 
-from dataset import DATA_DIR, FSC147_BASE_URL, MANIFEST_FIELDS, MANIFEST_PATH, download
-
-ANNOTATION_FILES = (
-    "annotation_FSC147_384.json",
-    "Train_Test_Val_FSC_147.json",
-    "ImageClasses_FSC147.txt",
-)
+from dataset import DATA_DIR, MANIFEST_FIELDS, MANIFEST_PATH, ensure_annotations
 
 
 def main() -> None:
@@ -25,9 +19,7 @@ def main() -> None:
     parser.add_argument("--split", default="test", choices=("train", "val", "test"))
     args = parser.parse_args()
 
-    for name in ANNOTATION_FILES:
-        if not (DATA_DIR / name).exists():
-            download(f"{FSC147_BASE_URL}/{name}", DATA_DIR / name)
+    ensure_annotations()
 
     annotations = json.loads((DATA_DIR / "annotation_FSC147_384.json").read_text())
     splits = json.loads((DATA_DIR / "Train_Test_Val_FSC_147.json").read_text())

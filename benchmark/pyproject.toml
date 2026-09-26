@@ -6,10 +6,14 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.5.3",
     "opencv-python-headless>=5.0.0.93",
+    "pillow>=12.3.0",
+    "torch>=2.14.0",
+    "transformers>=5.17.0",
 ]
 
 [dependency-groups]
 dev = [
+    "modal>=1.5.5",
     "mypy>=2.3.1",
     "pre-commit>=4.6.2",
     "pytest>=9.1.1",
@@ -33,3 +37,11 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 strict = true
 files = ["."]
 exclude = ["^\\.venv/", "^data/"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
