@@ -278,6 +278,6 @@ def _geco2() -> Any:
     return modal.Cls.from_name(APP_NAME, "GeCo2")()
 
 
-def quantify(image_path: Path, exemplars: Sequence[Box]) -> int:
+def quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int:
     boxes = _geco2().detect.remote(image_path.read_bytes(), [list(box) for box in exemplars])
     return len(boxes)

@@ -7,5 +7,5 @@ from pathlib import Path
 from dataset import Box
 
 
-def quantify(image_path: Path, exemplars: Sequence[Box]) -> int:
+def quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int:
     return random.randint(1, 200)

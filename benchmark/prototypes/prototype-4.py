@@ -130,5 +130,5 @@ def detect(image_path: Path, exemplars: Sequence[Box]) -> Boxes:
     return detected
 
 
-def quantify(image_path: Path, exemplars: Sequence[Box]) -> int:
+def quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int:
     return len(detect(image_path, exemplars))

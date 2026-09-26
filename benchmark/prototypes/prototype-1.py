@@ -22,7 +22,7 @@ PEAK_THRESHOLD = 0.5
 NOISE_FRACTION = 0.3
 
 
-def quantify(image_path: Path, exemplars: Sequence[Box]) -> int:
+def quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int:
     image = cv2.imread(str(image_path))
     if image is None:
         raise ValueError(f"Cannot read image {image_path}")

@@ -98,7 +98,7 @@ def encode(images: list[Image.Image]) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 @torch.inference_mode()
-def quantify(image_path: Path, exemplars: Sequence[Box]) -> int:
+def quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int:
     patches, cls = encode([Image.open(image_path).convert("RGB")])
     return int(round(float(_head()(patches, cls).sum())))
 

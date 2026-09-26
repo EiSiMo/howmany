@@ -1,10 +1,11 @@
 """Run a counting prototype against the benchmark and report how far off it is.
 
 A prototype is a Python file that defines
-`quantify(image_path: Path, exemplars: Sequence[Box]) -> int`, where exemplars are a few example
-instances of the object to count, as a user would mark them.
+`quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int`. Exemplars are a few
+example instances of the object to count, as a user would mark them; text names the object, as
+a user would type it. Prototypes use whichever prompt they support.
 
-Usage: uv run run.py prototypes/prototype-0.py [--exemplars 1]
+Usage: uv run run.py prototypes/prototype-0.py [--exemplars 0|1|2|3]
 """
 
 import argparse
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 RESULTS_DIR = BENCHMARK_DIR / "results"
 
-Quantify = Callable[[Path, Sequence[Box]], int]
+Quantify = Callable[[Path, Sequence[Box], str], int]
 
 
 def load_module(path: Path) -> ModuleType:
@@ -41,7 +42,7 @@ def load_prototype(path: Path) -> Quantify:
     module = load_module(path)
     quantify = getattr(module, "quantify", None)
     if not callable(quantify):
-        raise ValueError(f"{path} does not define a quantify(image_path, exemplars) function")
+        raise ValueError(f"{path} does not define quantify(image_path, exemplars, text)")
     return quantify  # type: ignore[no-any-return]
 
 
@@ -50,7 +51,7 @@ def evaluate(quantify: Quantify, samples: Sequence[Sample]) -> list[Result]:
     for index, sample in enumerate(samples, start=1):
         start = time.perf_counter()
         try:
-            predicted = quantify(sample.image_path, sample.exemplars)
+            predicted = quantify(sample.image_path, sample.exemplars, sample.category)
         except Exception as error:
             raise RuntimeError(f"quantify failed on {sample.image_path.name}") from error
         seconds = time.perf_counter() - start
@@ -109,9 +110,9 @@ def main() -> None:
     parser.add_argument(
         "--exemplars",
         type=int,
-        choices=(1, 2, 3),
+        choices=(0, 1, 2, 3),
         default=3,
-        help="exemplar boxes per image; results of fewer than 3 get an -N-exemplar suffix",
+        help="exemplar boxes per image, 0 for text only; fewer than 3 adds an -N-exemplar suffix",
     )
     args = parser.parse_args()
 
