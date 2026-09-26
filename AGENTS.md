@@ -25,7 +25,7 @@ The Android app stack is not chosen yet. Feasibility is first measured with the 
 ### Benchmark (`benchmark/`)
 Python 3.12+, managed with uv. Measures how far a counting prototype's counts deviate from known counts on a fixed random sample of 100 FSC-147 test images (`manifest.csv`). Images are downloaded on demand into `benchmark/data/` (gitignored, not redistributed).
 
-A prototype is a file `benchmark/prototypes/prototype-N.py` defining `quantify(image_path: Path) -> int`. Results go to `benchmark/results/prototype-N.csv` and `.summary.json`, and are committed.
+A prototype is a file `benchmark/prototypes/prototype-N.py` defining `quantify(image_path: Path, exemplars: Sequence[Box]) -> int`. Exemplars are three example boxes of the object to count (FSC-147's few-shot setting), standing in for the user marking an example in the app; prototypes may ignore them. Results go to `benchmark/results/prototype-N.csv` and `.summary.json`, and are committed.
 
 A trainable prototype also defines `train(image_dir: Path) -> None`, which trains on the FSC-147 train split and saves its weights as `prototype-N.pt` next to it (committed). Training runs on a Modal cloud GPU (`remote.py`); the train images are cached in the Modal volume `quantify-data`. Log in once with `uv run modal setup`.
 

@@ -6,6 +6,7 @@ and the count is the sum of every blob's area divided by the typical blob area, 
 the typical area is the area-weighted median and much smaller blobs are dropped as noise.
 """
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import cv2
@@ -13,13 +14,15 @@ import numpy as np
 from cv2.typing import MatLike
 from numpy.typing import NDArray
 
+from dataset import Box
+
 MIN_AREA_FRACTION = 0.00005
 MAX_AREA_FRACTION = 0.5
 PEAK_THRESHOLD = 0.5
 NOISE_FRACTION = 0.3
 
 
-def quantify(image_path: Path) -> int:
+def quantify(image_path: Path, exemplars: Sequence[Box]) -> int:
     image = cv2.imread(str(image_path))
     if image is None:
         raise ValueError(f"Cannot read image {image_path}")

@@ -5,16 +5,21 @@ import pytest
 from dataset import Sample
 from run import evaluate, load_prototype
 
+EXEMPLARS = ((10.0, 20.0, 30.0, 40.0), (50.0, 60.0, 70.0, 80.0))
+
 
 def write_prototype(tmp_path: Path, body: str) -> Path:
     path = tmp_path / "prototype-test.py"
-    path.write_text(f"def quantify(image_path):\n    {body}\n")
+    path.write_text(f"def quantify(image_path, exemplars):\n    {body}\n")
     return path
 
 
 def test_evaluates_prototype_against_samples(tmp_path: Path) -> None:
     quantify = load_prototype(write_prototype(tmp_path, "return 7"))
-    samples = [Sample(tmp_path / "a.jpg", "coins", 7), Sample(tmp_path / "b.jpg", "coins", 10)]
+    samples = [
+        Sample(tmp_path / "a.jpg", "coins", 7, EXEMPLARS),
+        Sample(tmp_path / "b.jpg", "coins", 10, EXEMPLARS),
+    ]
 
     results = evaluate(quantify, samples)
 
@@ -28,4 +33,12 @@ def test_rejects_non_integer_counts(tmp_path: Path) -> None:
     quantify = load_prototype(write_prototype(tmp_path, "return 7.5"))
 
     with pytest.raises(TypeError):
-        evaluate(quantify, [Sample(tmp_path / "a.jpg", "coins", 7)])
+        evaluate(quantify, [Sample(tmp_path / "a.jpg", "coins", 7, EXEMPLARS)])
+
+
+def test_passes_exemplars_to_prototype(tmp_path: Path) -> None:
+    quantify = load_prototype(write_prototype(tmp_path, "return len(exemplars)"))
+
+    results = evaluate(quantify, [Sample(tmp_path / "a.jpg", "coins", 2, EXEMPLARS)])
+
+    assert results[0].predicted_count == 2

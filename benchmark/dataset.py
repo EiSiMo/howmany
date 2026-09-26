@@ -24,7 +24,7 @@ MANIFEST_PATH = BENCHMARK_DIR / "manifest.csv"
 DATA_DIR = BENCHMARK_DIR / "data"
 IMAGE_DIR = DATA_DIR / "images"
 
-MANIFEST_FIELDS = ("image", "category", "count")
+MANIFEST_FIELDS = ("image", "category", "count", "exemplars")
 DOWNLOAD_ATTEMPTS = 6
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 ANNOTATION_FILES = (
@@ -34,11 +34,17 @@ ANNOTATION_FILES = (
 )
 
 
+# Axis-aligned box in image pixels: (x1, y1, x2, y2).
+Box = tuple[float, float, float, float]
+
+
 @dataclass(frozen=True)
 class Sample:
     image_path: Path
     category: str
     true_count: int
+    # A few example instances of the object to count, as a user would mark them.
+    exemplars: tuple[Box, ...]
 
 
 def _retry_delay(error: OSError, attempt: int) -> float | None:
@@ -73,6 +79,11 @@ def download(url: str, target: Path) -> None:
     partial.replace(target)
 
 
+def _to_box(values: list[float]) -> Box:
+    x1, y1, x2, y2 = (float(value) for value in values)
+    return (x1, y1, x2, y2)
+
+
 def load_samples(manifest_path: Path = MANIFEST_PATH, image_dir: Path = IMAGE_DIR) -> list[Sample]:
     """Read the manifest and make sure every listed image is available locally."""
     with manifest_path.open(newline="") as file:
@@ -83,7 +94,8 @@ def load_samples(manifest_path: Path = MANIFEST_PATH, image_dir: Path = IMAGE_DI
         image_path = image_dir / row["image"]
         if not image_path.exists():
             download(f"{FSC147_BASE_URL}/{FSC147_IMAGE_DIR}/{row['image']}", image_path)
-        samples.append(Sample(image_path, row["category"], int(row["count"])))
+        exemplars = tuple(_to_box(box) for box in json.loads(row["exemplars"]))
+        samples.append(Sample(image_path, row["category"], int(row["count"]), exemplars))
     return samples
 
 

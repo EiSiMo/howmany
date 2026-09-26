@@ -8,13 +8,15 @@ head infer which object class is the repeated one, so no exemplars or text promp
 The head is trained on point annotations from the FSC-147 train split, which is disjoint from
 the benchmark's test images:
 
-    uv run prototypes/prototype-2.py train
+    uv run modal run remote.py --prototype prototypes/prototype-2.py
+
+Exemplars are ignored: this prototype infers what to count from the image alone.
 """
 
 import json
 import logging
 import random
-import sys
+from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
 
@@ -23,6 +25,8 @@ import torch
 from PIL import Image
 from torch import nn
 from transformers import AutoModel
+
+from dataset import Box
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +82,7 @@ def _to_tensor(image: Image.Image) -> torch.Tensor:
 @cache
 def _head() -> DensityHead:
     if not HEAD_PATH.exists():
-        raise FileNotFoundError(f"{HEAD_PATH} missing, train it with: uv run {__file__} train")
+        raise FileNotFoundError(f"{HEAD_PATH} missing, train it with remote.py")
     head = DensityHead()
     head.load_state_dict(torch.load(HEAD_PATH, map_location="cpu", weights_only=True))
     return head.eval()
@@ -94,7 +98,7 @@ def encode(images: list[Image.Image]) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 @torch.inference_mode()
-def quantify(image_path: Path) -> int:
+def quantify(image_path: Path, exemplars: Sequence[Box]) -> int:
     patches, cls = encode([Image.open(image_path).convert("RGB")])
     return int(round(float(_head()(patches, cls).sum())))
 
@@ -175,10 +179,3 @@ def train(image_dir: Path, epochs: int = 30, batch_size: int = 32, holdout: int 
         logger.info("Epoch %d: loss %.4f, held-out MAE %.2f", epoch + 1, total / len(order), mae)
     torch.save({key: value.cpu() for key, value in head.state_dict().items()}, HEAD_PATH)
     logger.info("Saved head to %s", HEAD_PATH)
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    if sys.argv[1:] != ["train"]:
-        raise SystemExit(f"Usage: uv run {sys.argv[0]} train")
-    train(DATA_DIR / "train")

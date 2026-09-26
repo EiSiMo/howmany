@@ -1,6 +1,8 @@
 """Run a counting prototype against the benchmark and report how far off it is.
 
-A prototype is a Python file that defines `quantify(image_path: Path) -> int`.
+A prototype is a Python file that defines
+`quantify(image_path: Path, exemplars: Sequence[Box]) -> int`, where exemplars are a few example
+instances of the object to count, as a user would mark them.
 
 Usage: uv run run.py prototypes/prototype-0.py
 """
@@ -16,14 +18,14 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import ModuleType
 
-from dataset import BENCHMARK_DIR, Sample, load_samples
+from dataset import BENCHMARK_DIR, Box, Sample, load_samples
 from metrics import Result, Summary, summarize
 
 logger = logging.getLogger(__name__)
 
 RESULTS_DIR = BENCHMARK_DIR / "results"
 
-Quantify = Callable[[Path], int]
+Quantify = Callable[[Path, Sequence[Box]], int]
 
 
 def load_module(path: Path) -> ModuleType:
@@ -39,7 +41,7 @@ def load_prototype(path: Path) -> Quantify:
     module = load_module(path)
     quantify = getattr(module, "quantify", None)
     if not callable(quantify):
-        raise ValueError(f"{path} does not define a quantify(image_path) function")
+        raise ValueError(f"{path} does not define a quantify(image_path, exemplars) function")
     return quantify  # type: ignore[no-any-return]
 
 
@@ -48,7 +50,7 @@ def evaluate(quantify: Quantify, samples: Sequence[Sample]) -> list[Result]:
     for index, sample in enumerate(samples, start=1):
         start = time.perf_counter()
         try:
-            predicted = quantify(sample.image_path)
+            predicted = quantify(sample.image_path, sample.exemplars)
         except Exception as error:
             raise RuntimeError(f"quantify failed on {sample.image_path.name}") from error
         seconds = time.perf_counter() - start

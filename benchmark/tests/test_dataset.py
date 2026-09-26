@@ -67,3 +67,19 @@ def test_download_retries_when_connection_drops(
     dataset.download("https://example.org/a.jpg", tmp_path / "a.jpg")
 
     assert (tmp_path / "a.jpg").read_bytes() == b"image"
+
+
+def test_load_samples_reads_exemplars_from_manifest(tmp_path: Path) -> None:
+    (tmp_path / "a.jpg").write_bytes(b"image")
+    manifest = tmp_path / "manifest.csv"
+    manifest.write_text(
+        'image,category,count,exemplars\na.jpg,coins,7,"[[10, 20, 30, 40], [50, 60, 70, 80]]"\n'
+    )
+
+    samples = dataset.load_samples(manifest, tmp_path)
+
+    assert samples == [
+        dataset.Sample(
+            tmp_path / "a.jpg", "coins", 7, ((10.0, 20.0, 30.0, 40.0), (50.0, 60.0, 70.0, 80.0))
+        )
+    ]

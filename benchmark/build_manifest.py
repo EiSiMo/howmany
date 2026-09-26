@@ -11,6 +11,9 @@ import random
 
 from dataset import DATA_DIR, MANIFEST_FIELDS, MANIFEST_PATH, ensure_annotations
 
+# FSC-147's standard few-shot setting; some images have more than three exemplars.
+EXEMPLARS_PER_IMAGE = 3
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -35,7 +38,14 @@ def main() -> None:
         writer = csv.writer(file)
         writer.writerow(MANIFEST_FIELDS)
         for image in images:
-            writer.writerow((image, categories[image], len(annotations[image]["points"])))
+            annotation = annotations[image]
+            exemplars = [
+                [*corners[0], *corners[2]]
+                for corners in annotation["box_examples_coordinates"][:EXEMPLARS_PER_IMAGE]
+            ]
+            writer.writerow(
+                (image, categories[image], len(annotation["points"]), json.dumps(exemplars))
+            )
     logging.info("Wrote %d samples to %s", len(images), MANIFEST_PATH)
 
 
