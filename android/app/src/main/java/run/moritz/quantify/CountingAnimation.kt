@@ -54,15 +54,15 @@ private const val REVEAL = 0.9f
 private const val CONDENSE = 0.6f
 private const val POP = 0.3f
 // How far behind the wave front, as a fraction of the whole way, a place is fully revealed.
-private const val REVEAL_SOFTNESS = 0.04f
-private const val GLOW_ALPHA = 0.85f
+private const val REVEAL_SOFTNESS = 0.15f
+private const val GLOW_ALPHA = 0.65f
 private const val GAMMA_FROM = 1.5f
 private const val GAMMA_TO = 10f
 // The waves bend the photo like water: pixels shift by up to about this much where a ring passes,
 // easing in and out over about this width on either side so the ring has no visible edges.
 private val DISTORTION = 3.dp
 private val DISTORTION_WIDTH = 96.dp
-private const val FRONT_BRIGHTNESS = 0.12f
+private const val FRONT_BRIGHTNESS = 0.06f
 
 /**
  * The time since counting started and since its result arrived, and the [wave] that reveals the
@@ -438,7 +438,7 @@ private class Distortion {
                 half4 color = content.eval(p - offset);
                 color.r = content.eval(p - offset * 1.1).r;
                 color.b = content.eval(p - offset * 0.9).b;
-                float behind = (d - rings.x) / (width * 0.45);
+                float behind = (d - rings.x) / width;
                 float shine = rings.y * exp(-behind * behind) * brightness;
                 color.rgb += half3(shine) * color.a;
                 return color;
