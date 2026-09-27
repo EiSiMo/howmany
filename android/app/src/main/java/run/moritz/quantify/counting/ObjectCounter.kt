@@ -3,15 +3,16 @@ package run.moritz.quantify.counting
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import android.content.Context
 import android.graphics.Bitmap
+import android.util.Log
 import java.io.File
 import java.nio.FloatBuffer
 import kotlin.math.ceil
 import kotlin.math.floor
+import run.moritz.quantify.BuildConfig
 
-/** The GeCo2 model in the app assets, exported by the benchmark. */
-const val MODEL_ASSET = "geco2-int8.onnx"
-
+private const val TAG = "ObjectCounter"
 // The model runs its operators on this many threads.
 private const val THREADS = 4
 // ImageNet normalization, as GeCo2's backbone was trained with.
@@ -25,7 +26,7 @@ class CountResult(val detections: List<Detection>, val heatmap: Heatmap)
  * Finds every object in an image that looks like the given exemplars, with GeCo2 (the benchmark's
  * prototype 4) running on the CPU.
  */
-class ObjectCounter(model: File) : AutoCloseable {
+class ObjectCounter private constructor(model: File) : AutoCloseable {
     private val environment = OrtEnvironment.getEnvironment()
     private val session =
         environment.createSession(
@@ -111,9 +112,38 @@ class ObjectCounter(model: File) : AutoCloseable {
         return FloatArray(buffer.remaining()).also { buffer.get(it) }
     }
 
-    private companion object {
+    companion object {
+        /**
+         * Loads the model from the app assets. ONNX Runtime needs it as a file, so this copies it
+         * out of the APK once per app version, which takes seconds; call it in the background.
+         */
+        fun fromAssets(context: Context): ObjectCounter = ObjectCounter(modelFile(context))
+
+        private fun modelFile(context: Context): File {
+            val asset = BuildConfig.MODEL_ASSET
+            val directory = context.noBackupFilesDir
+            val version =
+                context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+            val file = File(directory, "$version-$asset")
+            if (file.exists()) return file
+            val partial = File(directory, "$asset.partial")
+            // Earlier app versions' copies, and a copy cut off by the app being killed.
+            directory
+                .listFiles { stale -> stale.name.endsWith("-$asset") || stale == partial }
+                .orEmpty()
+                .forEach { stale ->
+                    if (!stale.delete()) Log.w(TAG, "Cannot delete stale model copy $stale")
+                }
+            context.assets.open(asset).use { input ->
+                partial.outputStream().use { input.copyTo(it) }
+            }
+            check(partial.renameTo(file)) { "Cannot move model to $file" }
+            Log.i(TAG, "Copied model to $file")
+            return file
+        }
+
         /** Scales the image, pads it to the input size and normalizes it, channels first. */
-        fun pixels(image: Bitmap, scale: Float, input: InputSize): FloatBuffer {
+        private fun pixels(image: Bitmap, scale: Float, input: InputSize): FloatBuffer {
             val width = (image.width * scale).toInt()
             val height = (image.height * scale).toInt()
             val colors = IntArray(width * height)
@@ -142,7 +172,7 @@ class ObjectCounter(model: File) : AutoCloseable {
          * Runs [block] on this bitmap derived from [source], then frees it, unless Android returned
          * [source] itself (as it does when there is nothing to crop or scale).
          */
-        fun <T> Bitmap.useDerivedFrom(source: Bitmap, block: (Bitmap) -> T): T =
+        private fun <T> Bitmap.useDerivedFrom(source: Bitmap, block: (Bitmap) -> T): T =
             try {
                 block(this)
             } finally {

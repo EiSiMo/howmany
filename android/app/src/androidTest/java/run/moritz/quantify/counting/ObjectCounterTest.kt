@@ -47,17 +47,8 @@ class ObjectCounterTest {
         @JvmStatic
         @BeforeClass
         fun createCounter() {
-            val context = instrumentation.targetContext
             val (created, duration) =
-                measureTimedValue {
-                    val model =
-                        File(context.cacheDir, MODEL_ASSET).also { file ->
-                            context.assets.open(MODEL_ASSET).use { input ->
-                                file.outputStream().use { input.copyTo(it) }
-                            }
-                        }
-                    ObjectCounter(model)
-                }
+                measureTimedValue { ObjectCounter.fromAssets(instrumentation.targetContext) }
             counter = created
             Log.i(TAG, "Counter created in $duration")
         }

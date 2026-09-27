@@ -3,6 +3,9 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// The GeCo2 model the app counts with, as exported by the benchmark.
+val modelAsset = "geco2-int8.onnx"
+
 android {
     namespace = "run.moritz.quantify"
     compileSdk = 37
@@ -14,6 +17,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "MODEL_ASSET", "\"$modelAsset\"")
     }
 
     buildTypes {
@@ -24,7 +28,10 @@ android {
         }
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 kotlin { jvmToolchain(21) }
@@ -52,7 +59,7 @@ abstract class CopyBenchmarkFiles : DefaultTask() {
 val benchmarkData = rootDir.resolve("../benchmark/data")
 val copyModel by
     tasks.registering(CopyBenchmarkFiles::class) {
-        files.from(benchmarkData.resolve("geco2-int8.onnx"))
+        files.from(benchmarkData.resolve(modelAsset))
     }
 // FSC-147 test images the benchmark also counts, for comparing app and benchmark results.
 val copySample by

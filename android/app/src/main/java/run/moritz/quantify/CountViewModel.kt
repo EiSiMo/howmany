@@ -7,7 +7,6 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import java.io.File
 import kotlin.math.max
 import kotlin.time.Duration
 import kotlin.time.measureTimedValue
@@ -20,7 +19,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import run.moritz.quantify.counting.Box
 import run.moritz.quantify.counting.Heatmap
-import run.moritz.quantify.counting.MODEL_ASSET
 import run.moritz.quantify.counting.ObjectCounter
 import run.moritz.quantify.counting.Point
 
@@ -64,7 +62,7 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
     // and loading it, seconds on a phone) in the background right away, while the user picks a
     // photo and marks an exemplar. It holds only the model weights until the first count.
     private val objectCounter = Preloaded {
-        val (counter, duration) = measureTimedValue { ObjectCounter(modelFile()) }
+        val (counter, duration) = measureTimedValue { ObjectCounter.fromAssets(application) }
         Log.i(TAG, "Counter ready in $duration")
         counter
     }
@@ -152,21 +150,5 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
                 decoder.setTargetSize((size.width * factor).toInt(), (size.height * factor).toInt())
             }
         }
-    }
-
-    /** ONNX Runtime needs the model as a file; copy it out of the APK once per app version. */
-    private fun modelFile(): File {
-        val context = getApplication<Application>()
-        val version = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
-        val file = File(context.noBackupFilesDir, "$version-$MODEL_ASSET")
-        if (!file.exists()) {
-            context.noBackupFilesDir.listFiles()?.forEach { it.delete() }
-            val partial = File(context.noBackupFilesDir, "$MODEL_ASSET.partial")
-            context.assets.open(MODEL_ASSET).use { input ->
-                partial.outputStream().use { input.copyTo(it) }
-            }
-            check(partial.renameTo(file)) { "Cannot move model to $file" }
-        }
-        return file
     }
 }
