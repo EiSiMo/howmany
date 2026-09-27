@@ -8,7 +8,6 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlin.math.max
-import kotlin.time.Duration
 import kotlin.time.measureTimedValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,7 +41,6 @@ data class CountState(
     val heatmap: Heatmap? = null,
     /** The points the model counted, before any correction; null until counted. */
     val detected: List<Point>? = null,
-    val duration: Duration? = null,
     val counting: Boolean = false,
 ) {
     /** The counted points inside the crop. */
@@ -131,7 +129,6 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
                             .map { detection -> detection.box.center }
                             .toSet(),
                     heatmap = result.heatmap,
-                    duration = duration,
                     counting = false,
                 )
             }
