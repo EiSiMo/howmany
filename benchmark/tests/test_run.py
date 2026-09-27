@@ -3,7 +3,8 @@ from pathlib import Path
 import pytest
 
 from dataset import Sample
-from run import evaluate, load_prototype
+from prototype import load_prototype
+from run import evaluate
 
 EXEMPLARS = ((10.0, 20.0, 30.0, 40.0), (50.0, 60.0, 70.0, 80.0))
 

@@ -13,7 +13,7 @@ from pathlib import Path
 import modal
 
 from dataset import BENCHMARK_DIR, DATA_DIR, ensure_split
-from run import load_module
+from prototype import load_module
 
 logger = logging.getLogger(__name__)
 
