@@ -55,6 +55,15 @@ data class Detection(val box: Box, val confidence: Float) {
 internal data class InputSize(val width: Int, val height: Int)
 
 /**
+ * Where the model sees objects: a grid of objectness values (row-major) relative to the maximum, so
+ * from 0 to 1, with [bounds] in image pixels such that each cell's value belongs to the center of
+ * its share of the bounds.
+ */
+class Heatmap(val rows: Int, val columns: Int, val values: FloatArray, val bounds: Box) {
+    fun translated(x: Float, y: Float) = Heatmap(rows, columns, values, bounds.translated(x, y))
+}
+
+/**
  * The model's output on a grid over its input: an objectness score per cell (row-major), and per
  * cell the distances from the cell to the left, top, right and bottom box edges in input pixels.
  */
@@ -104,6 +113,31 @@ internal fun decodeDetections(
         .map { it.copy(box = it.box.scaled(1 / scale)) }
         .filter { it.box.center.x < imageWidth && it.box.center.y < imageHeight }
         .inReadingOrder()
+}
+
+/** The objectness grid, relative to its maximum, in image pixels. */
+internal fun decodeHeatmap(
+    output: ModelOutput,
+    scale: Float,
+    imageWidth: Int,
+    imageHeight: Int,
+): Heatmap {
+    val best = output.objectness.max().takeIf { it > 0 } ?: 1f
+    val input = inputSize(imageWidth, imageHeight, scale)
+    // The model places a cell's prediction at the cell's top left corner in the input.
+    val cellWidth = input.width / scale / output.columns
+    val cellHeight = input.height / scale / output.rows
+    return Heatmap(
+        output.rows,
+        output.columns,
+        FloatArray(output.objectness.size) { (output.objectness[it] / best).coerceAtLeast(0f) },
+        Box(
+            -cellWidth / 2,
+            -cellHeight / 2,
+            input.width / scale - cellWidth / 2,
+            input.height / scale - cellHeight / 2,
+        ),
+    )
 }
 
 /** A box starts a new row unless its center lies within the height of the row's first box. */

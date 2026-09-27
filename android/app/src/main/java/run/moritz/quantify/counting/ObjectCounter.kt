@@ -16,6 +16,9 @@ const val MODEL_ASSET = "geco2-int8.onnx"
 private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
 private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
 
+/** What the model found in an image: the objects, and where it saw anything like them. */
+class Scan(val detections: List<Detection>, val heatmap: Heatmap)
+
 /**
  * Finds every object in an image that looks like the given examples, with GeCo2 (the benchmark's
  * prototype 4) running on the CPU.
@@ -40,15 +43,16 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
 
     /**
      * Returns one detection per object like the [exemplars] inside [region], with its box in image
-     * pixels, in reading order: row by row from the top, each row from left to right. Exemplars and
-     * region are image boxes; the model sees only the region, at a higher resolution the smaller it
-     * is. Confidences are relative to the best detection in the region.
+     * pixels, in reading order: row by row from the top, each row from left to right, and the
+     * heatmap they come from. Exemplars and region are image boxes; the model sees only the region,
+     * at a higher resolution the smaller it is. Confidences are relative to the best detection in
+     * the region.
      */
     fun detect(
         image: Bitmap,
         exemplars: List<Box>,
         region: Box = Box(0f, 0f, image.width.toFloat(), image.height.toFloat()),
-    ): List<Detection> {
+    ): Scan {
         require(exemplars.isNotEmpty()) { "At least one exemplar is needed" }
         val left = floor(region.left).toInt().coerceIn(0, image.width - 1)
         val top = floor(region.top).toInt().coerceIn(0, image.height - 1)
@@ -57,12 +61,14 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
         val cropped = Bitmap.createBitmap(image, left, top, right - left, bottom - top)
         val x = left.toFloat()
         val y = top.toFloat()
-        return detectInWhole(cropped, exemplars.map { it.translated(-x, -y) }).map {
-            it.copy(box = it.box.translated(x, y))
-        }
+        val scan = detectInWhole(cropped, exemplars.map { it.translated(-x, -y) })
+        return Scan(
+            scan.detections.map { it.copy(box = it.box.translated(x, y)) },
+            scan.heatmap.translated(x, y),
+        )
     }
 
-    private fun detectInWhole(image: Bitmap, exemplars: List<Box>): List<Detection> {
+    private fun detectInWhole(image: Bitmap, exemplars: List<Box>): Scan {
         val scale = inputScale(image.width, image.height, exemplars)
         val input = inputSize(image.width, image.height, scale)
         val boxes =
@@ -86,7 +92,10 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
                                 objectness = objectness.values,
                                 offsets = result.floats("offsets").values,
                             )
-                        return decodeDetections(output, scale, image.width, image.height)
+                        return Scan(
+                            decodeDetections(output, scale, image.width, image.height),
+                            decodeHeatmap(output, scale, image.width, image.height),
+                        )
                     }
                 }
         }

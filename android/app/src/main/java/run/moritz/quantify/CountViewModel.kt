@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import run.moritz.quantify.counting.Box
+import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.MODEL_ASSET
 import run.moritz.quantify.counting.ObjectCounter
 import run.moritz.quantify.counting.Point
@@ -39,6 +40,8 @@ data class CountState(
     val points: List<Point>? = null,
     /** The counted points the model is unsure about, which the user should check. */
     val uncertain: Set<Point> = emptySet(),
+    /** Where the model saw objects when counting; null until counted. */
+    val heatmap: Heatmap? = null,
     /** Whether the user has corrected the counted points. */
     val corrected: Boolean = false,
     val duration: Duration? = null,
@@ -113,10 +116,11 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
             cancelled?.join()
             // Waits for the counter if it is still being prepared; a preparation error fails here.
             val counter = counter.get()
-            val (detections, duration) =
+            val (scan, duration) =
                 withContext(Dispatchers.Default) {
                     measureTimedValue { counter.detect(photo, listOf(exemplar), crop) }
                 }
+            val detections = scan.detections
             Log.i(TAG, "${detections.size} objects in $duration")
             _state.update {
                 it.copy(
@@ -126,6 +130,7 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
                             .filter { detection -> detection.uncertain }
                             .map { detection -> detection.box.center }
                             .toSet(),
+                    heatmap = scan.heatmap,
                     duration = duration,
                     counting = false,
                 )
