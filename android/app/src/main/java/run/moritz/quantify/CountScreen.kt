@@ -295,7 +295,14 @@ private fun EmptyState(onPickPhoto: () -> Unit) {
                 contentDescription = null,
                 modifier = Modifier.size(96.dp),
             )
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
+            Text(
+                stringResource(R.string.app_name).uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                letterSpacing = 4.sp,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(12.dp))
             Text(
                 stringResource(R.string.empty_title),
                 style = MaterialTheme.typography.headlineMedium,
