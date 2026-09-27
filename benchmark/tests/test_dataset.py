@@ -45,7 +45,7 @@ def test_download_fails_loudly_on_missing_file(
 
     monkeypatch.setattr(urllib.request, "urlretrieve", fake_urlretrieve)
 
-    with pytest.raises(RuntimeError, match="a.jpg"):
+    with pytest.raises(RuntimeError, match=r"a\.jpg"):
         dataset.download("https://example.org/a.jpg", tmp_path / "a.jpg")
     assert not list(tmp_path.iterdir())
 

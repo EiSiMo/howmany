@@ -35,6 +35,8 @@ import numpy as np
 if TYPE_CHECKING:
     from dataset import Box
 
+logger = logging.getLogger(__name__)
+
 APP_NAME = "quantify-prototype-5"
 REPO_DIR = "/efficientsam3"
 REPO_COMMIT = "bd0936c788fed8d51fa799437f05abd97b401b06"
@@ -159,4 +161,4 @@ def calibrate() -> None:
             for t in candidates
         ]
         best = int(np.argmin(errors))
-        logging.info("%s: threshold %.2f, val MAE %.2f", mode, candidates[best], errors[best])
+        logger.info("%s: threshold %.2f, val MAE %.2f", mode, candidates[best], errors[best])

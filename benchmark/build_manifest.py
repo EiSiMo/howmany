@@ -22,6 +22,8 @@ from dataset import (
     ensure_annotations,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -55,7 +57,7 @@ def main() -> None:
             writer.writerow(
                 (image, categories[image], len(annotation["points"]), json.dumps(exemplars))
             )
-    logging.info("Wrote %d samples to %s", len(images), args.output)
+    logger.info("Wrote %d samples to %s", len(images), args.output)
 
 
 if __name__ == "__main__":

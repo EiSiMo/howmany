@@ -32,7 +32,7 @@ def quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int:
         return 0
     typical = _area_weighted_median(areas)
     objects = areas[areas >= NOISE_FRACTION * typical]
-    return int(round(float(np.sum(np.maximum(1.0, np.round(objects / typical))))))
+    return round(float(np.sum(np.maximum(1.0, np.round(objects / typical)))))
 
 
 def _area_weighted_median(areas: NDArray[np.float64]) -> float:
