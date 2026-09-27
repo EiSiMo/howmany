@@ -7,6 +7,7 @@
     <string name="count">Zählen</string>
     <string name="counting">Zähle…</string>
     <string name="mark_example">Zieh einen Rahmen um ein Objekt</string>
+    <string name="donate">Korrektur spenden</string>
     <string name="correct">Tippe, um einen Punkt zu entfernen oder hinzuzufügen</string>
     <plurals name="objects">
         <item quantity="one">Objekt</item>

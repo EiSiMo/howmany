@@ -8,6 +8,7 @@
     <string name="count">Count</string>
     <string name="counting">Counting…</string>
     <string name="mark_example">Drag a box around one object</string>
+    <string name="donate">Donate correction</string>
     <string name="correct">Tap to remove or add a point</string>
     <plurals name="objects">
         <item quantity="one">object</item>

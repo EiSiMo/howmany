@@ -32,6 +32,8 @@ data class CountState(
     val exemplar: Box? = null,
     /** One point per counted object, corrected by the user; null until counted. */
     val points: List<Point>? = null,
+    /** Whether the user has corrected the counted points. */
+    val corrected: Boolean = false,
     val duration: Duration? = null,
     val counting: Boolean = false,
 )
@@ -58,7 +60,8 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Removes the counted point nearest to [at] within [hitRadius], or adds one at [at]. */
     fun toggle(at: Point, hitRadius: Float) = _state.update { state ->
-        state.copy(points = state.points?.toggled(at, hitRadius))
+        val points = state.points ?: return@update state
+        state.copy(points = points.toggled(at, hitRadius), corrected = true)
     }
 
     /** Forgets the example and the count, keeping the photo. */

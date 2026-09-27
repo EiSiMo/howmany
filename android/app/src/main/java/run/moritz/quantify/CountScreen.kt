@@ -45,7 +45,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -54,11 +56,16 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.abs
@@ -69,8 +76,11 @@ import run.moritz.quantify.counting.Box as ImageBox
 import run.moritz.quantify.counting.Point
 
 // Points keep their size on screen at any zoom; taps within the hit radius hit them.
-private val POINT_RADIUS = 7.dp
-private val POINT_OUTLINE = 2.dp
+// Points are see-through, so the object underneath stays visible while correcting.
+private val POINT_RADIUS = 10.dp
+private val POINT_OUTLINE = 1.5.dp
+private const val POINT_ALPHA = 0.45f
+private val POINT_NUMBER_SIZE = 9.sp
 private val HIT_RADIUS = 24.dp
 private val EXEMPLAR_STROKE = 3.dp
 
@@ -125,6 +135,14 @@ fun CountScreen(viewModel: CountViewModel) {
                                 },
                                 icon = { Icon(painterResource(R.drawable.ic_count), null) },
                                 onClick = viewModel::count,
+                                elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
+                            )
+                        } else if (state.corrected) {
+                            ExtendedFloatingActionButton(
+                                text = { Text(stringResource(R.string.donate)) },
+                                icon = { Icon(painterResource(R.drawable.ic_donate), null) },
+                                // Donating corrections as training data is not built yet.
+                                onClick = {},
                                 elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
                             )
                         }
@@ -258,6 +276,7 @@ private fun Photo(
     val tap by rememberUpdatedState(onTap)
     val exemplarColor = MaterialTheme.colorScheme.tertiary
     val pointColor = MaterialTheme.colorScheme.primary
+    val textMeasurer = rememberTextMeasurer()
 
     Canvas(
         modifier
@@ -315,10 +334,8 @@ private fun Photo(
                     (bottomRight.y - topLeft.y).roundToInt(),
                 ),
         )
-        for (point in points) {
-            val center = current.toView(Offset(point.x, point.y))
-            drawCircle(Color.White, POINT_RADIUS.toPx() + POINT_OUTLINE.toPx(), center)
-            drawCircle(pointColor, POINT_RADIUS.toPx(), center)
+        points.forEachIndexed { index, point ->
+            drawPoint(current.toView(Offset(point.x, point.y)), index + 1, pointColor, textMeasurer)
         }
         val dragged = drag
         val rect =
@@ -341,6 +358,33 @@ private fun Photo(
             drawRect(exemplarColor, rect.topLeft, rect.size, style = Stroke(EXEMPLAR_STROKE.toPx()))
         }
     }
+}
+
+/** A see-through dot with its number, which stays readable over any photo. */
+private fun DrawScope.drawPoint(
+    center: Offset,
+    number: Int,
+    color: Color,
+    textMeasurer: TextMeasurer,
+) {
+    drawCircle(color.copy(alpha = POINT_ALPHA), POINT_RADIUS.toPx(), center)
+    drawCircle(
+        Color.White.copy(alpha = 0.8f),
+        POINT_RADIUS.toPx(),
+        center,
+        style = Stroke(POINT_OUTLINE.toPx()),
+    )
+    val text =
+        textMeasurer.measure(
+            number.toString(),
+            TextStyle(
+                color = Color.White,
+                fontSize = POINT_NUMBER_SIZE,
+                fontWeight = FontWeight.Bold,
+                shadow = Shadow(Color.Black, blurRadius = 3f),
+            ),
+        )
+    drawText(text, topLeft = center - Offset(text.size.width / 2f, text.size.height / 2f))
 }
 
 /**
