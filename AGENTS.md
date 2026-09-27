@@ -48,7 +48,7 @@ Run from `benchmark/`:
 - Label photos in the browser: `uv run label.py`
 - Run a prototype: `uv run run.py prototypes/prototype-N.py` (`--exemplars 1` for a single tap, `--exemplars 0` for text only; results get an `-N-exemplar` suffix; `--photos` runs on our completely labelled photos, `-photos` suffix)
 - Deploy a prototype that runs its model on Modal (see its docstring) before running it: `uv run modal deploy prototypes/prototype-N.py`
-- Export GeCo2 to ONNX for prototype 4 (writes `data/geco2-*.onnx`): `uv run modal run prototypes/prototype-3.py`
+- Export GeCo2 to ONNX for prototype 4 and the app (writes `data/geco2-*.onnx`): `uv run modal run export_geco2.py`
 - Train a prototype on Modal: `uv run modal run remote.py --prototype prototypes/prototype-N.py`
 - Rebuild the manifest: `uv run build_manifest.py --size 100 --seed 0 --split test`
 - Tests: `uv run pytest`

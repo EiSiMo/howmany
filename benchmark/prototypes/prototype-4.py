@@ -1,6 +1,6 @@
 """GeCo2 exported to ONNX, running locally on the CPU with ONNX Runtime as it would on a phone.
 
-The ONNX model is prototype 3's dense network (see _dense_network there): it predicts an
+The ONNX model is GeCo2's dense network (see _dense_network in export_geco2.py): it predicts an
 objectness map and box offsets. Picking one box per objectness peak and suppressing duplicates
 happens here in NumPy, as it would in the app. Unlike prototype 3 it skips GeCo2's SAM2 box
 refinement, which only tightens box edges; which objects are found stays the same.
@@ -8,7 +8,7 @@ refinement, which only tightens box edges; which objects are found stays the sam
 The model is dynamically quantized to int8 weights, the usual first step for phones. Export it
 once (runs on Modal, writes data/geco2-fp32.onnx and data/geco2-int8.onnx):
 
-    uv run modal run prototypes/prototype-3.py
+    uv run modal run export_geco2.py
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ Boxes = NDArray[np.float32]
 @cache
 def _session() -> onnxruntime.InferenceSession:
     if not MODEL_PATH.exists():
-        raise FileNotFoundError(f"{MODEL_PATH} missing, export it with prototype 3")
+        raise FileNotFoundError(f"{MODEL_PATH} missing, export it with export_geco2.py")
     options = onnxruntime.SessionOptions()
     options.intra_op_num_threads = THREADS
     return onnxruntime.InferenceSession(

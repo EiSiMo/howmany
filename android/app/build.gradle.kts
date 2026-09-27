@@ -42,7 +42,7 @@ abstract class CopyBenchmarkFiles : DefaultTask() {
         output.mkdirs()
         files.forEach { file ->
             check(file.exists()) {
-                "$file missing, export it with benchmark/prototypes/prototype-3.py"
+                "$file missing, export it with benchmark/export_geco2.py"
             }
             file.copyTo(output.resolve(file.name))
         }
