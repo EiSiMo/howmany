@@ -42,14 +42,18 @@ data class CountState(
     val uncertain: Set<Point> = emptySet(),
     /** Where the model saw objects when counting; null until counted. */
     val heatmap: Heatmap? = null,
-    /** Whether the user has corrected the counted points. */
-    val corrected: Boolean = false,
+    /** The points the model counted, before any correction; null until counted. */
+    val detected: List<Point>? = null,
     val duration: Duration? = null,
     val counting: Boolean = false,
 ) {
     /** The counted points inside the crop. */
     val counted: List<Point>?
         get() = points?.filter { crop == null || it in crop }
+
+    /** Whether the user has added or removed points, by tapping or cropping, since counting. */
+    val corrected: Boolean
+        get() = counted != detected
 }
 
 class CountViewModel(application: Application) : AndroidViewModel(application) {
@@ -86,16 +90,12 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
     fun toggle(at: Point, hitRadius: Float) = _state.update { state ->
         val points = state.points ?: return@update state
         val exemplar = state.exemplar ?: return@update state
-        state.copy(
-            points = points.toggled(at, hitRadius, exemplar.height, state.crop),
-            corrected = true,
-        )
+        state.copy(points = points.toggled(at, hitRadius, exemplar.height, state.crop))
     }
 
     /** Counts only inside [crop] from now on; after counting, this corrects the count. */
     fun adjustCrop(crop: Box) = _state.update { state ->
-        if (state.counting || state.crop == crop) state
-        else state.copy(crop = crop, corrected = state.corrected || state.points != null)
+        if (state.counting || state.crop == crop) state else state.copy(crop = crop)
     }
 
     /** Forgets the example and the count, keeping the photo and its crop. */
@@ -122,9 +122,11 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
                 }
             val detections = scan.detections
             Log.i(TAG, "${detections.size} objects in $duration")
+            val points = detections.map { detection -> detection.box.center }
             _state.update {
                 it.copy(
-                    points = detections.map { detection -> detection.box.center },
+                    points = points,
+                    detected = points,
                     uncertain =
                         detections
                             .filter { detection -> detection.uncertain }
