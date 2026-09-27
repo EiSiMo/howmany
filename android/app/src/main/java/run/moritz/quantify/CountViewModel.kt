@@ -50,6 +50,31 @@ data class CountState(
     /** Whether the user has added or removed points, by tapping or cropping, since counting. */
     val corrected: Boolean
         get() = counted != detected
+
+    /** Where the user is on the way from picking a photo to a count. */
+    val phase: CountPhase
+        get() =
+            when {
+                // The crop comes with the photo.
+                crop == null -> CountPhase.Empty
+                points != null -> CountPhase.Counted
+                counting -> CountPhase.Counting
+                exemplar == null -> CountPhase.Marking
+                else -> CountPhase.Ready
+            }
+}
+
+enum class CountPhase {
+    /** No photo yet. */
+    Empty,
+    /** A photo, waiting for the user to mark an exemplar. */
+    Marking,
+    /** An exemplar is marked; the user may adjust the crop or count. */
+    Ready,
+    /** The model is counting. */
+    Counting,
+    /** Counted; the user may correct the points. */
+    Counted,
 }
 
 class CountViewModel(application: Application) : AndroidViewModel(application) {
