@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -112,21 +113,16 @@ fun CountScreen(viewModel: CountViewModel) {
     val pickPhoto = { picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }
     val photo = state.photo
     val points = state.counted
-    val animation = rememberCountingAnimation(state.counting, state.heatmap)
+    val animation =
+        rememberCountingAnimation(
+            state.counting,
+            state.heatmap,
+            state.exemplar?.center,
+            state.crop,
+        )
     // The count rises with the points the reveal has shown so far.
     val revealed by
-        remember(points, state.exemplar, state.crop) {
-            derivedStateOf {
-                val origin = state.exemplar?.center
-                val crop = state.crop
-                if (points == null || origin == null || crop == null) points?.size ?: 0
-                else {
-                    val from = Offset(origin.x, origin.y)
-                    val area = Rect(crop.left, crop.top, crop.right, crop.bottom)
-                    points.count { pointScale(animation, from, area, Offset(it.x, it.y)) > 0 }
-                }
-            }
-        }
+        remember(points) { derivedStateOf { points?.count { pointScale(animation, it) > 0 } ?: 0 } }
 
     Scaffold(
         topBar = {
@@ -342,7 +338,8 @@ private fun Photo(
     val pointColor = MaterialTheme.colorScheme.primary
     val handleColor = MaterialTheme.colorScheme.primary
     val textMeasurer = rememberTextMeasurer()
-    val margin = with(LocalDensity.current) { PHOTO_MARGIN.toPx() }
+    val density = LocalDensity.current
+    val margin = with(density) { PHOTO_MARGIN.toPx() }
 
     LaunchedEffect(counting) {
         val from = viewport
@@ -354,6 +351,19 @@ private fun Photo(
     Canvas(
         modifier
             .clipToBounds()
+            .graphicsLayer {
+                val current = viewport
+                val at = origin
+                renderEffect =
+                    if (current == null || at == null) null
+                    else
+                        animation.distortion(
+                            current.toView(Offset(at.x, at.y)),
+                            crop.inView(current),
+                            heatmap?.bounds?.inView(current),
+                            density,
+                        )
+            }
             .onSizeChanged { size ->
                 viewport =
                     Viewport.fit(
@@ -456,9 +466,7 @@ private fun Photo(
         points.forEachIndexed { index, point ->
             val color = if (point in uncertain) UNCERTAIN_COLOR else pointColor
             val center = current.toView(Offset(point.x, point.y))
-            val scale =
-                if (originInView == null) 1f
-                else pointScale(animation, originInView, cropRect, center)
+            val scale = pointScale(animation, point)
             if (scale > 0) {
                 scale(scale, center) { drawPoint(center, index + 1, color, textMeasurer) }
             }
