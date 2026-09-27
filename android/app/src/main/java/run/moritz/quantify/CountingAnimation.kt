@@ -572,7 +572,7 @@ private class Shimmer {
                 // Contours: how sharply the brightness changes around s.
                 float gx = luma(s + float2(spacing, 0)) - luma(s - float2(spacing, 0));
                 float gy = luma(s + float2(0, spacing)) - luma(s - float2(0, spacing));
-                float edge = smoothstep(0.1, 0.4, length(float2(gx, gy)));
+                float edge = smoothstep(0.08, 0.35, length(float2(gx, gy)));
 
                 // The band spreads as a ring from inside the example to past the farthest corner.
                 float d = length(outwards) / reach - (fract(time / period) * 2.0 - 0.5);
