@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -42,12 +43,31 @@ import androidx.compose.ui.unit.dp
 // them from dark photos. Only the primary action and the count carry the accent.
 private val SCRIM = Color(0xB81C1D20)
 private val HAIRLINE = Color.White.copy(alpha = 0.18f)
+private val HAIRLINE_WIDTH = 1.dp
 private const val DISABLED_ALPHA = 0.38f
+private const val PRESSED_SCALE = 0.9f
 val SHUTTER_SIZE = 80.dp
 private val SHUTTER_RING = 3.dp
 private val SHUTTER_GAP = 5.dp
+private val SHUTTER_ICON_SIZE = 32.dp
+// While busy, the disc shrinks to this part of its size and the spinner's track shows faintly.
+private const val SHUTTER_BUSY_FILL = 0.6f
+private const val SHUTTER_SMALLEST_DISC = 0.6f
+private const val SHUTTER_FILL_BOUNCE = 0.55f
+private val SHUTTER_TRACK = Color.White.copy(alpha = 0.15f)
 private val SIDE_BUTTON_SIZE = 56.dp
-private const val PRESSED_SCALE = 0.9f
+/** The smallest height of a [Pill], which the layout reserves for the hint. */
+val PILL_HEIGHT = 36.dp
+private val PILL_PADDING_HORIZONTAL = 16.dp
+private val PILL_PADDING_VERTICAL = 8.dp
+private val PILL_ICON_SIZE = 18.dp
+private val PILL_ICON_GAP = 8.dp
+private val PILL_TEXT = Color.White.copy(alpha = 0.92f)
+private val COUNT_PADDING = 28.dp
+
+/** A dark, see-through surface of [shape] with a hairline edge, floating over the photo. */
+private fun Modifier.floating(shape: Shape = CircleShape) =
+    clip(shape).background(SCRIM).border(HAIRLINE_WIDTH, HAIRLINE, shape)
 
 /**
  * The primary action, like a camera's shutter: a white ring around an accent disc with [icon].
@@ -74,8 +94,8 @@ fun Shutter(
     // The disc grows in with a little bounce when there is something to do.
     val fill by
         animateFloatAsState(
-            if (enabled && !busy) 1f else if (busy) 0.6f else 0f,
-            spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow),
+            if (enabled && !busy) 1f else if (busy) SHUTTER_BUSY_FILL else 0f,
+            spring(dampingRatio = SHUTTER_FILL_BOUNCE, stiffness = Spring.StiffnessMediumLow),
         )
     val iconColor by
         animateColorAsState(
@@ -110,17 +130,25 @@ fun Shutter(
                 )
             }
             val disc = outer - ring - SHUTTER_GAP.toPx()
-            drawCircle(lerp(accent.copy(alpha = 0f), accent, fill), disc * (0.6f + 0.4f * fill))
+            drawCircle(
+                lerp(accent.copy(alpha = 0f), accent, fill),
+                disc * (SHUTTER_SMALLEST_DISC + (1 - SHUTTER_SMALLEST_DISC) * fill),
+            )
         }
         if (busy) {
             CircularProgressIndicator(
                 Modifier.size(SHUTTER_SIZE),
                 color = accent,
                 strokeWidth = SHUTTER_RING,
-                trackColor = Color.White.copy(alpha = 0.15f),
+                trackColor = SHUTTER_TRACK,
             )
         }
-        Icon(icon, contentDescription, tint = iconColor, modifier = Modifier.size(32.dp))
+        Icon(
+            icon,
+            contentDescription,
+            tint = iconColor,
+            modifier = Modifier.size(SHUTTER_ICON_SIZE),
+        )
     }
 }
 
@@ -138,9 +166,7 @@ fun RoundButton(
         modifier
             .size(SIDE_BUTTON_SIZE)
             .graphicsLayer { this.alpha = alpha }
-            .clip(CircleShape)
-            .background(SCRIM)
-            .border(1.dp, HAIRLINE, CircleShape)
+            .floating()
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -158,30 +184,28 @@ fun Pill(
 ) {
     Row(
         modifier
-            .heightIn(min = 36.dp)
-            .clip(CircleShape)
-            .background(SCRIM)
-            .border(1.dp, HAIRLINE, CircleShape)
+            .heightIn(min = PILL_HEIGHT)
+            .floating()
             .then(
                 if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick)
                 else Modifier
             )
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = PILL_PADDING_HORIZONTAL, vertical = PILL_PADDING_VERTICAL),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(PILL_ICON_GAP),
     ) {
         if (icon != null) {
             Icon(
                 icon,
                 null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(PILL_ICON_SIZE),
             )
         }
         Text(
             text,
             style = MaterialTheme.typography.labelLarge,
-            color = Color.White.copy(alpha = 0.92f),
+            color = PILL_TEXT,
             textAlign = TextAlign.Center,
         )
     }
@@ -191,12 +215,7 @@ fun Pill(
 @Composable
 fun CountChip(count: Int, modifier: Modifier = Modifier) {
     Box(
-        modifier
-            .height(SHUTTER_SIZE)
-            .clip(CircleShape)
-            .background(SCRIM)
-            .border(1.dp, HAIRLINE, CircleShape)
-            .padding(horizontal = 28.dp),
+        modifier.height(SHUTTER_SIZE).floating().padding(horizontal = COUNT_PADDING),
         contentAlignment = Alignment.Center,
     ) {
         Text(

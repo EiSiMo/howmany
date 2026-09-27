@@ -116,7 +116,7 @@ private val PHOTO_MARGIN = 24.dp
 // The controls float in the thumb zone: a hint above the shutter, which sits this high.
 private val CONTROLS_BOTTOM = 20.dp
 private val HINT_GAP = 12.dp
-private val CONTROLS_HEIGHT = CONTROLS_BOTTOM + SHUTTER_SIZE + HINT_GAP + 36.dp + HINT_GAP
+private val CONTROLS_HEIGHT = CONTROLS_BOTTOM + SHUTTER_SIZE + HINT_GAP + PILL_HEIGHT + HINT_GAP
 private const val SIDE_BUTTON_BIAS = 0.74f
 private val SCRIM_TOP = Color.Black.copy(alpha = 0.5f)
 private val SCRIM_BOTTOM = Color.Black.copy(alpha = 0.6f)
