@@ -36,7 +36,10 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
     private val environment = OrtEnvironment.getEnvironment()
     private val session = environment.createSession(model.path, options)
 
-    /** Returns one box in image pixels per object like the [exemplars], which are image boxes. */
+    /**
+     * Returns one box in image pixels per object like the [exemplars], which are image boxes, in
+     * reading order: row by row from the top, each row from left to right.
+     */
     fun detect(image: Bitmap, exemplars: List<Box>): List<Box> {
         require(exemplars.isNotEmpty()) { "At least one exemplar is needed" }
         val scale = inputScale(image.width, image.height, exemplars)
