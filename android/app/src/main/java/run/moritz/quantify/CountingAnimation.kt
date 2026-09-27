@@ -43,8 +43,8 @@ import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
 
 // While counting, the photo shimmers like Google Photos analysing it: it wobbles slightly, except
-// for the example, and a soft band of light sweeps diagonally across the crop every SCAN_PERIOD,
-// lighting up the contours it passes.
+// for the example, and a soft ring of light spreads from the example across the crop every
+// SCAN_PERIOD, lighting up the contours it passes.
 private const val SCAN_PERIOD = 1.8f
 private val SHIMMER = 2.dp
 private val SHIMMER_BLOB = 80.dp
@@ -139,6 +139,7 @@ class CountingAnimation {
                 shimmer.effect(
                     example,
                     crop,
+                    reach(example, crop),
                     seconds,
                     SHIMMER.toPx(),
                     SHIMMER_BLOB.toPx(),
@@ -455,11 +456,13 @@ private class Shimmer {
 
     /**
      * At [seconds] into the scan: pixels shift by up to [amplitude] in noise blobs about [blob]
-     * wide, and contours are found between pixels [spacing] apart.
+     * wide, contours are found between pixels [spacing] apart, and the band of light spreads from
+     * [example] to [reach] away from it.
      */
     fun effect(
         example: Rect,
         crop: Rect,
+        reach: Float,
         seconds: Float,
         amplitude: Float,
         blob: Float,
@@ -467,6 +470,7 @@ private class Shimmer {
     ): RenderEffect {
         shader.setFloatUniform("example", example.left, example.top, example.right, example.bottom)
         shader.setFloatUniform("crop", crop.left, crop.top, crop.right, crop.bottom)
+        shader.setFloatUniform("reach", reach)
         shader.setFloatUniform("time", seconds)
         shader.setFloatUniform("period", SCAN_PERIOD)
         shader.setFloatUniform("fade", (seconds / DIM_FADE).coerceAtMost(1f))
@@ -483,6 +487,7 @@ private class Shimmer {
             uniform shader content;
             uniform float4 example;
             uniform float4 crop;
+            uniform float reach;
             uniform float time;
             uniform float period;
             uniform float fade;
@@ -522,15 +527,14 @@ private class Shimmer {
                 // Contours: how sharply the brightness changes around s.
                 float gx = luma(s + float2(spacing, 0)) - luma(s - float2(spacing, 0));
                 float gy = luma(s + float2(0, spacing)) - luma(s - float2(0, spacing));
-                float edge = smoothstep(0.04, 0.2, length(float2(gx, gy)));
+                float edge = smoothstep(0.1, 0.4, length(float2(gx, gy)));
 
-                // The band runs diagonally from before the top left to past the bottom right.
-                float2 uv = (p - crop.xy) / (crop.zw - crop.xy);
-                float d = (uv.x + uv.y) * 0.5 - (fract(time / period) * 1.6 - 0.3);
-                float band = exp(-d * d * 60.0);
+                // The band spreads as a ring from inside the example to past the farthest corner.
+                float d = length(outwards) / reach - (fract(time / period) * 2.0 - 0.5);
+                float band = exp(-d * d * 25.0);
 
-                color.rgb += half3(0.85, 0.92, 1.0) * edge * (0.12 + band) * 0.7 * fade * color.a;
-                color.rgb += half3(band * 0.06 * fade) * color.a;
+                color.rgb += half3(0.85, 0.92, 1.0) * edge * (0.12 + band * 0.6) * 0.35 * fade * color.a;
+                color.rgb += half3(band * 0.02 * fade) * color.a;
                 return color;
             }
             """
