@@ -2,7 +2,7 @@
 
 A prototype is a Python file that defines
 `quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int`. Exemplars are a few
-example instances of the object to count, as a user would mark them; text names the object, as
+instances of the object to count, as a user would mark them; text names the object, as
 a user would type it. Prototypes use whichever prompt they support.
 
 Usage: uv run run.py prototypes/prototype-0.py [--exemplars 0|1|2|3] [--photos]

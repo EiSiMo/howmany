@@ -47,7 +47,7 @@ class Sample:
     image_path: Path
     category: str
     true_count: int
-    # A few example instances of the object to count, as a user would mark them.
+    # The exemplars: a few instances of the object to count, as a user would mark them.
     exemplars: tuple[Box, ...]
 
 

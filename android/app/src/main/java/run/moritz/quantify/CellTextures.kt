@@ -10,7 +10,6 @@ import android.util.Half
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ShaderBrush
-import androidx.core.graphics.createBitmap
 import java.nio.ShortBuffer
 
 // Textures of one pixel per cell of a grid, such as the heatmap's, stretched over a rect in view
@@ -33,7 +32,7 @@ internal fun cellsShader(values: FloatArray, columns: Int, rows: Int): BitmapSha
     for (cell in values.indices) {
         halves.fill(Half.toHalf(values[cell]), cell * 4, cell * 4 + 4)
     }
-    val bitmap = createBitmap(columns, rows, Bitmap.Config.RGBA_F16)
+    val bitmap = Bitmap.createBitmap(columns, rows, Bitmap.Config.RGBA_F16)
     bitmap.copyPixelsFromBuffer(ShortBuffer.wrap(halves))
     return cellsShader(bitmap)
 }

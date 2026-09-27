@@ -136,12 +136,15 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
     fun toggle(at: Point, hitRadius: Float) = _state.update { state ->
         val points = state.points ?: return@update state
         val exemplar = state.exemplar ?: return@update state
-        state.copy(points = points.toggled(at, hitRadius, exemplar.height, state.crop))
+        state.copy(
+            points = points.toggled(at, hitRadius, exemplar.height, state.crop),
+            error = null,
+        )
     }
 
     /** Counts only inside [crop] from now on; after counting, this corrects the count. */
     fun adjustCrop(crop: Box) = _state.update { state ->
-        if (state.counting || state.crop == crop) state else state.copy(crop = crop)
+        if (state.counting || state.crop == crop) state else state.copy(crop = crop, error = null)
     }
 
     /** Forgets the exemplar and the count, keeping the photo and its crop. */
@@ -190,6 +193,7 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
                             .toSet(),
                     heatmap = result.heatmap,
                     counting = false,
+                    error = null,
                 )
             }
         }
