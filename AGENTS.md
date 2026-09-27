@@ -60,6 +60,7 @@ Run from `benchmark/`:
 - Code, identifiers, comments, strings and commit messages in English. User-facing text lives in localization resources, never hardcoded.
 - Fail loudly: handle errors or propagate them with context, never swallow them.
 - Logging via the ecosystem's standard logging library, with levels. No print debugging. Never log secrets.
+- A CLI's report (like `run.py`'s summary or `photos.py status`) is its output: print it to stdout. Logging is for diagnostics.
 - Few dependencies, each justified. Commit lockfiles.
 - Secrets only in `.env` at project root (gitignored). Keep `.env.example` with keys, no values.
 - License: MIT.
