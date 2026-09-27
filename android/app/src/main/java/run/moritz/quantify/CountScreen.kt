@@ -146,7 +146,7 @@ fun CountScreen(viewModel: CountViewModel) {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (photo == null || crop == null) {
-            EmptyState(pickPhoto)
+            EmptyState(pickPhoto, state.error)
             return@Box
         }
         // The photo fills the screen behind the system bars and the controls, fitted between
@@ -201,8 +201,10 @@ fun CountScreen(viewModel: CountViewModel) {
                 .padding(bottom = CONTROLS_BOTTOM),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            val error = state.error
             val hint =
                 when {
+                    error != null -> error.message
                     state.corrected -> R.string.donate
                     state.points != null -> R.string.correct
                     state.counting -> R.string.counting
@@ -273,10 +275,10 @@ fun CountScreen(viewModel: CountViewModel) {
 
 /**
  * The first screen: the mark glowing on black, what the app does, and the shutter to pick a photo
- * where the count button will be.
+ * where the count button will be. An [error] replaces the hint to pick a photo.
  */
 @Composable
-private fun EmptyState(onPickPhoto: () -> Unit) {
+private fun EmptyState(onPickPhoto: () -> Unit, error: CountError?) {
     val glow = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
     Box(
         Modifier.fillMaxSize().drawBehind {
@@ -319,7 +321,10 @@ private fun EmptyState(onPickPhoto: () -> Unit) {
                 .padding(bottom = CONTROLS_BOTTOM),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Pill(stringResource(R.string.empty_text), Modifier.padding(horizontal = 24.dp))
+            Pill(
+                stringResource(error?.message ?: R.string.empty_text),
+                Modifier.padding(horizontal = 24.dp),
+            )
             Spacer(Modifier.height(HINT_GAP))
             Shutter(
                 painterResource(R.drawable.ic_pick_photo),

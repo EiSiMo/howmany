@@ -11,4 +11,6 @@
     <string name="donate">Donate correction</string>
     <string name="adjust_crop">Drag the edges to count only part of the photo</string>
     <string name="correct">Tap to remove or add a point</string>
+    <string name="error_photo_unreadable">Couldn’t open this photo</string>
+    <string name="error_count_failed">Counting failed, try again</string>
 </resources>

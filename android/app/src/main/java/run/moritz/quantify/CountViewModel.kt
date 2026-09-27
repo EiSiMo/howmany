@@ -5,10 +5,13 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.util.Log
+import android.util.Size
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlin.math.max
 import kotlin.time.measureTimedValue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +45,8 @@ data class CountState(
     /** The points the model counted, before any correction; null until counted. */
     val detected: List<Point>? = null,
     val counting: Boolean = false,
+    /** What went wrong last, until the user moves on; null if nothing did. */
+    val error: CountError? = null,
 ) {
     /** The counted points inside the crop. */
     val counted: List<Point>?
@@ -77,6 +82,14 @@ enum class CountPhase {
     Counted,
 }
 
+/** What can go wrong on the way to a count. */
+enum class CountError(@StringRes val message: Int) {
+    /** The picked photo cannot be read. */
+    PhotoUnreadable(R.string.error_photo_unreadable),
+    /** Counting failed; the user may try again. */
+    CountFailed(R.string.error_count_failed),
+}
+
 class CountViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(CountState())
     val state: StateFlow<CountState> = _state
@@ -89,11 +102,23 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
         Log.i(TAG, "Counter ready in $duration")
         counter
     }
+    private var photoJob: Job? = null
     private var countJob: Job? = null
 
+    /** Starts over with the photo at [uri], unless it cannot be read; replaces an earlier pick. */
     fun pickPhoto(uri: Uri) {
-        viewModelScope.launch {
-            val photo = withContext(Dispatchers.IO) { decode(uri) }
+        photoJob?.cancel()
+        photoJob = viewModelScope.launch {
+            val photo =
+                try {
+                    withContext(Dispatchers.IO) { decode(uri) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Cannot read photo $uri", e)
+                    _state.update { it.copy(error = CountError.PhotoUnreadable) }
+                    return@launch
+                }
             countJob?.cancel()
             _state.value = CountState(photo = photo)
         }
@@ -101,7 +126,7 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Marks one object as the exemplar of what to count; only before counting. */
     fun markExemplar(box: Box) = _state.update {
-        if (it.points == null) it.copy(exemplar = box) else it
+        if (it.points == null) it.copy(exemplar = box, error = null) else it
     }
 
     /**
@@ -130,16 +155,26 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
         val exemplar = _state.value.exemplar ?: return
         val crop = _state.value.crop ?: return
         if (_state.value.counting) return
-        _state.update { it.copy(counting = true) }
+        _state.update { it.copy(counting = true, error = null) }
         val cancelled = countJob
         countJob = viewModelScope.launch {
             // A cancelled count still occupies the model until it returns; don't run two at once.
             cancelled?.join()
-            // Waits for the counter if it is still being prepared; a preparation error fails here.
-            val counter = objectCounter.get()
+            Log.i(TAG, "Counting in $crop like $exemplar")
             val (result, duration) =
-                withContext(Dispatchers.Default) {
-                    measureTimedValue { counter.detect(photo, listOf(exemplar), crop) }
+                try {
+                    // Waits for the counter if it is still being prepared; a preparation error
+                    // fails here.
+                    val counter = objectCounter.get()
+                    withContext(Dispatchers.Default) {
+                        measureTimedValue { counter.detect(photo, listOf(exemplar), crop) }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Cannot count in $crop like $exemplar", e)
+                    _state.update { it.copy(counting = false, error = CountError.CountFailed) }
+                    return@launch
                 }
             val detections = result.detections
             Log.i(TAG, "${detections.size} objects in $duration")
@@ -164,13 +199,22 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun decode(uri: Uri): Bitmap {
         val source = ImageDecoder.createSource(getApplication<Application>().contentResolver, uri)
-        return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-            val size = info.size
-            val factor = MAX_PHOTO_SIZE.toFloat() / max(size.width, size.height)
-            if (factor < 1) {
-                decoder.setTargetSize((size.width * factor).toInt(), (size.height * factor).toInt())
+        var original: Size? = null
+        val (photo, duration) =
+            measureTimedValue {
+                ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    val size = info.size.also { original = it }
+                    val factor = MAX_PHOTO_SIZE.toFloat() / max(size.width, size.height)
+                    if (factor < 1) {
+                        decoder.setTargetSize(
+                            (size.width * factor).toInt(),
+                            (size.height * factor).toInt(),
+                        )
+                    }
+                }
             }
-        }
+        Log.i(TAG, "Decoded $original photo to ${photo.width}x${photo.height} in $duration")
+        return photo
     }
 }
