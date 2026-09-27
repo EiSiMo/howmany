@@ -1,10 +1,10 @@
 {
-  "samples": 33,
-  "mae": 4.606060606060606,
-  "rmse": 9.60744660682693,
-  "mean_relative_error": 0.20450857409662132,
-  "exact_rate": 0.3333333333333333,
-  "within_5_percent_rate": 0.45454545454545453,
-  "within_10_percent_rate": 0.5454545454545454,
-  "mean_seconds": 6.138854356303014
+  "samples": 29,
+  "mae": 3.206896551724138,
+  "rmse": 7.3789074978663995,
+  "mean_relative_error": 0.17978560442819463,
+  "exact_rate": 0.3793103448275862,
+  "within_5_percent_rate": 0.5172413793103449,
+  "within_10_percent_rate": 0.5862068965517241,
+  "mean_seconds": 6.232370117034501
 }

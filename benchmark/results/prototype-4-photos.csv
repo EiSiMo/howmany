@@ -1,34 +1,30 @@
 image,category,true_count,predicted_count,error,seconds
-blueten1.jpg,flowers,45,58,13,10.8833
-blueten2.jpg,flowers,43,40,-3,6.1600
-bolzen.jpg,bolts,13,9,-4,5.8946
-bonbons.jpg,candies,10,15,5,5.9574
-buecher.jpg,books,11,13,2,5.9468
-cents.jpg,coins,68,68,0,6.0009
-colas.jpg,gummy bottles,10,10,0,5.9439
-discokugeln.jpg,disco balls,10,10,0,5.9815
-files.jpg,files,17,53,36,5.9615
-gluehbirnen.jpg,light bulbs,8,9,1,6.0035
-kaffee.jpg,coffee beans,58,58,0,5.9606
-koerner.jpg,sunflower seeds,93,128,35,6.0029
-latten.jpg,planks,32,31,-1,5.9588
-mauer.jpg,bricks,257,266,9,6.0413
-menschen.jpg,people,6,9,3,5.9923
-muenzen.jpg,coins,22,22,0,5.9868
-muenzen-stapel.jpg,coins,14,17,3,5.9541
-muttern.jpg,hex nuts,10,12,2,6.0382
-noppen.jpg,hexagons,63,63,0,5.9694
-pflastersteine.jpg,paving stones,145,145,0,6.0201
-pillen1.jpg,pills,35,33,-2,5.9841
-pillen2.jpg,pills,16,16,0,5.9802
-pilze.jpg,mushrooms,40,45,5,6.0179
-rote-deckel.jpg,red bottle caps,10,18,8,6.0208
-schrauben.jpg,screws,19,20,1,5.9600
-schwarze-steine.jpg,black stones,28,34,6,6.0140
-steine.jpg,stones,22,21,-1,5.9965
-strichliste.jpg,tally marks,31,38,7,5.9988
-tomaten1.jpg,tomatoes,14,14,0,5.9683
-tomaten2.jpg,tomatoes,22,23,1,6.0083
-waescheklammern.jpg,clothespins,17,13,-4,5.9764
-wallnuesse.jpg,walnuts,26,26,0,6.0046
-zitronen.jpg,lemons,4,4,0,5.9944
+bolzen.jpg,bolts,13,9,-4,9.6396
+bonbons.jpg,candies,10,15,5,6.1807
+buecher.jpg,books,11,13,2,5.9980
+cents.jpg,coins,68,68,0,6.1084
+colas.jpg,gummy bottles,10,10,0,6.0895
+discokugeln.jpg,disco balls,10,10,0,6.1106
+files.jpg,files,17,53,36,6.0508
+gluehbirnen.jpg,light bulbs,8,9,1,6.0903
+kaffee.jpg,coffee beans,58,58,0,6.0715
+latten.jpg,planks,32,31,-1,6.1233
+mauer.jpg,bricks,257,266,9,6.1065
+menschen.jpg,people,6,9,3,6.1005
+muenzen.jpg,coins,22,22,0,6.0417
+muenzen-stapel.jpg,coins,14,17,3,6.1382
+muttern.jpg,hex nuts,10,12,2,6.1032
+noppen.jpg,hexagons,63,63,0,6.5632
+pflastersteine.jpg,paving stones,145,145,0,6.1751
+pillen1.jpg,pills,35,33,-2,6.1760
+pillen2.jpg,pills,16,16,0,6.0215
+pilze.jpg,mushrooms,40,45,5,6.0494
+schrauben.jpg,screws,19,20,1,6.0335
+schwarze-steine.jpg,black stones,28,34,6,6.1730
+steine.jpg,stones,22,21,-1,6.0693
+strichliste.jpg,tally marks,31,38,7,6.1466
+tomaten1.jpg,tomatoes,14,14,0,6.0796
+tomaten2.jpg,tomatoes,22,23,1,6.0938
+waescheklammern.jpg,clothespins,17,13,-4,6.1001
+wallnuesse.jpg,walnuts,26,26,0,6.0855
+zitronen.jpg,lemons,4,4,0,6.0193
