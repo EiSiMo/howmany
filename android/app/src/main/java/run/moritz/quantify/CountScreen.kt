@@ -173,6 +173,8 @@ fun CountScreen(viewModel: CountViewModel) {
             Column(Modifier.fillMaxSize().padding(padding)) {
                 val hint =
                     when {
+                        points != null && points.any { it in state.uncertain } ->
+                            R.string.correct_uncertain
                         points != null -> R.string.correct
                         state.counting -> R.string.counting
                         state.exemplar == null -> R.string.mark_example
@@ -184,6 +186,7 @@ fun CountScreen(viewModel: CountViewModel) {
                     crop = crop,
                     exemplar = state.exemplar.takeIf { points == null },
                     points = points.orEmpty(),
+                    uncertain = state.uncertain,
                     onAdjustCrop = viewModel::adjustCrop.takeIf { !state.counting },
                     onMarkExemplar =
                         viewModel::markExemplar.takeIf { points == null && !state.counting },
@@ -280,10 +283,10 @@ private sealed interface PhotoDrag {
 }
 
 /**
- * Shows the photo with its crop and the example or the counted points. Two fingers zoom and pan.
- * One finger drags the crop's edges while [onAdjustCrop] is given; elsewhere it drags a box around
- * one object while [onMarkExemplar] is given, and pans otherwise. Taps go to [onTap], with a hit
- * radius in image pixels.
+ * Shows the photo with its crop and the example or the counted points, the [uncertain] ones
+ * highlighted. Two fingers zoom and pan. One finger drags the crop's edges while [onAdjustCrop] is
+ * given; elsewhere it drags a box around one object while [onMarkExemplar] is given, and pans
+ * otherwise. Taps go to [onTap], with a hit radius in image pixels.
  */
 @Composable
 private fun Photo(
@@ -291,6 +294,7 @@ private fun Photo(
     crop: ImageBox,
     exemplar: ImageBox?,
     points: List<Point>,
+    uncertain: Set<Point>,
     onAdjustCrop: ((ImageBox) -> Unit)?,
     onMarkExemplar: ((ImageBox) -> Unit)?,
     onTap: ((at: Point, hitRadius: Float) -> Unit)?,
@@ -307,6 +311,7 @@ private fun Photo(
     val tap by rememberUpdatedState(onTap)
     val exemplarColor = MaterialTheme.colorScheme.tertiary
     val pointColor = MaterialTheme.colorScheme.primary
+    val uncertainColor = MaterialTheme.colorScheme.error
     val handleColor = MaterialTheme.colorScheme.primary
     val textMeasurer = rememberTextMeasurer()
     val margin = with(LocalDensity.current) { PHOTO_MARGIN.toPx() }
@@ -403,7 +408,8 @@ private fun Photo(
         }
         drawCropHandles(cropRect, handleColor)
         points.forEachIndexed { index, point ->
-            drawPoint(current.toView(Offset(point.x, point.y)), index + 1, pointColor, textMeasurer)
+            val color = if (point in uncertain) uncertainColor else pointColor
+            drawPoint(current.toView(Offset(point.x, point.y)), index + 1, color, textMeasurer)
         }
         val dragged = drag
         val rect =

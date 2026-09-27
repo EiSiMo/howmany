@@ -31,6 +31,20 @@ private const val EXEMPLAR_SIZE = 80f
 private const val PEAK_RATIO = 1f / 8
 private const val SCORE_RATIO = 0.11f
 private const val NMS_IOU = 0.5f
+// Below this confidence, half of the detections on our photos and FSC-147 are false; above 0.7
+// only 2%. Flagging these asks the user to check a fifth of the detections, which hold three
+// quarters of the false ones.
+private const val UNCERTAIN_BELOW = 0.5f
+
+/**
+ * One detected object: its [box] in image pixels, and the model's [confidence] relative to the best
+ * detection in the image, from 1 for the best down to about 0.1.
+ */
+data class Detection(val box: Box, val confidence: Float) {
+    /** Whether the detection is often wrong, so the user should check it. */
+    val uncertain
+        get() = confidence < UNCERTAIN_BELOW
+}
 
 /**
  * The model's output on a square grid: an objectness score per cell (row-major), and per cell the
@@ -46,37 +60,37 @@ internal fun inputScale(imageWidth: Int, imageHeight: Int, exemplars: List<Box>)
 }
 
 /**
- * Picks one box per detected object, in image pixels, in reading order: row by row from the top,
- * each row from left to right.
+ * Picks one detection per object, with its box in image pixels, in reading order: row by row from
+ * the top, each row from left to right.
  */
 internal fun decodeDetections(
     output: ModelOutput,
     scale: Float,
     imageWidth: Int,
     imageHeight: Int,
-): List<Box> {
+): List<Detection> {
     val peaks = peaks(output)
     val best = peaks.maxOfOrNull { output.objectness[it] } ?: return emptyList()
     val candidates =
         peaks
             .filter { output.objectness[it] > best * SCORE_RATIO }
             .sortedByDescending { output.objectness[it] }
-            .map { box(output, it) }
+            .map { Detection(box(output, it), output.objectness[it] / best) }
     return suppressDuplicates(candidates)
-        .map { it.scaled(INPUT_SIZE / scale) }
-        .filter { it.center.x < imageWidth && it.center.y < imageHeight }
+        .map { it.copy(box = it.box.scaled(INPUT_SIZE / scale)) }
+        .filter { it.box.center.x < imageWidth && it.box.center.y < imageHeight }
         .inReadingOrder()
 }
 
 /** A box starts a new row unless its center lies within the height of the row's first box. */
-private fun List<Box>.inReadingOrder(): List<Box> {
-    val rows = mutableListOf<MutableList<Box>>()
-    for (box in sortedBy { it.center.y }) {
+private fun List<Detection>.inReadingOrder(): List<Detection> {
+    val rows = mutableListOf<MutableList<Detection>>()
+    for (detection in sortedBy { it.box.center.y }) {
         val row = rows.lastOrNull()
-        if (row != null && box.center.y <= row.first().bottom) row += box
-        else rows += mutableListOf(box)
+        if (row != null && detection.box.center.y <= row.first().box.bottom) row += detection
+        else rows += mutableListOf(detection)
     }
-    return rows.flatMap { row -> row.sortedBy { it.center.x } }
+    return rows.flatMap { row -> row.sortedBy { it.box.center.x } }
 }
 
 /** Cells that are 3 x 3 local maxima above the peak threshold. */
@@ -109,11 +123,11 @@ private fun box(output: ModelOutput, cell: Int): Box {
     )
 }
 
-/** Greedy non-maximum suppression over boxes sorted by descending score. */
-private fun suppressDuplicates(boxes: List<Box>): List<Box> {
-    val kept = mutableListOf<Box>()
-    for (box in boxes) {
-        if (kept.none { iou(it, box) > NMS_IOU }) kept += box
+/** Greedy non-maximum suppression over detections sorted by descending confidence. */
+private fun suppressDuplicates(detections: List<Detection>): List<Detection> {
+    val kept = mutableListOf<Detection>()
+    for (detection in detections) {
+        if (kept.none { iou(it.box, detection.box) > NMS_IOU }) kept += detection
     }
     return kept
 }

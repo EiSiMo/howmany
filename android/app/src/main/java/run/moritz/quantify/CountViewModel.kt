@@ -37,6 +37,8 @@ data class CountState(
      * since counting; null until counted.
      */
     val points: List<Point>? = null,
+    /** The counted points the model is unsure about, which the user should check. */
+    val uncertain: Set<Point> = emptySet(),
     /** Whether the user has corrected the counted points. */
     val corrected: Boolean = false,
     val duration: Duration? = null,
@@ -105,7 +107,12 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
             Log.i(TAG, "${detections.size} objects in $duration")
             _state.update {
                 it.copy(
-                    points = detections.map { box -> box.center },
+                    points = detections.map { detection -> detection.box.center },
+                    uncertain =
+                        detections
+                            .filter { detection -> detection.uncertain }
+                            .map { detection -> detection.box.center }
+                            .toSet(),
                     duration = duration,
                     counting = false,
                 )

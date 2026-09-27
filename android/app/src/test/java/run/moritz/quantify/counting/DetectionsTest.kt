@@ -24,7 +24,10 @@ class DetectionsTest {
         output.objectness(row = 1, column = 2, value = 1f)
         output.offsets(row = 1, column = 2, 0.05f, 0.05f, 0.05f, 0.05f)
 
-        val boxes = decodeDetections(output, scale = 0.5f, imageWidth = 2048, imageHeight = 2048)
+        val boxes =
+            decodeDetections(output, scale = 0.5f, imageWidth = 2048, imageHeight = 2048).map {
+                it.box
+            }
 
         assertBoxes(listOf(Box(921.6f, 409.6f, 1126.4f, 614.4f)), boxes)
     }
@@ -41,7 +44,10 @@ class DetectionsTest {
         output.offsets(row = 12, column = 12, 0.05f, 0.05f, 0.05f, 0.05f)
         output.objectness(row = 12, column = 2, value = 0.1f)
 
-        val boxes = decodeDetections(output, scale = 1f, imageWidth = 1024, imageHeight = 1024)
+        val boxes =
+            decodeDetections(output, scale = 1f, imageWidth = 1024, imageHeight = 1024).map {
+                it.box
+            }
 
         assertEquals(listOf(0.25f, 0.75f), boxes.map { (it.left + it.right) / 2 / 1024 })
     }
@@ -69,7 +75,10 @@ class DetectionsTest {
             output.offsets(row, column, 0.05f, 0.05f, 0.05f, 0.05f)
         }
 
-        val boxes = decodeDetections(output, scale = 1f, imageWidth = 1024, imageHeight = 1024)
+        val boxes =
+            decodeDetections(output, scale = 1f, imageWidth = 1024, imageHeight = 1024).map {
+                it.box
+            }
 
         assertEquals(
             listOf(0.25f to 0.25f, 0.75f to 0.25f, 0.25f to 0.75f, 0.75f to 0.75f),
@@ -86,9 +95,28 @@ class DetectionsTest {
         output.objectness(row = 5, column = 4, value = 0.9f)
         output.offsets(row = 5, column = 4, 0.1f, 0.1f, 0.1f, 0.1f)
 
-        val boxes = decodeDetections(output, scale = 1f, imageWidth = 1024, imageHeight = 1024)
+        val boxes =
+            decodeDetections(output, scale = 1f, imageWidth = 1024, imageHeight = 1024).map {
+                it.box
+            }
 
         assertEquals(listOf(0.25f, 0.75f), boxes.map { it.center().first })
+    }
+
+    @Test
+    fun `rates each detection relative to the best one and flags weak ones as uncertain`() {
+        val output = emptyOutput(gridSize = 16)
+        output.objectness(row = 4, column = 4, value = 2f)
+        output.objectness(row = 4, column = 12, value = 1.2f)
+        output.objectness(row = 12, column = 4, value = 0.6f)
+        for ((row, column) in listOf(4 to 4, 4 to 12, 12 to 4)) {
+            output.offsets(row, column, 0.05f, 0.05f, 0.05f, 0.05f)
+        }
+
+        val detections = decodeDetections(output, scale = 1f, imageWidth = 1024, imageHeight = 1024)
+
+        assertEquals(listOf(1f, 0.6f, 0.3f), detections.map { it.confidence })
+        assertEquals(listOf(false, false, true), detections.map { it.uncertain })
     }
 
     private fun Box.center() = (left + right) / 2 / 1024 to (top + bottom) / 2 / 1024
