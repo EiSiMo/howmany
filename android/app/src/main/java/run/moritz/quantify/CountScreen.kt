@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -32,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -187,6 +189,7 @@ fun CountScreen(viewModel: CountViewModel) {
                     exemplar = state.exemplar.takeIf { points == null },
                     points = points.orEmpty(),
                     uncertain = state.uncertain,
+                    zoomOut = state.counting,
                     onAdjustCrop = viewModel::adjustCrop.takeIf { !state.counting },
                     onMarkExemplar =
                         viewModel::markExemplar.takeIf { points == null && !state.counting },
@@ -284,9 +287,10 @@ private sealed interface PhotoDrag {
 
 /**
  * Shows the photo with its crop and the example or the counted points, the [uncertain] ones
- * highlighted. Two fingers zoom and pan. One finger drags the crop's edges while [onAdjustCrop] is
- * given; elsewhere it drags a box around one object while [onMarkExemplar] is given, and pans
- * otherwise. Taps go to [onTap], with a hit radius in image pixels.
+ * highlighted. Two fingers zoom and pan; when [zoomOut] turns true, it zooms smoothly out to the
+ * whole photo. One finger drags the crop's edges while [onAdjustCrop] is given; elsewhere it drags
+ * a box around one object while [onMarkExemplar] is given, and pans otherwise. Taps go to [onTap],
+ * with a hit radius in image pixels.
  */
 @Composable
 private fun Photo(
@@ -295,6 +299,7 @@ private fun Photo(
     exemplar: ImageBox?,
     points: List<Point>,
     uncertain: Set<Point>,
+    zoomOut: Boolean,
     onAdjustCrop: ((ImageBox) -> Unit)?,
     onMarkExemplar: ((ImageBox) -> Unit)?,
     onTap: ((at: Point, hitRadius: Float) -> Unit)?,
@@ -314,6 +319,13 @@ private fun Photo(
     val handleColor = MaterialTheme.colorScheme.primary
     val textMeasurer = rememberTextMeasurer()
     val margin = with(LocalDensity.current) { PHOTO_MARGIN.toPx() }
+
+    LaunchedEffect(zoomOut) {
+        val from = viewport
+        if (zoomOut && from != null) {
+            animate(0f, 1f) { fraction, _ -> viewport = from.zoomedOut(fraction) }
+        }
+    }
 
     Canvas(
         modifier

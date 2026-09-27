@@ -53,6 +53,16 @@ class ViewportTest {
         assertOffset(Offset(10f, 10f), panned.toView(Offset(0f, 0f)))
     }
 
+    @Test
+    fun `zooms out step by step to the fitted photo`() {
+        val zoomed = fitted.transformed(Offset(0f, 250f), zoom = 2f, pan = Offset.Zero)
+
+        assertOffset(Offset(0f, 0f), zoomed.zoomedOut(0f).toView(Offset(0f, 0f)))
+        assertEquals(0.75f, zoomed.zoomedOut(0.5f).scale, 1e-6f)
+        assertOffset(Offset(0f, 62.5f), zoomed.zoomedOut(0.5f).toView(Offset(0f, 0f)))
+        assertOffset(Offset(0f, 125f), zoomed.zoomedOut(1f).toView(Offset(0f, 0f)))
+    }
+
     private fun assertOffset(expected: Offset, actual: Offset) {
         assertEquals(expected.x, actual.x, 1e-3f)
         assertEquals(expected.y, actual.y, 1e-3f)
