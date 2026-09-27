@@ -27,10 +27,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -80,6 +82,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -108,7 +111,7 @@ private val EXEMPLAR_CORNER_STROKE = 3.5.dp
 private val EXEMPLAR_CORNER_LENGTH = 16.dp
 private val EXEMPLAR_RADIUS = 8.dp
 private val EXEMPLAR_HALO = 2.dp
-// Room around the photo, so its edges can be dragged without triggering the back gesture.
+// Room around the photo, so its edges can be grabbed from outside too.
 private val PHOTO_MARGIN = 24.dp
 // The controls float in the thumb zone: a hint above the shutter, which sits this high.
 private val CONTROLS_BOTTOM = 20.dp
@@ -529,8 +532,33 @@ private fun Photo(
                 }
             if (rect != null) drawExemplarFrame(rect)
         }
+        if (onAdjustCrop != null) {
+            for (handle in SIDE_HANDLES) {
+                Box(
+                    Modifier.offset {
+                            val current = viewport ?: return@offset IntOffset.Zero
+                            val at = handle(crop.inView(current))
+                            (at - Offset(HANDLE_REACH.toPx(), HANDLE_REACH.toPx())).round()
+                        }
+                        .size(HANDLE_REACH * 2)
+                        .systemGestureExclusion()
+                )
+            }
+        }
     }
 }
+
+// The handles on the crop's left and right edges, where the back gesture would steal the drag.
+// Android excludes at most 200dp per screen edge, which these fit.
+private val SIDE_HANDLES: List<(Rect) -> Offset> =
+    listOf(
+        Rect::topLeft,
+        Rect::centerLeft,
+        Rect::bottomLeft,
+        Rect::topRight,
+        Rect::centerRight,
+        Rect::bottomRight,
+    )
 
 /** A thin frame around the crop, with a bracket at each corner and a bar in each edge's middle. */
 private fun DrawScope.drawCropHandles(crop: Rect, color: Color) {
