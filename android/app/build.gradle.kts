@@ -48,10 +48,13 @@ val copyModel by
     tasks.registering(CopyBenchmarkFiles::class) {
         files.from(benchmarkData.resolve("geco2-int8.onnx"))
     }
-// An FSC-147 test image the benchmark also counts, for comparing app and benchmark results.
+// FSC-147 test images the benchmark also counts, for comparing app and benchmark results.
 val copySample by
     tasks.registering(CopyBenchmarkFiles::class) {
-        files.from(benchmarkData.resolve("images/2147.jpg"))
+        files.from(
+            benchmarkData.resolve("images/2147.jpg"),
+            benchmarkData.resolve("images/5574.jpg"),
+        )
     }
 
 androidComponents {

@@ -6,34 +6,54 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import kotlin.time.measureTimedValue
+import org.junit.AfterClass
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ObjectCounterTest {
+    // The benchmark's first exemplar for each image and prototype 4's count with it.
+
+    /** Apples filling only ~12% of the model input: the typical case. */
     @Test
-    fun countsLikeTheBenchmark() {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val model =
-            instrumentation.targetContext.let { context ->
+    fun countsApplesLikeTheBenchmark() =
+        countsLikeTheBenchmark("2147.jpg", Box(122f, 133f, 222f, 231f), 34)
+
+    /** Small marbles filling the whole model input: the worst case for time and memory. */
+    @Test
+    fun countsMarblesLikeTheBenchmark() =
+        countsLikeTheBenchmark("5574.jpg", Box(280f, 218f, 301f, 240f), 93)
+
+    private fun countsLikeTheBenchmark(name: String, exemplar: Box, expected: Int) {
+        val image = instrumentation.context.assets.open(name).use(BitmapFactory::decodeStream)
+        val runs = List(4) { measureTimedValue { counter.detect(image, listOf(exemplar)) } }
+        runs.forEach { Log.i(TAG, "$name: ${it.value.size} objects in ${it.duration}") }
+        Log.i(TAG, "$name: peak memory so far ${peakMemoryMb()} MB")
+
+        assertEquals(expected.toFloat(), runs.last().value.size.toFloat(), expected * 0.05f)
+    }
+
+    companion object {
+        private const val TAG = "ObjectCounterTest"
+        private val instrumentation = InstrumentationRegistry.getInstrumentation()
+        private val counter by lazy {
+            val context = instrumentation.targetContext
+            val model =
                 File(context.cacheDir, MODEL_ASSET).also { file ->
                     context.assets.open(MODEL_ASSET).use { it.copyTo(file.outputStream()) }
                 }
-            }
-        val image = instrumentation.context.assets.open("2147.jpg").use(BitmapFactory::decodeStream)
-        // The benchmark's first exemplar for this image; prototype 4 finds 34 apples with it.
-        val exemplars = listOf(Box(122f, 133f, 222f, 231f))
-
-        ObjectCounter(model).use { counter ->
-            val runs = List(4) { measureTimedValue { counter.detect(image, exemplars) } }
-            runs.forEach { Log.i(TAG, "${it.value.size} objects in ${it.duration}") }
-
-            assertEquals(34f, runs.last().value.size.toFloat(), 1f)
+            ObjectCounter(model)
         }
-    }
 
-    private companion object {
-        const val TAG = "ObjectCounterTest"
+        /** The process's peak resident memory, as Android's low-memory killer sees it. */
+        private fun peakMemoryMb(): Long =
+            File("/proc/self/status")
+                .readLines()
+                .first { it.startsWith("VmHWM:") }
+                .split(Regex("\\s+"))[1]
+                .toLong() / 1024
+
+        @JvmStatic @AfterClass fun closeCounter() = counter.close()
     }
 }
