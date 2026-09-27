@@ -365,7 +365,7 @@ private fun Photo(
                     Viewport.fit(
                         size.toSize(),
                         Size(photo.width.toFloat(), photo.height.toFloat()),
-                        margin,
+                        Margin(margin),
                     )
             }
             .pointerInput(photo) {

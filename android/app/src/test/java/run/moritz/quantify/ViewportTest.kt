@@ -42,7 +42,7 @@ class ViewportTest {
 
     @Test
     fun `keeps a margin around the photo, also when panning`() {
-        val withMargin = Viewport.fit(Size(520f, 520f), Size(1000f, 500f), margin = 10f)
+        val withMargin = Viewport.fit(Size(520f, 520f), Size(1000f, 500f), Margin(10f))
         assertOffset(Offset(10f, 135f), withMargin.toView(Offset(0f, 0f)))
 
         val panned =
@@ -51,6 +51,23 @@ class ViewportTest {
                 .transformed(Offset.Zero, zoom = 1f, pan = Offset(10_000f, 10_000f))
 
         assertOffset(Offset(10f, 10f), panned.toView(Offset(0f, 0f)))
+    }
+
+    @Test
+    fun `keeps each side's own margin, for controls floating over the photo`() {
+        // 60 free pixels at the top, 140 at the bottom: the photo fits between them.
+        val margins = Margin(left = 0f, top = 60f, right = 0f, bottom = 140f)
+        val fitted = Viewport.fit(Size(500f, 700f), Size(1000f, 1000f), margins)
+        assertEquals(0.5f, fitted.scale, 1e-6f)
+        assertOffset(Offset(0f, 60f), fitted.toView(Offset(0f, 0f)))
+
+        val panned =
+            fitted
+                .transformed(Offset(250f, 350f), zoom = 4f, pan = Offset.Zero)
+                .transformed(Offset.Zero, zoom = 1f, pan = Offset(0f, -10_000f))
+
+        // The photo's bottom edge stops above the controls.
+        assertEquals(560f, panned.toView(Offset(0f, 1000f)).y, 1e-3f)
     }
 
     @Test
