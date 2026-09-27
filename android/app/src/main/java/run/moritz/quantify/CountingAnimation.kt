@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -23,10 +22,10 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Density
-import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import run.moritz.quantify.counting.Box
 import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
 
@@ -331,17 +330,14 @@ private suspend fun everyFrame(
     } while (seconds < until)
 }
 
-/** The distance from the edge of [exemplar] to the farthest corner of [crop]. */
-private fun reach(exemplar: Rect, crop: Rect) =
-    listOf(crop.topLeft, crop.topRight, crop.bottomLeft, crop.bottomRight)
-        .maxOf {
-            Offset(
-                    max(0f, max(exemplar.left - it.x, it.x - exemplar.right)),
-                    max(0f, max(exemplar.top - it.y, it.y - exemplar.bottom)),
-                )
-                .getDistance()
-        }
+/** The distance from the edge of [exemplar] to the farthest corner of [crop], in view pixels. */
+private fun reach(exemplar: Rect, crop: Rect): Float {
+    val from = Box(exemplar.left, exemplar.top, exemplar.right, exemplar.bottom)
+    return Box(crop.left, crop.top, crop.right, crop.bottom)
+        .corners
+        .maxOf(from::distanceTo)
         .coerceAtLeast(1f)
+}
 
 /** From 0 up to 1 over the first [DIM_FADE] seconds of the scan. */
 private fun fadeIn(seconds: Float) = (seconds / DIM_FADE).coerceAtMost(1f)
