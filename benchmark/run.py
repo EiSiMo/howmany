@@ -55,6 +55,16 @@ def evaluate(quantify: Quantify, samples: Sequence[Sample]) -> list[Result]:
     return results
 
 
+def result_name(prototype: Path, exemplars: int, photos: bool) -> str:
+    """Name of a run's result files: the prototype, suffixed for photos and fewer exemplars."""
+    name = prototype.stem
+    if photos:
+        name += "-photos"
+    if exemplars != 3:
+        name += f"-{exemplars}-exemplar"
+    return name
+
+
 def write_results(name: str, results: Sequence[Result], summary: Summary) -> None:
     RESULTS_DIR.mkdir(exist_ok=True)
     with (RESULTS_DIR / f"{name}.csv").open("w", newline="") as file:
@@ -102,11 +112,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    name = args.prototype.stem
-    if args.photos:
-        name += "-photos"
-    if args.exemplars != 3:
-        name += f"-{args.exemplars}-exemplar"
+    name = result_name(args.prototype, args.exemplars, args.photos)
     quantify = load_prototype(args.prototype)
     if args.photos:
         samples = PhotoStore().samples(exemplars=args.exemplars)

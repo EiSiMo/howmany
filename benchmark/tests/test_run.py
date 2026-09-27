@@ -4,7 +4,7 @@ import pytest
 
 from dataset import Sample
 from prototype import load_prototype
-from run import evaluate
+from run import evaluate, result_name
 
 EXEMPLARS = ((10.0, 20.0, 30.0, 40.0), (50.0, 60.0, 70.0, 80.0))
 
@@ -51,3 +51,16 @@ def test_passes_category_as_text_prompt(tmp_path: Path) -> None:
     results = evaluate(quantify, [Sample(tmp_path / "a.jpg", "coins", 5, EXEMPLARS)])
 
     assert results[0].predicted_count == len("coins")
+
+
+@pytest.mark.parametrize(
+    ("exemplars", "photos", "name"),
+    [
+        (3, False, "prototype-4"),
+        (1, False, "prototype-4-1-exemplar"),
+        (3, True, "prototype-4-photos"),
+        (0, True, "prototype-4-photos-0-exemplar"),
+    ],
+)
+def test_names_results_after_prototype_and_setting(exemplars: int, photos: bool, name: str) -> None:
+    assert result_name(Path("prototypes/prototype-4.py"), exemplars, photos) == name
