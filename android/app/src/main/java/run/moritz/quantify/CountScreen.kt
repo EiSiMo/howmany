@@ -142,7 +142,7 @@ fun CountScreen(viewModel: CountViewModel) {
     val points = shown.counted
     // The count rises with the points the reveal has shown so far.
     val revealed by
-        remember(points) { derivedStateOf { points?.count { pointScale(animation, it) > 0 } ?: 0 } }
+        remember(points) { derivedStateOf { points?.count { animation.pointScale(it) > 0 } ?: 0 } }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (photo == null || crop == null) {
@@ -503,13 +503,14 @@ private fun Photo(
                 drawRect(Color.Black.copy(alpha = CROPPED_ALPHA), photoRect.topLeft, photoRect.size)
             }
             if (exemplar != null) {
-                drawCountingAnimation(
-                    animation,
-                    cropRect,
-                    heatmap,
-                    heatmap?.bounds?.inView(current),
-                    pointColor,
-                )
+                with(animation) {
+                    drawCountingAnimation(
+                        cropRect,
+                        heatmap,
+                        heatmap?.bounds?.inView(current),
+                        pointColor,
+                    )
+                }
             }
         }
         Canvas(Modifier.matchParentSize()) {
@@ -518,7 +519,7 @@ private fun Photo(
             points.forEachIndexed { index, point ->
                 val color = if (point in uncertain) UNCERTAIN_COLOR else pointColor
                 val center = current.toView(Offset(point.x, point.y))
-                val scale = pointScale(animation, point)
+                val scale = animation.pointScale(point)
                 if (scale > 0) {
                     scale(scale, center) { drawPoint(center, index + 1, color, textMeasurer) }
                 }
