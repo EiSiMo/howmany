@@ -50,7 +50,7 @@ fun CountScreen(viewModel: CountViewModel) {
     val points = shown.counted
     // The count rises with the points the reveal has shown so far.
     val revealed by
-        remember(points) { derivedStateOf { points?.count { pointScale(animation, it) > 0 } ?: 0 } }
+        remember(points) { derivedStateOf { points?.count { animation.pointScale(it) > 0 } ?: 0 } }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (photo == null || crop == null) {
