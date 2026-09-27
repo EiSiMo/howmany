@@ -58,9 +58,9 @@ private const val GAMMA_FROM = 1.5f
 private const val GAMMA_TO = 10f
 // The waves bend the photo like water: pixels shift by up to about this much where a ring passes,
 // easing in and out over about this width on either side so the ring has no visible edges.
-private val DISTORTION = 5.dp
-private val DISTORTION_WIDTH = 64.dp
-private const val FRONT_BRIGHTNESS = 0.25f
+private val DISTORTION = 3.dp
+private val DISTORTION_WIDTH = 96.dp
+private const val FRONT_BRIGHTNESS = 0.12f
 
 /**
  * The time since counting started and since its result arrived, and the [wave] that reveals the
@@ -417,8 +417,8 @@ private class Distortion {
                 push *= smoothstep(0.0, width * 0.5, length(outwards(p)));
                 float2 offset = direction * push * amplitude * 2.3;
                 half4 color = content.eval(p - offset);
-                color.r = content.eval(p - offset * 1.25).r;
-                color.b = content.eval(p - offset * 0.75).b;
+                color.r = content.eval(p - offset * 1.1).r;
+                color.b = content.eval(p - offset * 0.9).b;
                 float behind = (d - rings.x) / (width * 0.45);
                 float shine = rings.y * exp(-behind * behind) * brightness;
                 color.rgb += half3(shine) * color.a;
