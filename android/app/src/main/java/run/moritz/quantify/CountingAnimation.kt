@@ -175,12 +175,12 @@ class CountingAnimation {
         val revealing = revealing
         if (revealing == null || revealing >= REVEAL) return null
         val reach = reach(exemplar, crop)
-        val rings = listOf(front(revealing) * reach to fadeLate(revealing / REVEAL))
         val arrival = arrivalShader(heatmapRect) ?: return null
         return distortion.effect(
             exemplar,
             crop,
-            rings,
+            front(revealing) * reach,
+            fadeLate(revealing / REVEAL),
             arrival,
             reach,
             with(density) { DISTORTION.toPx() },
@@ -385,36 +385,28 @@ private fun easeOutBack(fraction: Float): Float {
 }
 
 /**
- * Bends the photo along the waves like light through water: pixels move towards or away from the
- * exemplar where a ring passes, colors split slightly, and the reveal's front shines. The exemplar
- * itself stays still.
+ * Bends the photo along the reveal's front like light through water: pixels move towards or away
+ * from the exemplar where the front passes, colors split slightly, and the front shines. The
+ * exemplar itself stays still.
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 private class Distortion {
     private val shader = RuntimeShader(SHADER)
-    // Scanning has no arrivals; the shader still needs some input.
-    private val none =
-        BitmapShader(
-            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888),
-            Shader.TileMode.CLAMP,
-            Shader.TileMode.CLAMP,
-        )
 
     /**
-     * With [arrival], the rings (radius, strength; at most two) are the reveal's front in arrival
-     * times [reach]; without, they run out from the edge of [exemplar].
+     * The front is a ring of [radius] and [strength] in [arrival] times [reach], the distance the
+     * wave covers from the edge of [exemplar] to the farthest corner of [crop].
      */
     fun effect(
         exemplar: Rect,
         crop: Rect,
-        rings: List<Pair<Float, Float>>,
-        arrival: BitmapShader?,
+        radius: Float,
+        strength: Float,
+        arrival: BitmapShader,
         reach: Float,
         amplitude: Float,
         width: Float,
     ): RenderEffect {
-        val first = rings.getOrElse(0) { 0f to 0f }
-        val second = rings.getOrElse(1) { 0f to 0f }
         shader.setFloatUniform(
             "exemplar",
             exemplar.left,
@@ -423,13 +415,12 @@ private class Distortion {
             exemplar.bottom,
         )
         shader.setFloatUniform("crop", crop.left, crop.top, crop.right, crop.bottom)
-        shader.setFloatUniform("rings", first.first, first.second, second.first, second.second)
-        shader.setFloatUniform("reveal", if (arrival != null) 1f else 0f)
+        shader.setFloatUniform("ring", radius, strength)
         shader.setFloatUniform("reach", reach)
         shader.setFloatUniform("amplitude", amplitude)
         shader.setFloatUniform("width", width)
-        shader.setFloatUniform("brightness", if (arrival != null) FRONT_BRIGHTNESS else 0f)
-        shader.setInputShader("arrival", arrival ?: none)
+        shader.setFloatUniform("brightness", FRONT_BRIGHTNESS)
+        shader.setInputShader("arrival", arrival)
         return AndroidRenderEffect.createRuntimeShaderEffect(shader, "content")
             .asComposeRenderEffect()
     }
@@ -441,8 +432,7 @@ private class Distortion {
             uniform shader arrival;
             uniform float4 exemplar;
             uniform float4 crop;
-            uniform float4 rings;
-            uniform float reveal;
+            uniform float2 ring;
             uniform float reach;
             uniform float amplitude;
             uniform float width;
@@ -455,8 +445,7 @@ private class Distortion {
 
             // How far the wave has come to p, in pixels.
             float field(float2 p) {
-                if (reveal > 0.5) return arrival.eval(p).r * reach;
-                return length(outwards(p));
+                return arrival.eval(p).r * reach;
             }
 
             // One wave crest: pushes outwards just ahead of the ring, inwards just behind it.
@@ -470,25 +459,20 @@ private class Distortion {
                     return content.eval(p);
                 }
                 float d = field(p);
-                float2 direction;
-                if (reveal > 0.5) {
-                    float e = 2.0;
-                    direction = float2(field(p + float2(e, 0)) - field(p - float2(e, 0)),
-                                       field(p + float2(0, e)) - field(p - float2(0, e)));
-                } else {
-                    direction = outwards(p) * sign(p - (exemplar.xy + exemplar.zw) * 0.5);
-                }
+                float e = 2.0;
+                float2 direction = float2(field(p + float2(e, 0)) - field(p - float2(e, 0)),
+                                          field(p + float2(0, e)) - field(p - float2(0, e)));
                 float size = length(direction);
                 direction = size > 0.0001 ? direction / size : float2(0);
-                float push = rings.y * crest(d - rings.x) + rings.w * crest(d - rings.z);
+                float push = ring.y * crest(d - ring.x);
                 // Fades in from the exemplar's edge, so the exemplar stays still without a seam.
                 push *= smoothstep(0.0, width * 0.5, length(outwards(p)));
                 float2 offset = direction * push * amplitude * 2.3;
                 half4 color = content.eval(p - offset);
                 color.r = content.eval(p - offset * 1.1).r;
                 color.b = content.eval(p - offset * 0.9).b;
-                float behind = (d - rings.x) / width;
-                float shine = rings.y * exp(-behind * behind) * brightness;
+                float behind = (d - ring.x) / width;
+                float shine = ring.y * exp(-behind * behind) * brightness;
                 color.rgb += half3(shine) * color.a;
                 return color;
             }
