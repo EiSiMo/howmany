@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>quantify labeller</title>
+<style>
+  :root {
+    --bg: #16181c; --panel: #1f2228; --line: #30343c; --text: #e6e8eb; --muted: #8b919c;
+    --todo: #e8a33d; --done: #4cc38a; --off: #6b717c; --bad: #e5534b; --accent: #4a9eff;
+    --point: #ff3dd8; --box: #ffd83d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, sans-serif; }
+  body { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: auto 1fr; height: 100vh; }
+  aside { grid-row: 1 / 3; background: var(--panel); border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; min-height: 0; }
+  #summary { padding: 12px; border-bottom: 1px solid var(--line); }
+  #summary .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 6px 0; }
+  #summary .bar div { height: 100%; width: 0; background: var(--done); }
+  #summary label { color: var(--muted); font-size: 12px; user-select: none; }
+  #list { overflow-y: auto; flex: 1; }
+  #list button { display: flex; width: 100%; gap: 8px; align-items: center; padding: 6px 12px;
+    background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  #list button:hover { background: #262a31; }
+  #list button.current { background: #2c3440; }
+  #list .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #list .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--todo); }
+  .dot.complete { background: var(--done); }
+  .dot.excluded { background: var(--off); }
+  .dot.missing-image { background: var(--bad); }
+  header { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 8px 12px;
+    background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0 6px 0 0; }
+  header input { background: var(--bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 8px; font: inherit; width: 180px; }
+  header input.missing { border-color: var(--todo); }
+  .group { display: flex; gap: 4px; }
+  header button { background: #2a2e36; color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer; }
+  header button:hover { border-color: var(--muted); }
+  header button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  header button.primary { background: var(--done); border-color: var(--done); color: #0d1a13; font-weight: 600; }
+  kbd { font-size: 11px; opacity: .7; }
+  #count { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 60px; text-align: right; }
+  #next { color: var(--todo); flex-basis: 100%; font-size: 13px; }
+  #next.complete { color: var(--done); }
+  #next.excluded { color: var(--muted); }
+  #save { margin-left: auto; color: var(--muted); font-size: 12px; }
+  #save.error { color: var(--bad); }
+  main { position: relative; overflow: hidden; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #message { position: absolute; inset: 0; display: none; place-items: center; color: var(--muted);
+    font-size: 16px; text-align: center; padding: 40px; }
+  #toast { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); background: #000c;
+    padding: 8px 14px; border-radius: 8px; display: none; }
+  #help { position: absolute; right: 12px; bottom: 12px; background: #000a; padding: 8px 12px;
+    border-radius: 8px; font-size: 12px; color: #cfd3d9; line-height: 1.6; pointer-events: none; }
+</style>
+</head>
+<body>
+<aside>
+  <div id="summary">
+    <div id="progress"></div>
+    <div class="bar"><div id="progress-bar"></div></div>
+    <label><input type="checkbox" id="only-open"> only show open photos</label>
+  </div>
+  <div id="list"></div>
+</aside>
+<header>
+  <h1 id="title">–</h1>
+  <input id="category" placeholder="category, e.g. coins" autocomplete="off" spellcheck="false">
+  <div class="group">
+    <button id="mode-exemplars" title="Drag to draw an exemplar box">Exemplars <span id="exemplar-count"></span> <kbd>E</kbd></button>
+    <button id="mode-points" title="Click to add a point per object">Points <kbd>P</kbd></button>
+  </div>
+  <span id="count">0</span>
+  <div class="group">
+    <button id="undo">Undo <kbd>Ctrl+Z</kbd></button>
+    <button id="fit">Fit <kbd>F</kbd></button>
+    <button id="exclude">Exclude</button>
+    <button id="complete" class="primary">Complete <kbd>Enter</kbd></button>
+  </div>
+  <span id="save"></span>
+  <div id="next"></div>
+</header>
+<main>
+  <canvas id="canvas"></canvas>
+  <div id="message"></div>
+  <div id="toast"></div>
+  <div id="help">
+    Wheel: zoom · Space/middle drag: pan · Right click: remove<br>
+    Exemplars: drag a box · Points: click, drag pans<br>
+    H: hide marks · ←/→: previous/next · N: next open photo
+  </div>
+</main>
+<script>
+"use strict";
+const EXEMPLARS = 3;
+const POINT_RADIUS = 5;
+const HIT_RADIUS = 10;
+const DRAG_THRESHOLD = 4;
+const SAVE_DELAY_MS = 400;
+const NEXT_STEP = {
+  "missing image": "The photo is missing locally: ingest the original photos again.",
+  "needs category": "Type the category in English, plural, like FSC-147 (e.g. coins).",
+  "needs exemplars": "Draw 3 exemplar boxes around typical objects, each tight around one object.",
+  "needs points": "Click every object once, then press Enter to mark the photo complete.",
+  "complete": "Complete. Edits are still saved.",
+  "excluded": "Excluded from the benchmark.",
+};
+
+const $ = (id) => document.getElementById(id);
+const canvas = $("canvas");
+const context = canvas.getContext("2d");
+
+let photos = [];          // [{name, status, count}]
+let current = null;       // {name, status, category, exemplars, points, complete, excluded}
+let image = null;
+let mode = "points";
+let view = { scale: 1, x: 0, y: 0 };
+let history = [];
+let hideMarks = false;
+let spaceDown = false;
+let pointer = null;       // active drag: {button, startX, startY, lastX, lastY, moved, pan}
+let saveTimer = null;
+let saving = Promise.resolve();
+
+// --- data -------------------------------------------------------------------------------
+
+async function api(path, options = {}) {
+  const response = await fetch(path, options);
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error || response.statusText);
+  return body;
+}
+
+function isOpen(photo) {
+  return photo.status !== "complete" && photo.status !== "excluded";
+}
+
+async function loadList() {
+  photos = await api("/api/photos");
+  renderList();
+}
+
+async function openPhoto(name) {
+  await flushSave();
+  current = await api(`/api/photos/${encodeURIComponent(name)}`);
+  history = [];
+  image = null;
+  $("title").textContent = name;
+  $("category").value = current.category;
+  mode = current.exemplars.length < EXEMPLARS ? "exemplars" : "points";
+  renderAll();
+  if (current.status === "missing image") return;
+  const loading = new Image();
+  loading.onload = () => {
+    if (current?.name !== name) return;
+    image = loading;
+    fit();
+  };
+  loading.onerror = () => showMessage(`Could not load the image of ${name}.`);
+  loading.src = `/images/${encodeURIComponent(name)}.jpg`;
+}
+
+function labelBody() {
+  const { category, exemplars, points, complete, excluded } = current;
+  return JSON.stringify({ category, exemplars, points, complete, excluded });
+}
+
+function scheduleSave() {
+  $("save").textContent = "unsaved";
+  $("save").className = "";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, SAVE_DELAY_MS);
+}
+
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const name = current.name;
+  const body = labelBody();
+  saving = saving.then(async () => {
+    try {
+      const saved = await api(`/api/photos/${encodeURIComponent(name)}`, { method: "PUT", body });
+      const photo = photos.find((p) => p.name === name);
+      Object.assign(photo, { status: saved.status, count: saved.count });
+      if (current.name === name) current.status = saved.status;
+      $("save").textContent = "saved";
+      $("save").className = "";
+    } catch (error) {
+      $("save").textContent = `not saved: ${error.message}`;
+      $("save").className = "error";
+    }
+    renderList();
+    renderHeader();
+  });
+  return saving;
+}
+
+function flushSave() {
+  return saveTimer ? save() : saving;
+}
+
+function change(update) {
+  history.push(labelBody());
+  update();
+  scheduleSave();
+  renderAll();
+}
+
+function undo() {
+  const previous = history.pop();
+  if (!previous) return toast("Nothing to undo");
+  Object.assign(current, JSON.parse(previous));
+  $("category").value = current.category;
+  scheduleSave();
+  renderAll();
+}
+
+// --- navigation -------------------------------------------------------------------------
+
+function visiblePhotos() {
+  return $("only-open").checked ? photos.filter((p) => isOpen(p) || p.name === current?.name) : photos;
+}
+
+function step(offset) {
+  const list = visiblePhotos();
+  const index = list.findIndex((p) => p.name === current?.name);
+  const next = list[index + offset];
+  if (next) openPhoto(next.name);
+}
+
+function nextOpen() {
+  const index = photos.findIndex((p) => p.name === current?.name);
+  const next = [...photos.slice(index + 1), ...photos.slice(0, index)].find(isOpen);
+  if (next) openPhoto(next.name);
+  else toast("All photos are labelled 🎉");
+}
+
+async function markComplete() {
+  const missing = [];
+  if (!current.category) missing.push("a category");
+  if (current.exemplars.length < EXEMPLARS) missing.push(`${EXEMPLARS} exemplars`);
+  if (!current.points.length) missing.push("points");
+  if (missing.length) return toast(`Still needs ${missing.join(", ")}`);
+  if (current.complete) {
+    change(() => (current.complete = false));
+    return;
+  }
+  change(() => (current.complete = true));
+  await flushSave();
+  if (current.status === "complete") nextOpen();
+}
+
+// --- rendering --------------------------------------------------------------------------
+
+function renderAll() {
+  renderList();
+  renderHeader();
+  draw();
+}
+
+function renderList() {
+  const done = photos.filter((p) => p.status === "complete").length;
+  const excluded = photos.filter((p) => p.status === "excluded").length;
+  const open = photos.length - done - excluded;
+  $("progress").textContent = `${done} complete · ${open} open · ${excluded} excluded`;
+  $("progress-bar").style.width = `${(100 * done) / Math.max(1, photos.length - excluded)}%`;
+  const list = $("list");
+  list.replaceChildren(
+    ...visiblePhotos().map((photo) => {
+      const button = document.createElement("button");
+      button.className = photo.name === current?.name ? "current" : "";
+      button.title = photo.status;
+      button.innerHTML = `<span class="dot"></span><span class="name"></span><span class="count"></span>`;
+      button.querySelector(".dot").classList.add(photo.status.replace(" ", "-"));
+      button.querySelector(".name").textContent = photo.name;
+      button.querySelector(".count").textContent = photo.count || "";
+      button.onclick = () => openPhoto(photo.name);
+      return button;
+    }),
+  );
+  list.querySelector(".current")?.scrollIntoView({ block: "nearest" });
+}
+
+function renderHeader() {
+  if (!current) return;
+  $("count").textContent = current.points.length;
+  $("exemplar-count").textContent = `${current.exemplars.length}/${EXEMPLARS}`;
+  $("mode-points").classList.toggle("active", mode === "points");
+  $("mode-exemplars").classList.toggle("active", mode === "exemplars");
+  $("category").classList.toggle("missing", !current.category);
+  $("exclude").textContent = current.excluded ? "Include" : "Exclude";
+  $("complete").innerHTML = current.complete ? "Reopen" : "Complete <kbd>Enter</kbd>";
+  $("next").textContent = NEXT_STEP[current.status] ?? current.status;
+  $("next").className = current.status;
+  if (current.status === "missing image") showMessage(NEXT_STEP["missing image"]);
+  else if (current.excluded) showMessage("Excluded from the benchmark. Click Include to label it.");
+  else hideMessage();
+}
+
+function showMessage(text) {
+  $("message").textContent = text;
+  $("message").style.display = "grid";
+}
+
+function hideMessage() {
+  $("message").style.display = "none";
+}
+
+let toastTimer = null;
+function toast(text) {
+  $("toast").textContent = text;
+  $("toast").style.display = "block";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ($("toast").style.display = "none"), 2200);
+}
+
+function resizeCanvas() {
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * ratio;
+  canvas.height = canvas.clientHeight * ratio;
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+}
+
+function fit() {
+  if (!image) return;
+  const scale = Math.min(canvas.clientWidth / image.width, canvas.clientHeight / image.height) * 0.97;
+  view = {
+    scale,
+    x: (canvas.clientWidth - image.width * scale) / 2,
+    y: (canvas.clientHeight - image.height * scale) / 2,
+  };
+  draw();
+}
+
+const toScreen = (x, y) => [x * view.scale + view.x, y * view.scale + view.y];
+const toImage = (x, y) => [(x - view.x) / view.scale, (y - view.y) / view.scale];
+
+function draw() {
+  context.save();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.restore();
+  if (!image || !current || current.excluded) return;
+  context.imageSmoothingEnabled = view.scale < 2;
+  context.drawImage(image, view.x, view.y, image.width * view.scale, image.height * view.scale);
+  if (hideMarks) return;
+
+  context.lineWidth = 2;
+  current.exemplars.forEach(([x1, y1, x2, y2], index) => {
+    const [sx1, sy1] = toScreen(x1, y1);
+    const [sx2, sy2] = toScreen(x2, y2);
+    context.fillStyle = "rgba(255, 216, 61, 0.12)";
+    context.strokeStyle = getComputedStyle(document.body).getPropertyValue("--box");
+    context.fillRect(sx1, sy1, sx2 - sx1, sy2 - sy1);
+    context.strokeRect(sx1, sy1, sx2 - sx1, sy2 - sy1);
+    context.fillStyle = "#000";
+    context.fillRect(sx1, sy1 - 16, 16, 16);
+    context.fillStyle = "#ffd83d";
+    context.font = "bold 12px system-ui";
+    context.fillText(String(index + 1), sx1 + 4, sy1 - 4);
+  });
+
+  const pointColor = getComputedStyle(document.body).getPropertyValue("--point");
+  for (const [x, y] of current.points) {
+    const [sx, sy] = toScreen(x, y);
+    context.beginPath();
+    context.arc(sx, sy, POINT_RADIUS, 0, 2 * Math.PI);
+    context.fillStyle = pointColor;
+    context.fill();
+    context.lineWidth = 1.5;
+    context.strokeStyle = "#fff";
+    context.stroke();
+  }
+
+  if (pointer?.box) {
+    const { startX, startY, lastX, lastY } = pointer;
+    context.setLineDash([6, 4]);
+    context.strokeStyle = "#ffd83d";
+    context.lineWidth = 2;
+    context.strokeRect(startX, startY, lastX - startX, lastY - startY);
+    context.setLineDash([]);
+  }
+}
+
+// --- editing ----------------------------------------------------------------------------
+
+const round = (value) => Math.round(value * 10) / 10;
+
+function clampToImage(x, y) {
+  return [Math.min(Math.max(x, 0), image.width), Math.min(Math.max(y, 0), image.height)];
+}
+
+function pointAt(sx, sy) {
+  let best = -1;
+  let bestDistance = HIT_RADIUS;
+  current.points.forEach(([x, y], index) => {
+    const [px, py] = toScreen(x, y);
+    const distance = Math.hypot(px - sx, py - sy);
+    if (distance <= bestDistance) {
+      best = index;
+      bestDistance = distance;
+    }
+  });
+  return best;
+}
+
+function exemplarAt(sx, sy) {
+  const [x, y] = toImage(sx, sy);
+  return current.exemplars.findIndex(([x1, y1, x2, y2]) => x >= x1 && x <= x2 && y >= y1 && y <= y2);
+}
+
+function addPoint(sx, sy) {
+  const [x, y] = toImage(sx, sy);
+  if (x < 0 || y < 0 || x > image.width || y > image.height) return;
+  change(() => current.points.push([round(x), round(y)]));
+}
+
+function addExemplar(sx1, sy1, sx2, sy2) {
+  if (current.exemplars.length >= EXEMPLARS) {
+    return toast(`Already ${EXEMPLARS} exemplars, right click one to remove it`);
+  }
+  const [ax, ay] = clampToImage(...toImage(sx1, sy1));
+  const [bx, by] = clampToImage(...toImage(sx2, sy2));
+  const box = [Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)].map(round);
+  if (box[2] - box[0] < 2 || box[3] - box[1] < 2) return;
+  change(() => {
+    current.exemplars.push(box);
+    // Every exemplar is one of the counted objects: give it a point unless it has one.
+    const hasPoint = current.points.some(([x, y]) => x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3]);
+    if (!hasPoint) current.points.push([round((box[0] + box[2]) / 2), round((box[1] + box[3]) / 2)]);
+    if (current.exemplars.length === EXEMPLARS) mode = "points";
+  });
+}
+
+function removeAt(sx, sy) {
+  const point = pointAt(sx, sy);
+  const exemplar = exemplarAt(sx, sy);
+  if (mode === "exemplars" && exemplar >= 0) change(() => current.exemplars.splice(exemplar, 1));
+  else if (point >= 0) change(() => current.points.splice(point, 1));
+  else if (exemplar >= 0) change(() => current.exemplars.splice(exemplar, 1));
+}
+
+function setMode(next) {
+  mode = next;
+  renderHeader();
+}
+
+// --- input ------------------------------------------------------------------------------
+
+function canvasPosition(event) {
+  const rect = canvas.getBoundingClientRect();
+  return [event.clientX - rect.left, event.clientY - rect.top];
+}
+
+canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+
+canvas.addEventListener("pointerdown", (event) => {
+  if (!image || current.excluded) return;
+  canvas.setPointerCapture(event.pointerId);
+  const [x, y] = canvasPosition(event);
+  const pan = event.button === 1 || spaceDown || (event.button === 0 && mode === "points");
+  const box = event.button === 0 && mode === "exemplars" && !spaceDown;
+  pointer = { button: event.button, startX: x, startY: y, lastX: x, lastY: y, moved: false, pan, box };
+});
+
+canvas.addEventListener("pointermove", (event) => {
+  if (!pointer) return;
+  const [x, y] = canvasPosition(event);
+  if (Math.hypot(x - pointer.startX, y - pointer.startY) > DRAG_THRESHOLD) pointer.moved = true;
+  if (pointer.pan && pointer.moved) {
+    view.x += x - pointer.lastX;
+    view.y += y - pointer.lastY;
+  }
+  pointer.lastX = x;
+  pointer.lastY = y;
+  draw();
+});
+
+canvas.addEventListener("pointerup", (event) => {
+  if (!pointer) return;
+  const { button, startX, startY, moved, box } = pointer;
+  const [x, y] = canvasPosition(event);
+  pointer = null;
+  if (button === 2 && !moved) removeAt(x, y);
+  else if (box && moved) addExemplar(startX, startY, x, y);
+  else if (button === 0 && !moved && mode === "points" && !spaceDown) addPoint(x, y);
+  draw();
+});
+
+canvas.addEventListener("wheel", (event) => {
+  if (!image) return;
+  event.preventDefault();
+  const [x, y] = canvasPosition(event);
+  const factor = Math.exp(-event.deltaY * 0.0015);
+  const scale = Math.min(Math.max(view.scale * factor, 0.02), 20);
+  view.x = x - ((x - view.x) * scale) / view.scale;
+  view.y = y - ((y - view.y) * scale) / view.scale;
+  view.scale = scale;
+  draw();
+}, { passive: false });
+
+$("category").addEventListener("input", () => {
+  change(() => (current.category = $("category").value.trim()));
+});
+$("category").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === "Escape") $("category").blur();
+  event.stopPropagation();
+});
+
+$("mode-points").onclick = () => setMode("points");
+$("mode-exemplars").onclick = () => setMode("exemplars");
+$("undo").onclick = undo;
+$("fit").onclick = fit;
+$("complete").onclick = markComplete;
+$("exclude").onclick = () => change(() => {
+  current.excluded = !current.excluded;
+  if (current.excluded) current.complete = false;
+});
+$("only-open").onchange = renderList;
+
+window.addEventListener("keydown", (event) => {
+  if (!current) return;
+  if (event.key === " ") {
+    spaceDown = true;
+    event.preventDefault();
+  } else if ((event.ctrlKey || event.metaKey) && event.key === "z") {
+    event.preventDefault();
+    undo();
+  } else if (event.ctrlKey || event.metaKey || event.altKey) {
+    return;
+  } else if (event.key === "p" || event.key === "P") setMode("points");
+  else if (event.key === "e" || event.key === "E") setMode("exemplars");
+  else if (event.key === "f" || event.key === "F") fit();
+  else if (event.key === "h" || event.key === "H") {
+    hideMarks = !hideMarks;
+    draw();
+  } else if (event.key === "ArrowRight") step(1);
+  else if (event.key === "ArrowLeft") step(-1);
+  else if (event.key === "n" || event.key === "N") nextOpen();
+  else if (event.key === "Enter") markComplete();
+});
+window.addEventListener("keyup", (event) => {
+  if (event.key === " ") spaceDown = false;
+});
+// The canvas also shrinks when the header wraps, not only when the window resizes.
+new ResizeObserver(() => {
+  resizeCanvas();
+  draw();
+}).observe(canvas);
+window.addEventListener("beforeunload", (event) => {
+  if (saveTimer) {
+    save();
+    event.preventDefault();
+  }
+});
+
+(async () => {
+  resizeCanvas();
+  await loadList();
+  const first = photos.find(isOpen) ?? photos[0];
+  if (first) await openPhoto(first.name);
+})();
+</script>
+</body>
+</html>

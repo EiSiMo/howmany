@@ -5,7 +5,7 @@ A prototype is a Python file that defines
 example instances of the object to count, as a user would mark them; text names the object, as
 a user would type it. Prototypes use whichever prompt they support.
 
-Usage: uv run run.py prototypes/prototype-0.py [--exemplars 0|1|2|3]
+Usage: uv run run.py prototypes/prototype-0.py [--exemplars 0|1|2|3] [--photos]
 """
 
 import argparse
@@ -21,6 +21,7 @@ from types import ModuleType
 
 from dataset import BENCHMARK_DIR, Box, Sample, load_samples
 from metrics import Result, Summary, summarize
+from photos import PhotoStore
 
 logger = logging.getLogger(__name__)
 
@@ -114,13 +115,26 @@ def main() -> None:
         default=3,
         help="exemplar boxes per image, 0 for text only; fewer than 3 adds an -N-exemplar suffix",
     )
+    parser.add_argument(
+        "--photos",
+        action="store_true",
+        help="run on our own completely labelled photos instead of FSC-147; adds a -photos suffix",
+    )
     args = parser.parse_args()
 
     name = args.prototype.stem
+    if args.photos:
+        name += "-photos"
     if args.exemplars != 3:
         name += f"-{args.exemplars}-exemplar"
     quantify = load_prototype(args.prototype)
-    results = evaluate(quantify, load_samples(exemplars=args.exemplars))
+    if args.photos:
+        samples = PhotoStore().samples(exemplars=args.exemplars)
+        if not samples:
+            raise SystemExit("No completely labelled photos yet, label them with `uv run label.py`")
+    else:
+        samples = load_samples(exemplars=args.exemplars)
+    results = evaluate(quantify, samples)
     summary = summarize(results)
     write_results(name, results, summary)
     print(format_summary(name, summary))

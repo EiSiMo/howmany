@@ -37,8 +37,13 @@ A prototype is a file `benchmark/prototypes/prototype-N.py` defining `quantify(i
 
 A trainable prototype also defines `train(image_dir: Path) -> None`, which trains on the FSC-147 train split and saves its weights as `prototype-N.pt` next to it (committed). Training runs on a Modal cloud GPU (`remote.py`); the train images are cached in the Modal volume `quantify-data`. Log in once with `uv run modal setup`.
 
+Our own photos are a second benchmark of real phone photos (`photos.py`). Each photo is labelled like FSC-147: a category (English, plural, the text prompt), three exemplar boxes and a point per object, which gives the true count. Labels are `benchmark/photos/<name>.json` (committed); the photos stay local in `benchmark/data/photos/` (originals live in Google Drive). New photos arrive as Google Drive exports `~/Downloads/quantify-training-*.zip`; "new photos in Downloads" means: ingest all of them (idempotent, already ingested photos are skipped by hash), suggest a category for each new photo from its (German) name and content, then show the status. Other photos in `~/Downloads` are unrelated.
+
 Run from `benchmark/`:
-- Run a prototype: `uv run run.py prototypes/prototype-N.py` (`--exemplars 1` for a single tap, `--exemplars 0` for text only; results get an `-N-exemplar` suffix)
+- Ingest new photos: `uv run photos.py ingest ~/Downloads/quantify-training-*.zip`
+- What is left to label: `uv run photos.py status`
+- Label photos in the browser: `uv run label.py`
+- Run a prototype: `uv run run.py prototypes/prototype-N.py` (`--exemplars 1` for a single tap, `--exemplars 0` for text only; results get an `-N-exemplar` suffix; `--photos` runs on our completely labelled photos, `-photos` suffix)
 - Deploy a prototype that runs its model on Modal (see its docstring) before running it: `uv run modal deploy prototypes/prototype-N.py`
 - Export GeCo2 to ONNX for prototype 4 (writes `data/geco2-*.onnx`): `uv run modal run prototypes/prototype-3.py`
 - Train a prototype on Modal: `uv run modal run remote.py --prototype prototypes/prototype-N.py`
