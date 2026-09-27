@@ -29,14 +29,23 @@ private const val MAX_PHOTO_SIZE = 2048
 
 data class CountState(
     val photo: Bitmap? = null,
+    /** The part of the photo to count in; the whole photo unless the user drags its edges. */
+    val crop: Box? = photo?.let { Box(0f, 0f, it.width.toFloat(), it.height.toFloat()) },
     val exemplar: Box? = null,
-    /** One point per counted object, corrected by the user; null until counted. */
+    /**
+     * One point per counted object, corrected by the user, including points the crop has cut off
+     * since counting; null until counted.
+     */
     val points: List<Point>? = null,
     /** Whether the user has corrected the counted points. */
     val corrected: Boolean = false,
     val duration: Duration? = null,
     val counting: Boolean = false,
-)
+) {
+    /** The counted points inside the crop. */
+    val counted: List<Point>?
+        get() = points?.filter { crop == null || it in crop }
+}
 
 class CountViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(CountState())
@@ -58,21 +67,31 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
         if (it.points == null) it.copy(exemplar = box) else it
     }
 
-    /** Removes the counted point nearest to [at] within [hitRadius], or adds one at [at]. */
+    /**
+     * Removes the counted point nearest to [at] within [hitRadius], or adds one at [at], inside the
+     * crop.
+     */
     fun toggle(at: Point, hitRadius: Float) = _state.update { state ->
         val points = state.points ?: return@update state
-        state.copy(points = points.toggled(at, hitRadius), corrected = true)
+        state.copy(points = points.toggled(at, hitRadius, state.crop), corrected = true)
     }
 
-    /** Forgets the example and the count, keeping the photo. */
+    /** Counts only inside [crop] from now on; after counting, this corrects the count. */
+    fun adjustCrop(crop: Box) = _state.update { state ->
+        if (state.counting || state.crop == crop) state
+        else state.copy(crop = crop, corrected = state.corrected || state.points != null)
+    }
+
+    /** Forgets the example and the count, keeping the photo and its crop. */
     fun clear() {
         counting?.cancel()
-        _state.update { CountState(photo = it.photo) }
+        _state.update { CountState(photo = it.photo, crop = it.crop) }
     }
 
     fun count() {
         val photo = _state.value.photo ?: return
         val exemplar = _state.value.exemplar ?: return
+        val crop = _state.value.crop ?: return
         if (_state.value.counting) return
         _state.update { it.copy(counting = true) }
         val cancelled = counting
@@ -81,7 +100,7 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
             cancelled?.join()
             val (detections, duration) =
                 withContext(Dispatchers.Default) {
-                    measureTimedValue { counter.detect(photo, listOf(exemplar)) }
+                    measureTimedValue { counter.detect(photo, listOf(exemplar), crop) }
                 }
             Log.i(TAG, "${detections.size} objects in $duration")
             _state.update {

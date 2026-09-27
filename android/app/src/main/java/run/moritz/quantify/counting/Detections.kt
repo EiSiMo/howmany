@@ -13,6 +13,10 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
 
     val center
         get() = Point((left + right) / 2, (top + bottom) / 2)
+
+    operator fun contains(point: Point) = point.x in left..right && point.y in top..bottom
+
+    fun translated(x: Float, y: Float) = Box(left + x, top + y, right + x, bottom + y)
 }
 
 /** A point in image pixels. */

@@ -40,6 +40,19 @@ class ViewportTest {
         assertOffset(Offset(0f, 0f), panned.toView(Offset(0f, 0f)))
     }
 
+    @Test
+    fun `keeps a margin around the photo, also when panning`() {
+        val withMargin = Viewport.fit(Size(520f, 520f), Size(1000f, 500f), margin = 10f)
+        assertOffset(Offset(10f, 135f), withMargin.toView(Offset(0f, 0f)))
+
+        val panned =
+            withMargin
+                .transformed(Offset(260f, 260f), zoom = 2f, pan = Offset.Zero)
+                .transformed(Offset.Zero, zoom = 1f, pan = Offset(10_000f, 10_000f))
+
+        assertOffset(Offset(10f, 10f), panned.toView(Offset(0f, 0f)))
+    }
+
     private fun assertOffset(expected: Offset, actual: Offset) {
         assertEquals(expected.x, actual.x, 1e-3f)
         assertEquals(expected.y, actual.y, 1e-3f)

@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -30,7 +30,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,15 +43,19 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -83,6 +86,13 @@ private const val POINT_ALPHA = 0.45f
 private val POINT_NUMBER_SIZE = 9.sp
 private val HIT_RADIUS = 24.dp
 private val EXEMPLAR_STROKE = 3.dp
+// Room around the photo, so its edges can be dragged without triggering the back gesture.
+private val PHOTO_MARGIN = 24.dp
+private val HANDLE_REACH = 24.dp
+private val HANDLE_LENGTH = 20.dp
+private val HANDLE_STROKE = 4.dp
+private val MIN_CROP_SIZE = 48.dp
+private const val CROPPED_ALPHA = 0.6f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,7 +104,7 @@ fun CountScreen(viewModel: CountViewModel) {
         }
     val pickPhoto = { picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }
     val photo = state.photo
-    val points = state.points
+    val points = state.counted
 
     Scaffold(
         topBar = {
@@ -154,28 +164,35 @@ fun CountScreen(viewModel: CountViewModel) {
             }
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            if (photo == null) {
-                EmptyState(pickPhoto, Modifier.align(Alignment.Center))
-            } else {
+        val crop = state.crop
+        if (photo == null || crop == null) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                EmptyState(pickPhoto)
+            }
+        } else {
+            Column(Modifier.fillMaxSize().padding(padding)) {
+                val hint =
+                    when {
+                        points != null -> R.string.correct
+                        state.counting -> R.string.counting
+                        state.exemplar == null -> R.string.mark_example
+                        else -> R.string.adjust_crop
+                    }
+                Hint(stringResource(hint), Modifier.align(Alignment.CenterHorizontally))
                 Photo(
                     photo = photo,
+                    crop = crop,
                     exemplar = state.exemplar.takeIf { points == null },
                     points = points.orEmpty(),
+                    onAdjustCrop = viewModel::adjustCrop.takeIf { !state.counting },
                     onMarkExemplar =
                         viewModel::markExemplar.takeIf { points == null && !state.counting },
                     onTap = viewModel::toggle.takeIf { points != null },
                     modifier =
-                        Modifier.fillMaxSize()
+                        Modifier.fillMaxWidth()
+                            .weight(1f)
                             .background(MaterialTheme.colorScheme.surfaceContainer),
                 )
-                val hint =
-                    when {
-                        points != null -> R.string.correct
-                        state.exemplar == null -> R.string.mark_example
-                        else -> null
-                    }
-                if (hint != null) Hint(stringResource(hint), Modifier.align(Alignment.TopCenter))
             }
         }
     }
@@ -241,52 +258,69 @@ private fun EmptyState(onPickPhoto: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** A short instruction floating over the photo. */
+/** A short instruction above the photo. */
 @Composable
 private fun Hint(text: String, modifier: Modifier = Modifier) {
-    Surface(
-        modifier.padding(12.dp),
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.85f),
-        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-    }
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+}
+
+/** What a one-finger drag on the photo does, decided where it starts. */
+private sealed interface PhotoDrag {
+    data class Crop(val handle: CropHandle, val from: ImageBox) : PhotoDrag
+
+    data class Exemplar(val start: Offset, val end: Offset) : PhotoDrag
+
+    data object Pan : PhotoDrag
 }
 
 /**
- * Shows the photo with the example or the counted points. Two fingers zoom and pan. One finger
- * drags a box around one object while [onMarkExemplar] is given, and pans otherwise. Taps go to
- * [onTap], with a hit radius in image pixels.
+ * Shows the photo with its crop and the example or the counted points. Two fingers zoom and pan.
+ * One finger drags the crop's edges while [onAdjustCrop] is given; elsewhere it drags a box around
+ * one object while [onMarkExemplar] is given, and pans otherwise. Taps go to [onTap], with a hit
+ * radius in image pixels.
  */
 @Composable
 private fun Photo(
     photo: Bitmap,
+    crop: ImageBox,
     exemplar: ImageBox?,
     points: List<Point>,
+    onAdjustCrop: ((ImageBox) -> Unit)?,
     onMarkExemplar: ((ImageBox) -> Unit)?,
     onTap: ((at: Point, hitRadius: Float) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val image = remember(photo) { photo.asImageBitmap() }
+    val bounds = ImageBox(0f, 0f, photo.width.toFloat(), photo.height.toFloat())
     var viewport by remember(photo) { mutableStateOf<Viewport?>(null) }
-    var drag by remember(photo) { mutableStateOf<Pair<Offset, Offset>?>(null) }
+    var drag by remember(photo) { mutableStateOf<PhotoDrag?>(null) }
+    val currentCrop by rememberUpdatedState(crop)
+    val currentExemplar by rememberUpdatedState(exemplar)
+    val adjustCrop by rememberUpdatedState(onAdjustCrop)
     val markExemplar by rememberUpdatedState(onMarkExemplar)
     val tap by rememberUpdatedState(onTap)
     val exemplarColor = MaterialTheme.colorScheme.tertiary
     val pointColor = MaterialTheme.colorScheme.primary
+    val handleColor = MaterialTheme.colorScheme.primary
     val textMeasurer = rememberTextMeasurer()
+    val margin = with(LocalDensity.current) { PHOTO_MARGIN.toPx() }
 
     Canvas(
         modifier
             .clipToBounds()
             .onSizeChanged { size ->
                 viewport =
-                    Viewport.fit(size.toSize(), Size(photo.width.toFloat(), photo.height.toFloat()))
+                    Viewport.fit(
+                        size.toSize(),
+                        Size(photo.width.toFloat(), photo.height.toFloat()),
+                        margin,
+                    )
             }
             .pointerInput(photo) {
                 detectPhotoGestures(
@@ -297,22 +331,53 @@ private fun Photo(
                             tap?.invoke(Point(at.x, at.y), HIT_RADIUS.toPx() / current.scale)
                         }
                     },
-                    onDrag = { start, position, delta ->
-                        if (markExemplar != null) drag = start to position
-                        else viewport = viewport?.transformed(Offset.Zero, 1f, delta)
-                    },
+                    onDrag = onDrag@{ start, position, delta ->
+                            val current = viewport ?: return@onDrag
+                            val kind =
+                                drag
+                                    ?: cropHandleAt(
+                                            currentCrop.inView(current),
+                                            start,
+                                            HANDLE_REACH.toPx(),
+                                        )
+                                        ?.takeIf { adjustCrop != null }
+                                        ?.let { PhotoDrag.Crop(it, currentCrop) }
+                                    ?: if (markExemplar != null) PhotoDrag.Exemplar(start, start)
+                                    else PhotoDrag.Pan
+                            drag =
+                                when (kind) {
+                                    is PhotoDrag.Crop -> {
+                                        val moved =
+                                            kind.from.dragged(
+                                                kind.handle,
+                                                (position - start) / current.scale,
+                                                bounds,
+                                                keep = currentExemplar,
+                                                minSize = MIN_CROP_SIZE.toPx() / current.scale,
+                                            )
+                                        adjustCrop?.invoke(moved)
+                                        kind
+                                    }
+                                    is PhotoDrag.Exemplar -> kind.copy(end = position)
+                                    PhotoDrag.Pan -> {
+                                        viewport = current.transformed(Offset.Zero, 1f, delta)
+                                        kind
+                                    }
+                                }
+                        },
                     onDragEnd = {
                         val current = viewport
                         val dragged = drag
-                        if (current != null && dragged != null) {
-                            val a = current.toImage(dragged.first)
-                            val b = current.toImage(dragged.second)
+                        if (current != null && dragged is PhotoDrag.Exemplar) {
+                            val a = current.toImage(dragged.start)
+                            val b = current.toImage(dragged.end)
+                            val limit = currentCrop
                             val box =
                                 ImageBox(
-                                    max(0f, min(a.x, b.x)),
-                                    max(0f, min(a.y, b.y)),
-                                    min(photo.width.toFloat(), max(a.x, b.x)),
-                                    min(photo.height.toFloat(), max(a.y, b.y)),
+                                    max(limit.left, min(a.x, b.x)),
+                                    max(limit.top, min(a.y, b.y)),
+                                    min(limit.right, max(a.x, b.x)),
+                                    min(limit.bottom, max(a.y, b.y)),
                                 )
                             if (box.width > 1 && box.height > 1) markExemplar?.invoke(box)
                         }
@@ -326,35 +391,31 @@ private fun Photo(
             }
     ) {
         val current = viewport ?: return@Canvas
-        val topLeft = current.toView(Offset.Zero)
-        val bottomRight = current.toView(Offset(photo.width.toFloat(), photo.height.toFloat()))
+        val photoRect = bounds.inView(current)
         drawImage(
             image,
-            dstOffset = IntOffset(topLeft.x.roundToInt(), topLeft.y.roundToInt()),
-            dstSize =
-                IntSize(
-                    (bottomRight.x - topLeft.x).roundToInt(),
-                    (bottomRight.y - topLeft.y).roundToInt(),
-                ),
+            dstOffset = IntOffset(photoRect.left.roundToInt(), photoRect.top.roundToInt()),
+            dstSize = IntSize(photoRect.width.roundToInt(), photoRect.height.roundToInt()),
         )
+        val cropRect = crop.inView(current)
+        clipRect(cropRect.left, cropRect.top, cropRect.right, cropRect.bottom, ClipOp.Difference) {
+            drawRect(Color.Black.copy(alpha = CROPPED_ALPHA), photoRect.topLeft, photoRect.size)
+        }
+        drawCropHandles(cropRect, handleColor)
         points.forEachIndexed { index, point ->
             drawPoint(current.toView(Offset(point.x, point.y)), index + 1, pointColor, textMeasurer)
         }
         val dragged = drag
         val rect =
             when {
-                dragged != null -> {
+                dragged is PhotoDrag.Exemplar -> {
                     val (start, end) = dragged
                     Rect(
                         Offset(min(start.x, end.x), min(start.y, end.y)),
                         Size(abs(end.x - start.x), abs(end.y - start.y)),
                     )
                 }
-                exemplar != null ->
-                    Rect(
-                        current.toView(Offset(exemplar.left, exemplar.top)),
-                        current.toView(Offset(exemplar.right, exemplar.bottom)),
-                    )
+                exemplar != null -> exemplar.inView(current)
                 else -> null
             }
         if (rect != null) {
@@ -362,6 +423,30 @@ private fun Photo(
         }
     }
 }
+
+/** A thin frame around the crop, with a bracket at each corner and a bar in each edge's middle. */
+private fun DrawScope.drawCropHandles(crop: Rect, color: Color) {
+    drawRect(Color.White.copy(alpha = 0.8f), crop.topLeft, crop.size, style = Stroke(1.dp.toPx()))
+    val length = min(HANDLE_LENGTH.toPx(), min(crop.width, crop.height) / 3)
+    val stroke = HANDLE_STROKE.toPx()
+    fun line(from: Offset, to: Offset) = drawLine(color, from, to, stroke, StrokeCap.Round)
+    for (corner in listOf(crop.topLeft, crop.topRight, crop.bottomLeft, crop.bottomRight)) {
+        val inward = crop.center - corner
+        line(corner, corner + Offset(if (inward.x > 0) length else -length, 0f))
+        line(corner, corner + Offset(0f, if (inward.y > 0) length else -length))
+    }
+    val half = length / 2
+    for (middle in listOf(crop.topCenter, crop.bottomCenter)) {
+        line(middle - Offset(half, 0f), middle + Offset(half, 0f))
+    }
+    for (middle in listOf(crop.centerLeft, crop.centerRight)) {
+        line(middle - Offset(0f, half), middle + Offset(0f, half))
+    }
+}
+
+/** Where a box in image pixels lies in the view. */
+private fun ImageBox.inView(viewport: Viewport) =
+    Rect(viewport.toView(Offset(left, top)), viewport.toView(Offset(right, bottom)))
 
 /** A see-through dot with its number, which stays readable over any photo. */
 private fun DrawScope.drawPoint(
