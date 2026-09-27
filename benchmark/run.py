@@ -2,7 +2,7 @@
 
 A prototype is a Python file that defines
 `quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int`. Exemplars are a few
-example instances of the object to count, as a user would mark them; text names the object, as
+instances of the object to count, as a user would mark them; text names the object, as
 a user would type it. Prototypes use whichever prompt they support.
 
 Usage: uv run run.py prototypes/prototype-0.py [--exemplars 0|1|2|3] [--photos]
@@ -11,40 +11,20 @@ Usage: uv run run.py prototypes/prototype-0.py [--exemplars 0|1|2|3] [--photos]
 import argparse
 import csv
 import dataclasses
-import importlib.util
 import json
 import logging
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
-from types import ModuleType
 
-from dataset import BENCHMARK_DIR, Box, Sample, load_samples
+from dataset import BENCHMARK_DIR, EXEMPLARS, Sample, configure_logging, load_samples
 from metrics import Result, Summary, summarize
 from photos import PhotoStore
+from prototype import Quantify, load_prototype
 
 logger = logging.getLogger(__name__)
 
 RESULTS_DIR = BENCHMARK_DIR / "results"
-
-Quantify = Callable[[Path, Sequence[Box], str], int]
-
-
-def load_module(path: Path) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
-    if spec is None or spec.loader is None:
-        raise ValueError(f"Cannot load prototype from {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def load_prototype(path: Path) -> Quantify:
-    module = load_module(path)
-    quantify = getattr(module, "quantify", None)
-    if not callable(quantify):
-        raise ValueError(f"{path} does not define quantify(image_path, exemplars, text)")
-    return quantify  # type: ignore[no-any-return]
 
 
 def evaluate(quantify: Quantify, samples: Sequence[Sample]) -> list[Result]:
@@ -73,6 +53,16 @@ def evaluate(quantify: Quantify, samples: Sequence[Sample]) -> list[Result]:
             Result(sample.image_path.name, sample.category, sample.true_count, predicted, seconds)
         )
     return results
+
+
+def result_name(prototype: Path, exemplars: int, photos: bool) -> str:
+    """Name of a run's result files: the prototype, suffixed for photos and fewer exemplars."""
+    name = prototype.stem
+    if photos:
+        name += "-photos"
+    if exemplars != EXEMPLARS:
+        name += f"-{exemplars}-exemplar"
+    return name
 
 
 def write_results(name: str, results: Sequence[Result], summary: Summary) -> None:
@@ -111,9 +101,10 @@ def main() -> None:
     parser.add_argument(
         "--exemplars",
         type=int,
-        choices=(0, 1, 2, 3),
-        default=3,
-        help="exemplar boxes per image, 0 for text only; fewer than 3 adds an -N-exemplar suffix",
+        choices=range(EXEMPLARS + 1),
+        default=EXEMPLARS,
+        help=f"exemplar boxes per image, 0 for text only; fewer than {EXEMPLARS} adds an "
+        "-N-exemplar suffix",
     )
     parser.add_argument(
         "--photos",
@@ -122,11 +113,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    name = args.prototype.stem
-    if args.photos:
-        name += "-photos"
-    if args.exemplars != 3:
-        name += f"-{args.exemplars}-exemplar"
+    name = result_name(args.prototype, args.exemplars, args.photos)
     quantify = load_prototype(args.prototype)
     if args.photos:
         samples = PhotoStore().samples(exemplars=args.exemplars)
@@ -141,5 +128,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    configure_logging()
     main()

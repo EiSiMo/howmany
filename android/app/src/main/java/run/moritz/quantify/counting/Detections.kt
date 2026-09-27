@@ -3,25 +3,6 @@ package run.moritz.quantify.counting
 import kotlin.math.max
 import kotlin.math.min
 
-/** An axis-aligned box in image pixels. */
-data class Box(val left: Float, val top: Float, val right: Float, val bottom: Float) {
-    val width
-        get() = right - left
-
-    val height
-        get() = bottom - top
-
-    val center
-        get() = Point((left + right) / 2, (top + bottom) / 2)
-
-    operator fun contains(point: Point) = point.x in left..right && point.y in top..bottom
-
-    fun translated(x: Float, y: Float) = Box(left + x, top + y, right + x, bottom + y)
-}
-
-/** A point in image pixels. */
-data class Point(val x: Float, val y: Float)
-
 /** GeCo2 was trained on square images of this many pixels, the scaled image top-left. */
 internal const val INPUT_SIZE = 1024
 // The model takes that image with the padding cut off, down to the next multiple of this.
@@ -174,7 +155,7 @@ private fun box(output: ModelOutput, input: InputSize, cell: Int): Box {
     val height = input.height.toFloat()
     val x = (cell % output.columns) * width / output.columns
     val y = (cell / output.columns) * height / output.rows
-    val (left, top, right, bottom) = output.offsets.copyOfRange(cell * 4, cell * 4 + 4).map { it }
+    val (left, top, right, bottom) = output.offsets.copyOfRange(cell * 4, cell * 4 + 4)
     return Box(
         (x - left).coerceIn(0f, width),
         (y - top).coerceIn(0f, height),

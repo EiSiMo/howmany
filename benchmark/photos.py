@@ -25,13 +25,12 @@ from typing import Any
 
 from PIL import Image, ImageOps
 
-from dataset import BENCHMARK_DIR, DATA_DIR, Box, Sample
+from dataset import BENCHMARK_DIR, DATA_DIR, EXEMPLARS, Box, Sample, configure_logging, to_box
 
 logger = logging.getLogger(__name__)
 
 LABEL_DIR = BENCHMARK_DIR / "photos"
 IMAGE_DIR = DATA_DIR / "photos"
-EXEMPLARS = 3
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
 EXIF_ORIENTATION = 0x0112
 TRANSLITERATION = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
@@ -83,16 +82,11 @@ class Label:
         return cls(
             sha256=str(data["sha256"]),
             category=str(data.get("category", "")).strip(),
-            exemplars=tuple(_to_box(box) for box in data.get("exemplars", [])),
+            exemplars=tuple(to_box(box) for box in data.get("exemplars", [])),
             points=tuple((float(x), float(y)) for x, y in data.get("points", [])),
             complete=bool(data.get("complete", False)),
             excluded=bool(data.get("excluded", False)),
         )
-
-
-def _to_box(values: Iterable[float]) -> Box:
-    x1, y1, x2, y2 = (float(value) for value in values)
-    return (x1, y1, x2, y2)
 
 
 def _slug(filename: str) -> str:
@@ -262,5 +256,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    configure_logging()
     main()

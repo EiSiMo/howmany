@@ -35,6 +35,8 @@ import numpy as np
 if TYPE_CHECKING:
     from dataset import Box
 
+logger = logging.getLogger(__name__)
+
 APP_NAME = "quantify-prototype-5"
 REPO_DIR = "/efficientsam3"
 REPO_COMMIT = "bd0936c788fed8d51fa799437f05abd97b401b06"
@@ -43,10 +45,10 @@ WEIGHTS_URL = (
     "85b05896928f974e308f889d7ccb2eefc069de98/efficientsam3_ft/efficientsam3_efficientvit.pt"
 )
 WEIGHTS_PATH = f"{REPO_DIR}/efficientsam3_efficientvit.pt"
-# The EV-M configuration, as in the authors' ONNX export script.
 # Confidence thresholds minimising the count MAE on the validation manifest, for a text prompt
 # and for a single exemplar (a tap).
 THRESHOLDS = {"text": 0.16, "exemplars": 0.21}
+# The EV-M configuration, as in the authors' ONNX export script.
 MODEL_CONFIG = {
     "backbone_type": "efficientvit",
     "model_name": "b1",
@@ -55,7 +57,7 @@ MODEL_CONFIG = {
 }
 
 app = modal.App(APP_NAME)
-image = (
+container_image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("git", "curl")
     .pip_install(
@@ -79,7 +81,7 @@ image = (
 )
 
 
-@app.cls(image=image, gpu="L4", scaledown_window=120)
+@app.cls(image=container_image, gpu="L4", scaledown_window=120)
 class EfficientSam3:
     @modal.enter()
     def load(self) -> None:
@@ -125,7 +127,9 @@ def _model() -> Any:
     return modal.Cls.from_name(APP_NAME, "EfficientSam3")()
 
 
-def _request(image_path: Path, exemplars: Sequence[Box], text: str) -> tuple[Any, ...]:
+def _request(
+    image_path: Path, exemplars: Sequence[Box], text: str
+) -> tuple[bytes, list[list[float]], str]:
     return image_path.read_bytes(), [list(box) for box in exemplars], text
 
 
@@ -140,9 +144,9 @@ def calibrate() -> None:
     """Find the thresholds minimising the count MAE on the validation manifest."""
     benchmark_dir = Path(__file__).parent.parent
     sys.path.insert(0, str(benchmark_dir))
-    from dataset import load_samples
+    from dataset import configure_logging, load_samples
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    configure_logging()
     samples = load_samples(benchmark_dir / "manifest-val.csv", exemplars=1)
     counts = np.array([sample.true_count for sample in samples])
     candidates = np.arange(0.05, 0.96, 0.01)
@@ -157,4 +161,4 @@ def calibrate() -> None:
             for t in candidates
         ]
         best = int(np.argmin(errors))
-        logging.info("%s: threshold %.2f, val MAE %.2f", mode, candidates[best], errors[best])
+        logger.info("%s: threshold %.2f, val MAE %.2f", mode, candidates[best], errors[best])

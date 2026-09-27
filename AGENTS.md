@@ -34,7 +34,7 @@ Run from `android/` (JDK 21, Android SDK in `local.properties`, phone with USB d
 ### Benchmark (`benchmark/`)
 Python 3.12+, managed with uv. Measures how far a counting prototype's counts deviate from known counts on a fixed random sample of 100 FSC-147 test images (`manifest.csv`). Images are downloaded on demand into `benchmark/data/` (gitignored, not redistributed).
 
-A prototype is a file `benchmark/prototypes/prototype-N.py` defining `quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int`. Exemplars are three example boxes of the object to count (FSC-147's few-shot setting), standing in for the user marking an example in the app; text is the FSC-147 category name, standing in for the user typing what to count. Prototypes use whichever prompt they support. Results go to `benchmark/results/prototype-N.csv` and `.summary.json`, and are committed.
+A prototype is a file `benchmark/prototypes/prototype-N.py` defining `quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int`. Exemplars are three boxes around instances of the object to count (FSC-147's few-shot setting), standing in for the user marking an exemplar in the app; text is the FSC-147 category name, standing in for the user typing what to count. Prototypes use whichever prompt they support. Results go to `benchmark/results/prototype-N.csv` and `.summary.json`, and are committed.
 
 A trainable prototype also defines `train(image_dir: Path) -> None`, which trains on the FSC-147 train split and saves its weights as `prototype-N.pt` next to it (committed). Training runs on a Modal cloud GPU (`remote.py`); the train images are cached in the Modal volume `quantify-data`. Log in once with `uv run modal setup`.
 
@@ -48,7 +48,7 @@ Run from `benchmark/`:
 - Label photos in the browser: `uv run label.py`
 - Run a prototype: `uv run run.py prototypes/prototype-N.py` (`--exemplars 1` for a single tap, `--exemplars 0` for text only; results get an `-N-exemplar` suffix; `--photos` runs on our completely labelled photos, `-photos` suffix)
 - Deploy a prototype that runs its model on Modal (see its docstring) before running it: `uv run modal deploy prototypes/prototype-N.py`
-- Export GeCo2 to ONNX for prototype 4 (writes `data/geco2-*.onnx`): `uv run modal run prototypes/prototype-3.py`
+- Export GeCo2 to ONNX for prototype 4 and the app (writes `data/geco2-*.onnx`): `uv run modal run export_geco2.py`
 - Train a prototype on Modal: `uv run modal run remote.py --prototype prototypes/prototype-N.py`
 - Rebuild the manifest: `uv run build_manifest.py --size 100 --seed 0 --split test`
 - Tests: `uv run pytest`
@@ -60,6 +60,7 @@ Run from `benchmark/`:
 - Code, identifiers, comments, strings and commit messages in English. User-facing text lives in localization resources, never hardcoded.
 - Fail loudly: handle errors or propagate them with context, never swallow them.
 - Logging via the ecosystem's standard logging library, with levels. No print debugging. Never log secrets.
+- A CLI's report (like `run.py`'s summary or `photos.py status`) is its output: print it to stdout. Logging is for diagnostics.
 - Few dependencies, each justified. Commit lockfiles.
 - Secrets only in `.env` at project root (gitignored). Keep `.env.example` with keys, no values.
 - License: MIT.

@@ -4,6 +4,6 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
-benchmark/data/
+benchmark/data
 NOTES.md
 .claude/worktrees/
