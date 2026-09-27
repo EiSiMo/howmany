@@ -14,11 +14,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculateCentroid
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -65,9 +60,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -86,8 +79,6 @@ import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlin.math.abs
-import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import run.moritz.quantify.counting.Box as ImageBox
@@ -335,15 +326,6 @@ private fun EmptyState(onPickPhoto: () -> Unit, error: CountError?) {
     }
 }
 
-/** What a one-finger drag on the photo does, decided where it starts. */
-private sealed interface PhotoDrag {
-    data class Crop(val handle: CropHandle, val from: ImageBox) : PhotoDrag
-
-    data class Exemplar(val start: Offset, val end: Offset) : PhotoDrag
-
-    data object Pan : PhotoDrag
-}
-
 /**
  * Shows the photo with its crop and the [exemplarFrame] (the exemplar until counted) or the counted
  * points, the [uncertain] ones highlighted. While [counting], it zooms smoothly out to the whole
@@ -414,15 +396,14 @@ private fun Photo(
                             val current = viewport ?: return@onDrag
                             val kind =
                                 drag
-                                    ?: cropHandleAt(
-                                            currentCrop.inView(current),
-                                            start,
-                                            HANDLE_REACH.toPx(),
-                                        )
-                                        ?.takeIf { adjustCrop != null }
-                                        ?.let { PhotoDrag.Crop(it, currentCrop) }
-                                    ?: if (markExemplar != null) PhotoDrag.Exemplar(start, start)
-                                    else PhotoDrag.Pan
+                                    ?: photoDrag(
+                                        start,
+                                        currentCrop,
+                                        current,
+                                        HANDLE_REACH.toPx(),
+                                        canAdjustCrop = adjustCrop != null,
+                                        canMarkExemplar = markExemplar != null,
+                                    )
                             drag =
                                 when (kind) {
                                     is PhotoDrag.Crop -> {
@@ -448,17 +429,7 @@ private fun Photo(
                         val current = viewport
                         val dragged = drag
                         if (current != null && dragged is PhotoDrag.Exemplar) {
-                            val a = current.toImage(dragged.start)
-                            val b = current.toImage(dragged.end)
-                            val limit = currentCrop
-                            val box =
-                                ImageBox(
-                                    max(limit.left, min(a.x, b.x)),
-                                    max(limit.top, min(a.y, b.y)),
-                                    min(limit.right, max(a.x, b.x)),
-                                    min(limit.bottom, max(a.y, b.y)),
-                                )
-                            if (box.width > 1 && box.height > 1) markExemplar?.invoke(box)
+                            dragged.box(current, currentCrop)?.let { markExemplar?.invoke(it) }
                         }
                         drag = null
                     },
@@ -526,13 +497,7 @@ private fun Photo(
             val dragged = drag
             val rect =
                 when {
-                    dragged is PhotoDrag.Exemplar -> {
-                        val (start, end) = dragged
-                        Rect(
-                            Offset(min(start.x, end.x), min(start.y, end.y)),
-                            Size(abs(end.x - start.x), abs(end.y - start.y)),
-                        )
-                    }
+                    dragged is PhotoDrag.Exemplar -> dragged.rect
                     exemplarFrame != null -> exemplarFrame.inView(current)
                     else -> null
                 }
@@ -625,7 +590,7 @@ private fun DrawScope.drawExemplarFrame(rect: Rect) {
 }
 
 /** Where a box in image pixels lies in the view. */
-private fun ImageBox.inView(viewport: Viewport) =
+internal fun ImageBox.inView(viewport: Viewport) =
     Rect(viewport.toView(Offset(left, top)), viewport.toView(Offset(right, bottom)))
 
 /** A see-through dot with its number, which stays readable over any photo. */
@@ -653,45 +618,4 @@ private fun DrawScope.drawPoint(
             ),
         )
     drawText(text, topLeft = center - Offset(text.size.width / 2f, text.size.height / 2f))
-}
-
-/**
- * One finger taps or drags (from `start`, now at `position`, moved by `delta` since the last call);
- * two fingers zoom and pan. A second finger cancels a drag.
- */
-private suspend fun PointerInputScope.detectPhotoGestures(
-    onTap: (Offset) -> Unit,
-    onDrag: (start: Offset, position: Offset, delta: Offset) -> Unit,
-    onDragEnd: () -> Unit,
-    onDragCancel: () -> Unit,
-    onTransform: (centroid: Offset, zoom: Float, pan: Offset) -> Unit,
-) = awaitEachGesture {
-    val down = awaitFirstDown()
-    var dragging = false
-    var transforming = false
-    do {
-        val event = awaitPointerEvent()
-        val pressed = event.changes.filter { it.pressed }
-        if (pressed.size >= 2) {
-            if (dragging && !transforming) onDragCancel()
-            transforming = true
-            onTransform(event.calculateCentroid(), event.calculateZoom(), event.calculatePan())
-            event.changes.forEach { it.consume() }
-        } else if (!transforming && pressed.size == 1) {
-            val change = pressed.single()
-            if (!dragging) {
-                dragging =
-                    (change.position - down.position).getDistance() > viewConfiguration.touchSlop
-            }
-            if (dragging) {
-                onDrag(down.position, change.position, change.positionChange())
-                change.consume()
-            }
-        }
-    } while (event.changes.any { it.pressed })
-    when {
-        transforming -> {}
-        dragging -> onDragEnd()
-        else -> onTap(down.position)
-    }
 }
