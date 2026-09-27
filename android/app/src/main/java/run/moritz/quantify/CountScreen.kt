@@ -460,7 +460,7 @@ private fun Photo(
                 )
             }
     ) {
-        // Only the photo bends under the waves; frames and points stay crisp on top.
+        // Only the photo shimmers and bends; frames and points stay crisp on top.
         Canvas(
             Modifier.matchParentSize().graphicsLayer {
                 val current = viewport

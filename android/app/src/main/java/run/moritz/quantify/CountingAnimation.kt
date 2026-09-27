@@ -42,10 +42,13 @@ import run.moritz.quantify.counting.Box
 import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
 
-// While counting, sonar ripples run from the example's edge across the crop, bending the photo
-// around the example but not the example itself.
-private const val SCAN_PERIOD = 1.4f
-private const val SCAN_RING_LIFE = 2.2f
+// While counting, the photo shimmers like Google Photos analysing it: it wobbles slightly, except
+// for the example, and a soft band of light sweeps diagonally across the crop every SCAN_PERIOD,
+// lighting up the contours it passes.
+private const val SCAN_PERIOD = 1.8f
+private val SHIMMER = 2.dp
+private val SHIMMER_BLOB = 80.dp
+private val EDGE_STEP = 1.dp
 private const val DIM_ALPHA = 0.3f
 private const val DIM_FADE = 0.3f
 // When the count arrives, one fast wave reveals the heatmap and pops the points up as it reaches
@@ -84,6 +87,9 @@ class CountingAnimation {
     private val distortion by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Distortion() else null
     }
+    private val shimmer by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Shimmer() else null
+    }
 
     /**
      * How far the reveal wave has come, as arrival: from 0 at the example to 1 at the last corner.
@@ -117,9 +123,8 @@ class CountingAnimation {
     }
 
     /**
-     * The render effect that bends the photo where a wave passes, with the scan's rings from the
-     * edge of [example] or the reveal's front, in view coordinates; null while there is no wave or
-     * the device cannot run shaders.
+     * The render effect on the photo, in view coordinates: the scan's shimmer around [example], or
+     * the reveal's front bending it; null while neither runs or the device cannot run shaders.
      */
     internal fun distortion(
         example: Rect,
@@ -127,20 +132,26 @@ class CountingAnimation {
         heatmapRect: Rect?,
         density: Density,
     ): RenderEffect? {
-        val distortion = distortion ?: return null
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
-        val reach = reach(example, crop)
-        val scanning = scanning
-        val revealing = revealing
-        val rings =
-            when {
-                scanning != null -> scanRings(scanning, reach)
-                revealing != null && revealing < REVEAL ->
-                    listOf(front(revealing) * reach to fadeLate(revealing / REVEAL))
-                else -> return null
+        scanning?.let { seconds ->
+            val shimmer = shimmer ?: return null
+            return with(density) {
+                shimmer.effect(
+                    example,
+                    crop,
+                    seconds,
+                    SHIMMER.toPx(),
+                    SHIMMER_BLOB.toPx(),
+                    EDGE_STEP.toPx(),
+                )
             }
-        val arrival = if (revealing != null) arrivalShader(heatmapRect) else null
-        if (revealing != null && arrival == null) return null
+        }
+        val distortion = distortion ?: return null
+        val revealing = revealing
+        if (revealing == null || revealing >= REVEAL) return null
+        val reach = reach(example, crop)
+        val rings = listOf(front(revealing) * reach to fadeLate(revealing / REVEAL))
+        val arrival = arrivalShader(heatmapRect) ?: return null
         return distortion.effect(
             example,
             crop,
@@ -183,7 +194,8 @@ class CountingAnimation {
 
 /**
  * Scans while [counting]; reveals the count when counting ends with a [heatmap], with a wave from
- * the edge of [example] across [crop]. Each wave sets off with a light haptic tick.
+ * the edge of [example] across [crop]. Each sweep of the scan and the reveal set off with a haptic
+ * tick.
  */
 @Composable
 fun rememberCountingAnimation(
@@ -204,12 +216,12 @@ fun rememberCountingAnimation(
     LaunchedEffect(counting) {
         if (counting) {
             wasCounting = true
-            var rings = 0
+            var sweeps = 0
             everyFrame { seconds ->
                 animation.scanning = seconds
-                // A faint tick as each ring sets off.
-                if (seconds >= rings * SCAN_PERIOD) {
-                    rings++
+                // A faint tick as each sweep sets off.
+                if (seconds >= sweeps * SCAN_PERIOD) {
+                    sweeps++
                     haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
                 }
             }
@@ -283,21 +295,6 @@ fun pointScale(animation: CountingAnimation, point: Point): Float {
     val hit = (1 - sqrt(1 - wave.arrival(point).coerceIn(0f, 1f))) * REVEAL
     val pop = (seconds - hit) / POP
     return if (pop <= 0) 0f else easeOutBack(pop.coerceAtMost(1f))
-}
-
-/**
- * The scan's rings at [seconds]: each with its radius and a strength that holds until the ring
- * nears the crop's far corner, then fades to 0.
- */
-private fun scanRings(seconds: Float, reach: Float): List<Pair<Float, Float>> {
-    val rings = mutableListOf<Pair<Float, Float>>()
-    var emitted = 0f
-    while (emitted <= seconds) {
-        val age = (seconds - emitted) / SCAN_RING_LIFE
-        if (age < 1) rings += easeOut(age) * reach to fadeLate(age)
-        emitted += SCAN_PERIOD
-    }
-    return rings
 }
 
 /** Per-cell ARGB [pixels] of a square grid, stretched smoothly over [rect] and clamped beyond. */
@@ -441,6 +438,99 @@ private class Distortion {
                 float behind = (d - rings.x) / width;
                 float shine = rings.y * exp(-behind * behind) * brightness;
                 color.rgb += half3(shine) * color.a;
+                return color;
+            }
+            """
+    }
+}
+
+/**
+ * Lets the photo shimmer while it is analysed: it wobbles slightly along slowly drifting noise,
+ * except for the example, its contours glow faintly, and brightly where a soft band of light sweeps
+ * diagonally across the crop.
+ */
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private class Shimmer {
+    private val shader = RuntimeShader(SHADER)
+
+    /**
+     * At [seconds] into the scan: pixels shift by up to [amplitude] in noise blobs about [blob]
+     * wide, and contours are found between pixels [spacing] apart.
+     */
+    fun effect(
+        example: Rect,
+        crop: Rect,
+        seconds: Float,
+        amplitude: Float,
+        blob: Float,
+        spacing: Float,
+    ): RenderEffect {
+        shader.setFloatUniform("example", example.left, example.top, example.right, example.bottom)
+        shader.setFloatUniform("crop", crop.left, crop.top, crop.right, crop.bottom)
+        shader.setFloatUniform("time", seconds)
+        shader.setFloatUniform("period", SCAN_PERIOD)
+        shader.setFloatUniform("fade", (seconds / DIM_FADE).coerceAtMost(1f))
+        shader.setFloatUniform("amplitude", amplitude)
+        shader.setFloatUniform("blob", blob)
+        shader.setFloatUniform("spacing", spacing)
+        return AndroidRenderEffect.createRuntimeShaderEffect(shader, "content")
+            .asComposeRenderEffect()
+    }
+
+    private companion object {
+        const val SHADER =
+            """
+            uniform shader content;
+            uniform float4 example;
+            uniform float4 crop;
+            uniform float time;
+            uniform float period;
+            uniform float fade;
+            uniform float amplitude;
+            uniform float blob;
+            uniform float spacing;
+
+            float hash(float2 p) {
+                return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453);
+            }
+
+            // Smooth value noise between 0 and 1.
+            float noise(float2 p) {
+                float2 i = floor(p);
+                float2 f = fract(p);
+                float2 u = f * f * (3.0 - 2.0 * f);
+                return mix(mix(hash(i), hash(i + float2(1, 0)), u.x),
+                           mix(hash(i + float2(0, 1)), hash(i + float2(1, 1)), u.x), u.y);
+            }
+
+            float luma(float2 p) {
+                return dot(content.eval(p).rgb, half3(0.299, 0.587, 0.114));
+            }
+
+            half4 main(float2 p) {
+                if (p.x < crop.x || p.y < crop.y || p.x > crop.z || p.y > crop.w) {
+                    return content.eval(p);
+                }
+                // Wobble, calming towards the example so the example stays still without a seam.
+                float2 outwards = max(max(example.xy - p, p - example.zw), float2(0));
+                float calm = smoothstep(0.0, blob * 0.5, length(outwards));
+                float2 q = p / blob;
+                float2 n = float2(noise(q + time * 0.3), noise(q + 17.0 - time * 0.3)) - 0.5;
+                float2 s = p + n * 2.0 * amplitude * calm * fade;
+                half4 color = content.eval(s);
+
+                // Contours: how sharply the brightness changes around s.
+                float gx = luma(s + float2(spacing, 0)) - luma(s - float2(spacing, 0));
+                float gy = luma(s + float2(0, spacing)) - luma(s - float2(0, spacing));
+                float edge = smoothstep(0.04, 0.2, length(float2(gx, gy)));
+
+                // The band runs diagonally from before the top left to past the bottom right.
+                float2 uv = (p - crop.xy) / (crop.zw - crop.xy);
+                float d = (uv.x + uv.y) * 0.5 - (fract(time / period) * 1.6 - 0.3);
+                float band = exp(-d * d * 60.0);
+
+                color.rgb += half3(0.85, 0.92, 1.0) * edge * (0.12 + band) * 0.7 * fade * color.a;
+                color.rgb += half3(band * 0.06 * fade) * color.a;
                 return color;
             }
             """
