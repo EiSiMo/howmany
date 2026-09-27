@@ -12,4 +12,8 @@
     <string name="correct">Tippe, um einen Punkt zu entfernen oder hinzuzufügen</string>
     <string name="error_photo_unreadable">Dieses Foto lässt sich nicht öffnen</string>
     <string name="error_count_failed">Zählen fehlgeschlagen, versuch es noch einmal</string>
+    <plurals name="counted_objects">
+        <item quantity="one">%s Objekt</item>
+        <item quantity="other">%s Objekte</item>
+    </plurals>
 </resources>

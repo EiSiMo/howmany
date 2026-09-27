@@ -1,5 +1,6 @@
 package run.moritz.quantify
 
+import android.icu.text.NumberFormat
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -46,9 +47,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -324,15 +329,26 @@ fun Pill(
     }
 }
 
-/** The number of counted objects, large and crisp, in the shutter's place and height. */
+/**
+ * The number of counted objects, large and crisp, in the shutter's place and height; read out as
+ * that many objects.
+ */
 @Composable
 fun CountChip(count: Int, modifier: Modifier = Modifier) {
+    val locale = LocalConfiguration.current.locales[0]
+    val format = remember(locale) { NumberFormat.getIntegerInstance(locale) }
+    val number = format.format(count)
+    val description = pluralStringResource(R.plurals.counted_objects, count, number)
     Box(
-        modifier.height(SHUTTER_SIZE).floating().padding(horizontal = COUNT_PADDING),
+        modifier
+            .height(SHUTTER_SIZE)
+            .floating()
+            .clearAndSetSemantics { contentDescription = description }
+            .padding(horizontal = COUNT_PADDING),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            count.toString(),
+            number,
             style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"),
             fontWeight = FontWeight.SemiBold,
             color = Color.White,
