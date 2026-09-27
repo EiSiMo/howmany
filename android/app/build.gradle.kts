@@ -16,7 +16,13 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildTypes { release { isMinifyEnabled = false } }
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            // Signed with the debug key so it installs locally for measuring performance.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
 
     buildFeatures { compose = true }
 }

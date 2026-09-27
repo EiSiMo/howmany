@@ -25,6 +25,7 @@ Kotlin, Jetpack Compose, ONNX Runtime Android, built with Gradle (Kotlin DSL, ve
 
 Run from `android/` (JDK 21, Android SDK in `local.properties`, phone with USB debugging attached):
 - Build and install: `./gradlew installDebug`
+- Build and install the release build (signed with the debug key, for judging performance): `./gradlew installRelease`
 - Unit tests: `./gradlew testDebugUnitTest`
 - Device tests (count a benchmark image on the phone, log timings; `adb logcat -s ObjectCounterTest`): `./gradlew connectedDebugAndroidTest`
 - Lint: `./gradlew lintDebug`

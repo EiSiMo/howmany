@@ -348,22 +348,9 @@ private fun Photo(
         }
     }
 
-    Canvas(
+    Box(
         modifier
             .clipToBounds()
-            .graphicsLayer {
-                val current = viewport
-                val at = origin
-                renderEffect =
-                    if (current == null || at == null) null
-                    else
-                        animation.distortion(
-                            current.toView(Offset(at.x, at.y)),
-                            crop.inView(current),
-                            heatmap?.bounds?.inView(current),
-                            density,
-                        )
-            }
             .onSizeChanged { size ->
                 viewport =
                     Viewport.fit(
@@ -440,52 +427,83 @@ private fun Photo(
                 )
             }
     ) {
-        val current = viewport ?: return@Canvas
-        val photoRect = bounds.inView(current)
-        drawImage(
-            image,
-            dstOffset = IntOffset(photoRect.left.roundToInt(), photoRect.top.roundToInt()),
-            dstSize = IntSize(photoRect.width.roundToInt(), photoRect.height.roundToInt()),
-        )
-        val cropRect = crop.inView(current)
-        clipRect(cropRect.left, cropRect.top, cropRect.right, cropRect.bottom, ClipOp.Difference) {
-            drawRect(Color.Black.copy(alpha = CROPPED_ALPHA), photoRect.topLeft, photoRect.size)
-        }
-        val originInView = origin?.let { current.toView(Offset(it.x, it.y)) }
-        if (originInView != null) {
-            drawCountingAnimation(
-                animation,
-                originInView,
-                cropRect,
-                heatmap,
-                heatmap?.bounds?.inView(current),
-                pointColor,
+        // Only the photo bends under the waves; frames and points stay crisp on top.
+        Canvas(
+            Modifier.matchParentSize().graphicsLayer {
+                val current = viewport
+                val at = origin
+                renderEffect =
+                    if (current == null || at == null) null
+                    else
+                        animation.distortion(
+                            current.toView(Offset(at.x, at.y)),
+                            crop.inView(current),
+                            heatmap?.bounds?.inView(current),
+                            density,
+                        )
+            }
+        ) {
+            val current = viewport ?: return@Canvas
+            val photoRect = bounds.inView(current)
+            drawImage(
+                image,
+                dstOffset = IntOffset(photoRect.left.roundToInt(), photoRect.top.roundToInt()),
+                dstSize = IntSize(photoRect.width.roundToInt(), photoRect.height.roundToInt()),
             )
-        }
-        drawCropHandles(cropRect, handleColor)
-        points.forEachIndexed { index, point ->
-            val color = if (point in uncertain) UNCERTAIN_COLOR else pointColor
-            val center = current.toView(Offset(point.x, point.y))
-            val scale = pointScale(animation, point)
-            if (scale > 0) {
-                scale(scale, center) { drawPoint(center, index + 1, color, textMeasurer) }
+            val cropRect = crop.inView(current)
+            clipRect(
+                cropRect.left,
+                cropRect.top,
+                cropRect.right,
+                cropRect.bottom,
+                ClipOp.Difference,
+            ) {
+                drawRect(Color.Black.copy(alpha = CROPPED_ALPHA), photoRect.topLeft, photoRect.size)
+            }
+            val originInView = origin?.let { current.toView(Offset(it.x, it.y)) }
+            if (originInView != null) {
+                drawCountingAnimation(
+                    animation,
+                    originInView,
+                    cropRect,
+                    heatmap,
+                    heatmap?.bounds?.inView(current),
+                    pointColor,
+                )
             }
         }
-        val dragged = drag
-        val rect =
-            when {
-                dragged is PhotoDrag.Exemplar -> {
-                    val (start, end) = dragged
-                    Rect(
-                        Offset(min(start.x, end.x), min(start.y, end.y)),
-                        Size(abs(end.x - start.x), abs(end.y - start.y)),
-                    )
+        Canvas(Modifier.matchParentSize()) {
+            val current = viewport ?: return@Canvas
+            drawCropHandles(crop.inView(current), handleColor)
+            points.forEachIndexed { index, point ->
+                val color = if (point in uncertain) UNCERTAIN_COLOR else pointColor
+                val center = current.toView(Offset(point.x, point.y))
+                val scale = pointScale(animation, point)
+                if (scale > 0) {
+                    scale(scale, center) { drawPoint(center, index + 1, color, textMeasurer) }
                 }
-                exemplar != null -> exemplar.inView(current)
-                else -> null
             }
-        if (rect != null) {
-            drawRect(exemplarColor, rect.topLeft, rect.size, style = Stroke(EXEMPLAR_STROKE.toPx()))
+            val dragged = drag
+            val rect =
+                when {
+                    dragged is PhotoDrag.Exemplar -> {
+                        val (start, end) = dragged
+                        Rect(
+                            Offset(min(start.x, end.x), min(start.y, end.y)),
+                            Size(abs(end.x - start.x), abs(end.y - start.y)),
+                        )
+                    }
+                    exemplar != null -> exemplar.inView(current)
+                    else -> null
+                }
+            if (rect != null) {
+                drawRect(
+                    exemplarColor,
+                    rect.topLeft,
+                    rect.size,
+                    style = Stroke(EXEMPLAR_STROKE.toPx()),
+                )
+            }
         }
     }
 }

@@ -54,9 +54,10 @@ private const val REVEAL_SOFTNESS = 0.04f
 private const val GLOW_ALPHA = 0.85f
 private const val GAMMA_FROM = 1.5f
 private const val GAMMA_TO = 10f
-// The waves bend the photo like water: pixels shift by up to about this much where a ring passes.
-private val DISTORTION = 9.dp
-private val DISTORTION_WIDTH = 28.dp
+// The waves bend the photo like water: pixels shift by up to about this much where a ring passes,
+// easing in and out over about this width on either side so the ring has no visible edges.
+private val DISTORTION = 5.dp
+private val DISTORTION_WIDTH = 64.dp
 private const val FRONT_BRIGHTNESS = 0.25f
 
 /**
@@ -403,7 +404,7 @@ private class Distortion {
                 half4 color = content.eval(p - offset);
                 color.r = content.eval(p - offset * 1.25).r;
                 color.b = content.eval(p - offset * 0.75).b;
-                float behind = (d - rings.x) / width;
+                float behind = (d - rings.x) / (width * 0.45);
                 float shine = rings.y * exp(-behind * behind) * brightness;
                 color.rgb += half3(shine) * color.a;
                 return color;
