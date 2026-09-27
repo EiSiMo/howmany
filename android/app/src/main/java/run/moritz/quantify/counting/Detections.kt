@@ -22,8 +22,13 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
 /** A point in image pixels. */
 data class Point(val x: Float, val y: Float)
 
-/** The model takes a square image of this many pixels. */
+/** GeCo2 was trained on square images of this many pixels, the scaled image top-left. */
 internal const val INPUT_SIZE = 1024
+// The model takes that image with the padding cut off, down to the next multiple of this.
+private const val SIZE_MULTIPLE = 32
+// But never smaller than this per side: with less padding around very small images (few, large
+// objects) GeCo2 miscounts, e.g. 48 instead of 32 planks.
+private const val MIN_INPUT_SIDE = 512
 // GeCo2 scales images so exemplars are at most this many pixels on average.
 private const val EXEMPLAR_SIZE = 80f
 // Post-processing as in GeCo2: objectness peaks above 1/8 of the maximum become candidate boxes,
@@ -46,11 +51,19 @@ data class Detection(val box: Box, val confidence: Float) {
         get() = confidence < UNCERTAIN_BELOW
 }
 
+/** The size of the model input in pixels. */
+internal data class InputSize(val width: Int, val height: Int)
+
 /**
- * The model's output on a square grid: an objectness score per cell (row-major), and per cell the
- * distances from the cell to the left, top, right and bottom box edges, relative to the input.
+ * The model's output on a grid over its input: an objectness score per cell (row-major), and per
+ * cell the distances from the cell to the left, top, right and bottom box edges in input pixels.
  */
-internal class ModelOutput(val gridSize: Int, val objectness: FloatArray, val offsets: FloatArray)
+internal class ModelOutput(
+    val rows: Int,
+    val columns: Int,
+    val objectness: FloatArray,
+    val offsets: FloatArray,
+)
 
 /** The factor from image pixels to model input pixels. */
 internal fun inputScale(imageWidth: Int, imageHeight: Int, exemplars: List<Box>): Float {
@@ -58,6 +71,16 @@ internal fun inputScale(imageWidth: Int, imageHeight: Int, exemplars: List<Box>)
     val exemplarSize = exemplars.map { (it.width + it.height) / 2 }.average().toFloat() * scale
     return scale * min(1f, EXEMPLAR_SIZE / exemplarSize)
 }
+
+/** The model input for an image scaled by [scale]: the scaled image and a little padding. */
+internal fun inputSize(imageWidth: Int, imageHeight: Int, scale: Float) =
+    InputSize(paddedSide(imageWidth, scale), paddedSide(imageHeight, scale))
+
+private fun paddedSide(side: Int, scale: Float) =
+    max(
+        ((side * scale).toInt() + SIZE_MULTIPLE - 1) / SIZE_MULTIPLE * SIZE_MULTIPLE,
+        MIN_INPUT_SIDE,
+    )
 
 /**
  * Picks one detection per object, with its box in image pixels, in reading order: row by row from
@@ -69,15 +92,16 @@ internal fun decodeDetections(
     imageWidth: Int,
     imageHeight: Int,
 ): List<Detection> {
+    val input = inputSize(imageWidth, imageHeight, scale)
     val peaks = peaks(output)
     val best = peaks.maxOfOrNull { output.objectness[it] } ?: return emptyList()
     val candidates =
         peaks
             .filter { output.objectness[it] > best * SCORE_RATIO }
             .sortedByDescending { output.objectness[it] }
-            .map { Detection(box(output, it), output.objectness[it] / best) }
+            .map { Detection(box(output, input, it), output.objectness[it] / best) }
     return suppressDuplicates(candidates)
-        .map { it.copy(box = it.box.scaled(INPUT_SIZE / scale)) }
+        .map { it.copy(box = it.box.scaled(1 / scale)) }
         .filter { it.box.center.x < imageWidth && it.box.center.y < imageHeight }
         .inReadingOrder()
 }
@@ -95,31 +119,33 @@ private fun List<Detection>.inReadingOrder(): List<Detection> {
 
 /** Cells that are 3 x 3 local maxima above the peak threshold. */
 private fun peaks(output: ModelOutput): List<Int> {
-    val size = output.gridSize
+    val columns = output.columns
     val scores = output.objectness
     val threshold = scores.max() * PEAK_RATIO
     return scores.indices.filter { cell ->
-        val row = cell / size
-        val column = cell % size
+        val row = cell / columns
+        val column = cell % columns
         scores[cell] > threshold &&
-            (max(row - 1, 0)..min(row + 1, size - 1)).all { r ->
-                (max(column - 1, 0)..min(column + 1, size - 1)).all { c ->
-                    scores[r * size + c] <= scores[cell]
+            (max(row - 1, 0)..min(row + 1, output.rows - 1)).all { r ->
+                (max(column - 1, 0)..min(column + 1, columns - 1)).all { c ->
+                    scores[r * columns + c] <= scores[cell]
                 }
             }
     }
 }
 
-/** The box predicted at a cell, relative to the input and clipped to it. */
-private fun box(output: ModelOutput, cell: Int): Box {
-    val x = (cell % output.gridSize).toFloat() / output.gridSize
-    val y = (cell / output.gridSize).toFloat() / output.gridSize
+/** The box predicted at a cell, in input pixels and clipped to the input. */
+private fun box(output: ModelOutput, input: InputSize, cell: Int): Box {
+    val width = input.width.toFloat()
+    val height = input.height.toFloat()
+    val x = (cell % output.columns) * width / output.columns
+    val y = (cell / output.columns) * height / output.rows
     val (left, top, right, bottom) = output.offsets.copyOfRange(cell * 4, cell * 4 + 4).map { it }
     return Box(
-        (x - left).coerceIn(0f, 1f),
-        (y - top).coerceIn(0f, 1f),
-        (x + right).coerceIn(0f, 1f),
-        (y + bottom).coerceIn(0f, 1f),
+        (x - left).coerceIn(0f, width),
+        (y - top).coerceIn(0f, height),
+        (x + right).coerceIn(0f, width),
+        (y + bottom).coerceIn(0f, height),
     )
 }
 

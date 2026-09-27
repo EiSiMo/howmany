@@ -15,12 +15,14 @@ import org.junit.runner.RunWith
 class ObjectCounterTest {
     // The benchmark's first exemplar for each image and prototype 4's count with it.
 
-    /** Apples filling only ~12% of the model input: the typical case. */
+    /** Apples scaled down to a 416 x 320 model input: the typical case. */
     @Test
     fun countsApplesLikeTheBenchmark() =
         countsLikeTheBenchmark("2147.jpg", Box(122f, 133f, 222f, 231f), 34)
 
-    /** Small marbles filling the whole model input: the worst case for time and memory. */
+    /**
+     * Small marbles filling the whole 1024 x 1024 model input: the worst case for time and memory.
+     */
     @Test
     fun countsMarblesLikeTheBenchmark() =
         countsLikeTheBenchmark("5574.jpg", Box(280f, 218f, 301f, 240f), 93)

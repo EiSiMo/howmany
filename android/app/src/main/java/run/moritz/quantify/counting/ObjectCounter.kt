@@ -64,9 +64,12 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
 
     private fun detectInWhole(image: Bitmap, exemplars: List<Box>): List<Detection> {
         val scale = inputScale(image.width, image.height, exemplars)
+        val input = inputSize(image.width, image.height, scale)
         val boxes =
             exemplars.flatMap { listOf(it.left, it.top, it.right, it.bottom) }.map { it * scale }
-        OnnxTensor.createTensor(environment, pixels(image, scale), IMAGE_SHAPE).use { imageTensor ->
+        val imageShape = longArrayOf(1, 3, input.height.toLong(), input.width.toLong())
+        OnnxTensor.createTensor(environment, pixels(image, scale, input), imageShape).use {
+            imageTensor ->
             OnnxTensor.createTensor(
                     environment,
                     FloatBuffer.wrap(boxes.toFloatArray()),
@@ -78,7 +81,8 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
                         val objectness = result.floats("objectness")
                         val output =
                             ModelOutput(
-                                gridSize = objectness.shape[1].toInt(),
+                                rows = objectness.shape[1].toInt(),
+                                columns = objectness.shape[2].toInt(),
                                 objectness = objectness.values,
                                 offsets = result.floats("offsets").values,
                             )
@@ -101,16 +105,14 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
     }
 
     private companion object {
-        val IMAGE_SHAPE = longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
-
         /** Scales the image, pads it to the input size and normalizes it, channels first. */
-        fun pixels(image: Bitmap, scale: Float): FloatBuffer {
+        fun pixels(image: Bitmap, scale: Float, input: InputSize): FloatBuffer {
             val width = (image.width * scale).toInt()
             val height = (image.height * scale).toInt()
             val colors = IntArray(width * height)
             Bitmap.createScaledBitmap(image, width, height, true)
                 .getPixels(colors, 0, width, 0, 0, width, height)
-            val plane = INPUT_SIZE * INPUT_SIZE
+            val plane = input.width * input.height
             val values = FloatArray(3 * plane)
             for (channel in 0..2) {
                 values.fill(-MEAN[channel] / STD[channel], channel * plane, (channel + 1) * plane)
@@ -118,7 +120,7 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
             for (y in 0 until height) {
                 for (x in 0 until width) {
                     val color = colors[y * width + x]
-                    val index = y * INPUT_SIZE + x
+                    val index = y * input.width + x
                     for (channel in 0..2) {
                         val value = (color shr (16 - 8 * channel) and 0xff) / 255f
                         values[channel * plane + index] = (value - MEAN[channel]) / STD[channel]

@@ -19,60 +19,73 @@ class DetectionsTest {
     }
 
     @Test
+    fun `sizes the input to the scaled image, rounded up to a multiple of 32`() {
+        assertEquals(InputSize(1024, 512), inputSize(2000, 1000, scale = 0.512f))
+        assertEquals(InputSize(608, 512), inputSize(2000, 1000, scale = 0.3f))
+    }
+
+    @Test
+    fun `pads small images to at least 512 pixels per side`() {
+        assertEquals(InputSize(512, 512), inputSize(400, 200, scale = 0.5f))
+    }
+
+    @Test
     fun `turns an objectness peak into a box in image pixels`() {
-        val output = emptyOutput(gridSize = 4)
-        output.objectness(row = 1, column = 2, value = 1f)
-        output.offsets(row = 1, column = 2, 0.05f, 0.05f, 0.05f, 0.05f)
+        // A 1024 x 512 input, whose output grid has a cell every 32 input pixels.
+        val output = emptyOutput(rows = 16, columns = 32)
+        output.objectness(row = 4, column = 10, value = 1f)
+        output.offsets(row = 4, column = 10, 2f, 3f, 4f, 6f)
 
         val boxes =
-            decodeDetections(output, scale = 0.5f, imageWidth = 2048, imageHeight = 2048).map {
+            decodeDetections(output, scale = 0.5f, imageWidth = 2048, imageHeight = 1024).map {
                 it.box
             }
 
-        assertBoxes(listOf(Box(921.6f, 409.6f, 1126.4f, 614.4f)), boxes)
+        assertBoxes(listOf(Box(636f, 250f, 648f, 268f)), boxes)
     }
 
     @Test
     fun `keeps one box per object and drops weak peaks`() {
-        val output = emptyOutput(gridSize = 16)
+        val output = emptyOutput(rows = 16, columns = 16)
         output.objectness(row = 4, column = 4, value = 1f)
-        output.offsets(row = 4, column = 4, 0.2f, 0.2f, 0.2f, 0.2f)
+        output.offsets(row = 4, column = 4, 128f, 128f, 128f, 128f)
         // A duplicate of the same object, overlapping the first box by more than half.
         output.objectness(row = 4, column = 6, value = 0.9f)
-        output.offsets(row = 4, column = 6, 0.2f, 0.2f, 0.2f, 0.2f)
+        output.offsets(row = 4, column = 6, 128f, 128f, 128f, 128f)
         output.objectness(row = 12, column = 12, value = 0.8f)
-        output.offsets(row = 12, column = 12, 0.05f, 0.05f, 0.05f, 0.05f)
+        output.offsets(row = 12, column = 12, 32f, 32f, 32f, 32f)
         output.objectness(row = 12, column = 2, value = 0.1f)
 
         val boxes =
-            decodeDetections(output, scale = 1f, imageWidth = 1024, imageHeight = 1024).map {
+            decodeDetections(output, scale = 1f, imageWidth = 512, imageHeight = 512).map {
                 it.box
             }
 
-        assertEquals(listOf(0.25f, 0.75f), boxes.map { (it.left + it.right) / 2 / 1024 })
+        assertEquals(listOf(128f, 384f), boxes.map { (it.left + it.right) / 2 })
     }
 
     @Test
     fun `drops detections in the padding`() {
-        val output = emptyOutput(gridSize = 4)
-        output.objectness(row = 1, column = 1, value = 1f)
-        output.objectness(row = 1, column = 3, value = 1f)
+        // A 300 x 512 image padded to a 512 x 512 input.
+        val output = emptyOutput(rows = 16, columns = 32)
+        output.objectness(row = 8, column = 8, value = 1f)
+        output.objectness(row = 8, column = 24, value = 1f)
 
-        val boxes = decodeDetections(output, scale = 1f, imageWidth = 512, imageHeight = 1024)
+        val boxes = decodeDetections(output, scale = 1f, imageWidth = 300, imageHeight = 512)
 
         assertEquals(1, boxes.size)
     }
 
     @Test
     fun `orders detections row by row from top left to bottom right`() {
-        val output = emptyOutput(gridSize = 16)
+        val output = emptyOutput(rows = 16, columns = 16)
         // Strongest first, so that the model's order differs from the reading order.
         output.objectness(row = 12, column = 12, value = 1f)
         output.objectness(row = 12, column = 4, value = 0.9f)
         output.objectness(row = 4, column = 12, value = 0.8f)
         output.objectness(row = 4, column = 4, value = 0.7f)
         for ((row, column) in listOf(4 to 4, 4 to 12, 12 to 4, 12 to 12)) {
-            output.offsets(row, column, 0.05f, 0.05f, 0.05f, 0.05f)
+            output.offsets(row, column, 51.2f, 51.2f, 51.2f, 51.2f)
         }
 
         val boxes =
@@ -88,12 +101,12 @@ class DetectionsTest {
 
     @Test
     fun `keeps slightly offset objects in the same row`() {
-        val output = emptyOutput(gridSize = 16)
+        val output = emptyOutput(rows = 16, columns = 16)
         output.objectness(row = 4, column = 12, value = 1f)
-        output.offsets(row = 4, column = 12, 0.1f, 0.1f, 0.1f, 0.1f)
+        output.offsets(row = 4, column = 12, 102.4f, 102.4f, 102.4f, 102.4f)
         // A bit lower than its right neighbour, but well within its height.
         output.objectness(row = 5, column = 4, value = 0.9f)
-        output.offsets(row = 5, column = 4, 0.1f, 0.1f, 0.1f, 0.1f)
+        output.offsets(row = 5, column = 4, 102.4f, 102.4f, 102.4f, 102.4f)
 
         val boxes =
             decodeDetections(output, scale = 1f, imageWidth = 1024, imageHeight = 1024).map {
@@ -105,12 +118,12 @@ class DetectionsTest {
 
     @Test
     fun `rates each detection relative to the best one and flags weak ones as uncertain`() {
-        val output = emptyOutput(gridSize = 16)
+        val output = emptyOutput(rows = 16, columns = 16)
         output.objectness(row = 4, column = 4, value = 2f)
         output.objectness(row = 4, column = 12, value = 1.2f)
         output.objectness(row = 12, column = 4, value = 0.6f)
         for ((row, column) in listOf(4 to 4, 4 to 12, 12 to 4)) {
-            output.offsets(row, column, 0.05f, 0.05f, 0.05f, 0.05f)
+            output.offsets(row, column, 51.2f, 51.2f, 51.2f, 51.2f)
         }
 
         val detections = decodeDetections(output, scale = 1f, imageWidth = 1024, imageHeight = 1024)
@@ -121,15 +134,15 @@ class DetectionsTest {
 
     private fun Box.center() = (left + right) / 2 / 1024 to (top + bottom) / 2 / 1024
 
-    private fun emptyOutput(gridSize: Int) =
-        ModelOutput(gridSize, FloatArray(gridSize * gridSize), FloatArray(gridSize * gridSize * 4))
+    private fun emptyOutput(rows: Int, columns: Int) =
+        ModelOutput(rows, columns, FloatArray(rows * columns), FloatArray(rows * columns * 4))
 
     private fun ModelOutput.objectness(row: Int, column: Int, value: Float) {
-        objectness[row * gridSize + column] = value
+        objectness[row * columns + column] = value
     }
 
     private fun ModelOutput.offsets(row: Int, column: Int, vararg values: Float) {
-        values.copyInto(offsets, (row * gridSize + column) * 4)
+        values.copyInto(offsets, (row * columns + column) * 4)
     }
 
     private fun assertBoxes(expected: List<Box>, actual: List<Box>) {

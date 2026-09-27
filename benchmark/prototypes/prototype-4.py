@@ -30,7 +30,13 @@ if TYPE_CHECKING:
 MODEL_PATH = Path(__file__).parent.parent / "data" / "geco2-int8.onnx"
 # A phone runs inference on its few performance cores; match that instead of using every core.
 THREADS = 4
+# GeCo2 was trained on square images of this many pixels, the scaled image top-left.
 INPUT_SIZE = 1024
+# The model takes that image with the padding cut off, down to the next multiple of this.
+SIZE_MULTIPLE = 32
+# But never smaller than this per side: with less padding around very small images (few, large
+# objects) GeCo2 miscounts, e.g. 48 instead of 32 planks.
+MIN_INPUT_SIDE = 512
 # GeCo2 scales images so exemplars are at most this many pixels on average.
 EXEMPLAR_SIZE = 80
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -56,7 +62,7 @@ def _session() -> onnxruntime.InferenceSession:
 
 
 def _prepare(image: MatLike, exemplars: Boxes) -> tuple[NDArray[np.float32], float]:
-    """Scale the image so exemplars are at most ~80 px, pad it to 1024 x 1024 and normalize."""
+    """Scale the image so exemplars are at most ~80 px, pad it (see above) and normalize."""
     height, width = image.shape[:2]
     scale = INPUT_SIZE / max(height, width)
     sizes = (exemplars[:, 2:] - exemplars[:, :2]) * scale
@@ -64,7 +70,10 @@ def _prepare(image: MatLike, exemplars: Boxes) -> tuple[NDArray[np.float32], flo
     resized = cv2.resize(
         image, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR
     )
-    padded = np.zeros((INPUT_SIZE, INPUT_SIZE, 3), dtype=np.float32)
+    input_height, input_width = (
+        max(-(-side // SIZE_MULTIPLE) * SIZE_MULTIPLE, MIN_INPUT_SIDE) for side in resized.shape[:2]
+    )
+    padded = np.zeros((input_height, input_width, 3), dtype=np.float32)
     padded[: resized.shape[0], : resized.shape[1]] = resized / 255
     normalized = (padded - IMAGENET_MEAN) / IMAGENET_STD
     return normalized.transpose(2, 0, 1)[None], scale
@@ -112,15 +121,18 @@ def detect(image_path: Path, exemplars: Sequence[Box]) -> Boxes:
     offsets = np.asarray(outputs[1][0], dtype=np.float32)
 
     rows, columns = _peaks(objectness)
-    grid_rows, grid_columns = objectness.shape
-    centers = np.stack([columns / grid_columns, rows / grid_rows], axis=1).astype(np.float32)
+    input_height, input_width = pixels.shape[2:]
+    cell_height, cell_width = input_height / objectness.shape[0], input_width / objectness.shape[1]
+    centers = np.stack([columns * cell_width, rows * cell_height], axis=1).astype(np.float32)
     left_top, right_bottom = offsets[rows, columns, :2], offsets[rows, columns, 2:]
     boxes = np.concatenate([centers - left_top, centers + right_bottom], axis=1)
     scores = objectness[rows, columns]
     if len(scores) == 0:
         return np.zeros((0, 4), dtype=np.float32)
     keep = scores > scores.max() * SCORE_RATIO
-    boxes = np.clip(_suppress_duplicates(boxes[keep], scores[keep]), 0, 1) * INPUT_SIZE
+    boxes = np.clip(
+        _suppress_duplicates(boxes[keep], scores[keep]), 0, [input_width, input_height] * 2
+    )
 
     # Drop boxes centred in the padding, then map back to original image pixels.
     box_centers = (boxes[:, :2] + boxes[:, 2:]) / 2
