@@ -27,13 +27,11 @@ import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import java.nio.ShortBuffer
-import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -41,11 +39,9 @@ import run.moritz.quantify.counting.Box
 import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
 
-// While counting, sonar rings run from the example across the crop.
+// While counting, sonar ripples run from the example across the crop, bending the photo.
 private const val SCAN_PERIOD = 1.4f
 private const val SCAN_RING_LIFE = 2.2f
-private const val SCAN_RING_ALPHA = 0.5f
-private val SCAN_BAND = 48.dp
 private const val DIM_ALPHA = 0.3f
 private const val DIM_FADE = 0.3f
 // When the count arrives, one fast wave reveals the heatmap and pops the points up as it reaches
@@ -245,9 +241,6 @@ fun DrawScope.drawCountingAnimation(
                 crop.topLeft,
                 crop.size,
             )
-            for ((radius, strength) in scanRings(seconds, reach(origin, crop))) {
-                drawRing(origin, radius, SCAN_RING_ALPHA * strength)
-            }
         }
         val seconds = animation.revealing
         if (seconds != null && heatmap != null && heatmapRect != null) {
@@ -306,27 +299,6 @@ private fun cellsTo(rect: Rect, columns: Int, rows: Int) =
         setScale(rect.width / columns, rect.height / rows)
         postTranslate(rect.left, rect.top)
     }
-
-/** A soft bright band with a thin line at its outer edge, brightening the photo under it. */
-private fun DrawScope.drawRing(center: Offset, radius: Float, alpha: Float) {
-    if (radius <= 0 || alpha <= 0) return
-    val band = SCAN_BAND.toPx()
-    val outer = radius + band / 3
-    drawCircle(
-        Brush.radialGradient(
-            0f to Color.Transparent,
-            max(0f, (radius - band) / outer) to Color.Transparent,
-            radius / outer to Color.White.copy(alpha = alpha * 0.6f),
-            1f to Color.Transparent,
-            center = center,
-            radius = outer,
-        ),
-        outer,
-        center,
-        blendMode = BlendMode.Screen,
-    )
-    drawCircle(Color.White.copy(alpha = alpha), radius, center, style = Stroke(1.5.dp.toPx()))
-}
 
 /** The distance from [origin] to the farthest corner of [crop]. */
 private fun reach(origin: Offset, crop: Rect) =
