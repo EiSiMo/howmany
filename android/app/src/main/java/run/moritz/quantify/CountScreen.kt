@@ -1,7 +1,6 @@
 package run.moritz.quantify
 
 import android.graphics.Bitmap
-import android.graphics.BlurMaskFilter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
@@ -51,8 +50,6 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
@@ -60,7 +57,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -108,7 +104,6 @@ private val EXEMPLAR_CORNER_STROKE = 3.5.dp
 private val EXEMPLAR_CORNER_LENGTH = 16.dp
 private val EXEMPLAR_RADIUS = 8.dp
 private val EXEMPLAR_HALO = 2.dp
-private val EXEMPLAR_GLOW = 4.dp
 // Room around the photo, so its edges can be dragged without triggering the back gesture.
 private val PHOTO_MARGIN = 24.dp
 private val HANDLE_REACH = 24.dp
@@ -132,7 +127,7 @@ fun CountScreen(viewModel: CountViewModel) {
         rememberCountingAnimation(
             state.counting,
             state.heatmap,
-            state.exemplar?.center,
+            state.exemplar,
             state.crop,
         )
     // The count rises with the points the reveal has shown so far.
@@ -217,7 +212,7 @@ fun CountScreen(viewModel: CountViewModel) {
                     exemplar = state.exemplar.takeIf { points == null },
                     points = points.orEmpty(),
                     uncertain = state.uncertain,
-                    origin = state.exemplar?.center,
+                    example = state.exemplar,
                     heatmap = state.heatmap,
                     counting = state.counting,
                     animation = animation,
@@ -318,11 +313,11 @@ private sealed interface PhotoDrag {
 
 /**
  * Shows the photo with its crop and the example or the counted points, the [uncertain] ones
- * highlighted. While [counting], it zooms smoothly out to the whole photo and scans from [origin];
- * when the count arrives, it reveals the points and their [heatmap] from there, as [animation]
- * goes. Two fingers zoom and pan. One finger drags the crop's edges while [onAdjustCrop] is given;
- * elsewhere it drags a box around one object while [onMarkExemplar] is given, and pans otherwise.
- * Taps go to [onTap], with a hit radius in image pixels.
+ * highlighted. While [counting], it zooms smoothly out to the whole photo and scans from the edge
+ * of [example]; when the count arrives, it reveals the points and their [heatmap] from there, as
+ * [animation] goes. Two fingers zoom and pan. One finger drags the crop's edges while
+ * [onAdjustCrop] is given; elsewhere it drags a box around one object while [onMarkExemplar] is
+ * given, and pans otherwise. Taps go to [onTap], with a hit radius in image pixels.
  */
 @Composable
 private fun Photo(
@@ -331,7 +326,7 @@ private fun Photo(
     exemplar: ImageBox?,
     points: List<Point>,
     uncertain: Set<Point>,
-    origin: Point?,
+    example: ImageBox?,
     heatmap: Heatmap?,
     counting: Boolean,
     animation: CountingAnimation,
@@ -445,12 +440,12 @@ private fun Photo(
         Canvas(
             Modifier.matchParentSize().graphicsLayer {
                 val current = viewport
-                val at = origin
+                val source = example
                 renderEffect =
-                    if (current == null || at == null) null
+                    if (current == null || source == null) null
                     else
                         animation.distortion(
-                            current.toView(Offset(at.x, at.y)),
+                            source.inView(current),
                             crop.inView(current),
                             heatmap?.bounds?.inView(current),
                             density,
@@ -474,11 +469,9 @@ private fun Photo(
             ) {
                 drawRect(Color.Black.copy(alpha = CROPPED_ALPHA), photoRect.topLeft, photoRect.size)
             }
-            val originInView = origin?.let { current.toView(Offset(it.x, it.y)) }
-            if (originInView != null) {
+            if (example != null) {
                 drawCountingAnimation(
                     animation,
-                    originInView,
                     cropRect,
                     heatmap,
                     heatmap?.bounds?.inView(current),
@@ -565,27 +558,11 @@ private fun DrawScope.drawExemplarFrame(rect: Rect) {
     val outline = EXEMPLAR_OUTLINE.toPx() * scale
     val cornerStroke = EXEMPLAR_CORNER_STROKE.toPx() * scale
     val halo = EXEMPLAR_HALO.toPx() * scale
-    val glow = EXEMPLAR_GLOW.toPx() * scale
-    fun stroke(color: Color, extra: Float, blur: Float = 0f) {
-        drawIntoCanvas { canvas ->
-            val paint =
-                Paint().apply {
-                    this.color = color
-                    style = PaintingStyle.Stroke
-                    strokeCap = StrokeCap.Round
-                    if (blur > 0) {
-                        asFrameworkPaint().maskFilter =
-                            BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
-                    }
-                }
-            paint.strokeWidth = outline + extra
-            canvas.drawPath(frame, paint)
-            paint.strokeWidth = cornerStroke + extra
-            canvas.drawPath(corners, paint)
-        }
+    fun stroke(color: Color, extra: Float) {
+        drawPath(frame, color, style = Stroke(outline + extra))
+        drawPath(corners, color, style = Stroke(cornerStroke + extra, cap = StrokeCap.Round))
     }
     stroke(Color.Black.copy(alpha = 0.3f), halo)
-    stroke(Color.White.copy(alpha = 0.8f), glow, blur = glow)
     stroke(Color.White, 0f)
 }
 

@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import java.nio.ShortBuffer
+import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -39,7 +40,8 @@ import run.moritz.quantify.counting.Box
 import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
 
-// While counting, sonar ripples run from the example across the crop, bending the photo.
+// While counting, sonar ripples run from the example's edge across the crop, bending the photo
+// around the example but not the example itself.
 private const val SCAN_PERIOD = 1.4f
 private const val SCAN_RING_LIFE = 2.2f
 private const val DIM_ALPHA = 0.3f
@@ -82,7 +84,7 @@ class CountingAnimation {
     }
 
     /**
-     * How far the reveal wave has come, as arrival: from 0 at the origin to 1 at the last corner.
+     * How far the reveal wave has come, as arrival: from 0 at the example to 1 at the last corner.
      */
     internal fun front(seconds: Float) = easeOut((seconds / REVEAL).coerceAtMost(1f))
 
@@ -113,19 +115,19 @@ class CountingAnimation {
     }
 
     /**
-     * The render effect that bends the photo where a wave passes, with the scan's rings from
-     * [origin] or the reveal's front bent by the objects, in view coordinates; null while there is
-     * no wave or the device cannot run shaders.
+     * The render effect that bends the photo where a wave passes, with the scan's rings from the
+     * edge of [example] or the reveal's front, in view coordinates; null while there is no wave or
+     * the device cannot run shaders.
      */
     internal fun distortion(
-        origin: Offset,
+        example: Rect,
         crop: Rect,
         heatmapRect: Rect?,
         density: Density,
     ): RenderEffect? {
         val distortion = distortion ?: return null
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
-        val reach = reach(origin, crop)
+        val reach = reach(example, crop)
         val scanning = scanning
         val revealing = revealing
         val rings =
@@ -138,7 +140,7 @@ class CountingAnimation {
         val arrival = if (revealing != null) arrivalShader(heatmapRect) else null
         if (revealing != null && arrival == null) return null
         return distortion.effect(
-            origin,
+            example,
             crop,
             rings,
             arrival,
@@ -179,19 +181,19 @@ class CountingAnimation {
 
 /**
  * Scans while [counting]; reveals the count when counting ends with a [heatmap], with a wave from
- * [origin] across [crop].
+ * the edge of [example] across [crop].
  */
 @Composable
 fun rememberCountingAnimation(
     counting: Boolean,
     heatmap: Heatmap?,
-    origin: Point?,
+    example: Box?,
     crop: Box?,
 ): CountingAnimation {
     val animation = remember { CountingAnimation() }
     val wave =
-        remember(heatmap, origin, crop) {
-            if (heatmap != null && origin != null && crop != null) Wave(heatmap, origin, crop)
+        remember(heatmap, example, crop) {
+            if (heatmap != null && example != null && crop != null) Wave(heatmap, example, crop)
             else null
         }
     if (animation.wave !== wave) animation.wave = wave
@@ -224,12 +226,11 @@ private suspend fun everyFrame(
 }
 
 /**
- * Draws the scan or the reveal inside [crop], all in view coordinates: rings from [origin], and the
- * [heatmap] placed at [heatmapRect] glowing in [glowColor] where the wave has passed.
+ * Draws the scan's dimming or the reveal inside [crop], all in view coordinates: the [heatmap]
+ * placed at [heatmapRect] glowing in [glowColor] where the wave has passed.
  */
 fun DrawScope.drawCountingAnimation(
     animation: CountingAnimation,
-    origin: Offset,
     crop: Rect,
     heatmap: Heatmap?,
     heatmapRect: Rect?,
@@ -301,10 +302,16 @@ private fun cellsTo(rect: Rect, columns: Int, rows: Int) =
         postTranslate(rect.left, rect.top)
     }
 
-/** The distance from [origin] to the farthest corner of [crop]. */
-private fun reach(origin: Offset, crop: Rect) =
+/** The distance from the edge of [example] to the farthest corner of [crop]. */
+private fun reach(example: Rect, crop: Rect) =
     listOf(crop.topLeft, crop.topRight, crop.bottomLeft, crop.bottomRight)
-        .maxOf { (it - origin).getDistance() }
+        .maxOf {
+            Offset(
+                    max(0f, max(example.left - it.x, it.x - example.right)),
+                    max(0f, max(example.top - it.y, it.y - example.bottom)),
+                )
+                .getDistance()
+        }
         .coerceAtLeast(1f)
 
 private fun easeOut(fraction: Float) = 1 - (1 - fraction) * (1 - fraction)
@@ -317,7 +324,8 @@ private fun easeOutBack(fraction: Float): Float {
 
 /**
  * Bends the photo along the waves like light through water: pixels move towards or away from the
- * origin where a ring passes, colors split slightly, and the reveal's front shines.
+ * example where a ring passes, colors split slightly, and the reveal's front shines. The example
+ * itself stays still.
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 private class Distortion {
@@ -332,10 +340,10 @@ private class Distortion {
 
     /**
      * With [arrival], the rings (radius, strength; at most two) are the reveal's front in arrival
-     * times [reach]; without, they are circles around [origin].
+     * times [reach]; without, they run out from the edge of [example].
      */
     fun effect(
-        origin: Offset,
+        example: Rect,
         crop: Rect,
         rings: List<Pair<Float, Float>>,
         arrival: BitmapShader?,
@@ -345,7 +353,7 @@ private class Distortion {
     ): RenderEffect {
         val first = rings.getOrElse(0) { 0f to 0f }
         val second = rings.getOrElse(1) { 0f to 0f }
-        shader.setFloatUniform("origin", origin.x, origin.y)
+        shader.setFloatUniform("example", example.left, example.top, example.right, example.bottom)
         shader.setFloatUniform("crop", crop.left, crop.top, crop.right, crop.bottom)
         shader.setFloatUniform("rings", first.first, first.second, second.first, second.second)
         shader.setFloatUniform("reveal", if (arrival != null) 1f else 0f)
@@ -363,7 +371,7 @@ private class Distortion {
             """
             uniform shader content;
             uniform shader arrival;
-            uniform float2 origin;
+            uniform float4 example;
             uniform float4 crop;
             uniform float4 rings;
             uniform float reveal;
@@ -372,10 +380,15 @@ private class Distortion {
             uniform float width;
             uniform float brightness;
 
+            // From the example's edge out to p; zero inside the example.
+            float2 outwards(float2 p) {
+                return max(max(example.xy - p, p - example.zw), float2(0));
+            }
+
             // How far the wave has come to p, in pixels.
             float field(float2 p) {
                 if (reveal > 0.5) return arrival.eval(p).r * reach;
-                return distance(p, origin);
+                return length(outwards(p));
             }
 
             // One wave crest: pushes outwards just ahead of the ring, inwards just behind it.
@@ -395,11 +408,13 @@ private class Distortion {
                     direction = float2(field(p + float2(e, 0)) - field(p - float2(e, 0)),
                                        field(p + float2(0, e)) - field(p - float2(0, e)));
                 } else {
-                    direction = p - origin;
+                    direction = outwards(p) * sign(p - (example.xy + example.zw) * 0.5);
                 }
                 float size = length(direction);
                 direction = size > 0.0001 ? direction / size : float2(0);
                 float push = rings.y * crest(d - rings.x) + rings.w * crest(d - rings.z);
+                // Fades in from the example's edge, so the example stays still without a seam.
+                push *= smoothstep(0.0, width * 0.5, length(outwards(p)));
                 float2 offset = direction * push * amplitude * 2.3;
                 half4 color = content.eval(p - offset);
                 color.r = content.eval(p - offset * 1.25).r;
