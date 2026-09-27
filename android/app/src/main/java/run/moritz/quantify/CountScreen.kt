@@ -4,33 +4,34 @@ import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,13 +42,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -64,8 +68,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -106,13 +110,19 @@ private val EXEMPLAR_RADIUS = 8.dp
 private val EXEMPLAR_HALO = 2.dp
 // Room around the photo, so its edges can be dragged without triggering the back gesture.
 private val PHOTO_MARGIN = 24.dp
+// The controls float in the thumb zone: a hint above the shutter, which sits this high.
+private val CONTROLS_BOTTOM = 20.dp
+private val HINT_GAP = 12.dp
+private val CONTROLS_HEIGHT = CONTROLS_BOTTOM + SHUTTER_SIZE + HINT_GAP + 36.dp + HINT_GAP
+private const val SIDE_BUTTON_BIAS = 0.74f
+private val SCRIM_TOP = Color.Black.copy(alpha = 0.5f)
+private val SCRIM_BOTTOM = Color.Black.copy(alpha = 0.6f)
 private val HANDLE_REACH = 24.dp
 private val HANDLE_LENGTH = 20.dp
 private val HANDLE_STROKE = 4.dp
 private val MIN_CROP_SIZE = 48.dp
 private const val CROPPED_ALPHA = 0.6f
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CountScreen(viewModel: CountViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -122,6 +132,7 @@ fun CountScreen(viewModel: CountViewModel) {
         }
     val pickPhoto = { picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }
     val photo = state.photo
+    val crop = state.crop
     val points = state.counted
     val animation =
         rememberCountingAnimation(
@@ -134,172 +145,179 @@ fun CountScreen(viewModel: CountViewModel) {
     val revealed by
         remember(points) { derivedStateOf { points?.count { pointScale(animation, it) > 0 } ?: 0 } }
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    if (points != null) Count(revealed) else Text(stringResource(R.string.app_name))
-                },
-                actions = {
-                    if (state.corrected) {
-                        // Donating corrections as training data is not built yet.
-                        IconButton(onClick = {}) {
-                            Icon(
-                                painterResource(R.drawable.ic_donate),
-                                stringResource(R.string.donate),
-                            )
-                        }
-                    }
-                },
-            )
-        },
-        bottomBar = {
-            if (photo != null) {
-                BottomAppBar(
-                    actions = {
-                        IconButton(onClick = pickPhoto) {
-                            Icon(
-                                painterResource(R.drawable.ic_pick_photo),
-                                stringResource(R.string.pick_photo),
-                            )
-                        }
-                        IconButton(onClick = viewModel::clear, enabled = state.exemplar != null) {
-                            Icon(
-                                painterResource(R.drawable.ic_clear),
-                                stringResource(R.string.clear),
-                            )
-                        }
-                    },
-                    floatingActionButton = {
-                        if (state.exemplar != null && points == null) {
-                            ExtendedFloatingActionButton(
-                                text = {
-                                    Text(
-                                        stringResource(
-                                            if (state.counting) R.string.counting
-                                            else R.string.count
-                                        )
-                                    )
-                                },
-                                icon = { Icon(painterResource(R.drawable.ic_count), null) },
-                                onClick = viewModel::count,
-                                elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
-                            )
-                        }
-                    },
-                )
-            }
-        },
-    ) { padding ->
-        val crop = state.crop
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (photo == null || crop == null) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                EmptyState(pickPhoto)
+            EmptyState(pickPhoto)
+            return@Box
+        }
+        // The photo fills the screen behind the system bars and the controls, fitted between
+        // them until the user zooms.
+        val density = LocalDensity.current
+        val direction = LocalLayoutDirection.current
+        val insets = WindowInsets.safeDrawing
+        val margin =
+            with(density) {
+                Margin(
+                    left = insets.getLeft(this, direction) + PHOTO_MARGIN.toPx(),
+                    top = insets.getTop(this) + PHOTO_MARGIN.toPx(),
+                    right = insets.getRight(this, direction) + PHOTO_MARGIN.toPx(),
+                    bottom = insets.getBottom(this) + CONTROLS_HEIGHT.toPx(),
+                )
             }
-        } else {
-            Column(Modifier.fillMaxSize().padding(padding)) {
-                val hint =
-                    when {
-                        points != null -> R.string.correct
-                        state.counting -> R.string.counting
-                        state.exemplar == null -> R.string.mark_example
-                        else -> R.string.adjust_crop
+        Photo(
+            photo = photo,
+            crop = crop,
+            margin = margin,
+            exemplar = state.exemplar.takeIf { points == null },
+            points = points.orEmpty(),
+            uncertain = state.uncertain,
+            example = state.exemplar,
+            heatmap = state.heatmap,
+            counting = state.counting,
+            animation = animation,
+            onAdjustCrop = viewModel::adjustCrop.takeIf { !state.counting },
+            onMarkExemplar = viewModel::markExemplar.takeIf { points == null && !state.counting },
+            onTap = viewModel::toggle.takeIf { points != null },
+            modifier = Modifier.fillMaxSize(),
+        )
+        // Scrims keep the status bar and the controls readable on bright photos.
+        Box(
+            Modifier.fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(SCRIM_TOP, Color.Transparent)))
+                .statusBarsPadding()
+                .height(PHOTO_MARGIN)
+        )
+        Box(
+            Modifier.align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, SCRIM_BOTTOM)))
+                .navigationBarsPadding()
+                .height(CONTROLS_HEIGHT + PHOTO_MARGIN)
+        )
+        Column(
+            Modifier.align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = CONTROLS_BOTTOM),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            val hint =
+                when {
+                    state.corrected -> R.string.donate
+                    points != null -> R.string.correct
+                    state.counting -> R.string.counting
+                    state.exemplar == null -> R.string.mark_example
+                    else -> R.string.adjust_crop
+                }
+            AnimatedContent(
+                hint,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                modifier = Modifier.padding(horizontal = 24.dp),
+                label = "hint",
+            ) { hint ->
+                if (hint == R.string.donate) {
+                    // Donating corrections as training data is not built yet.
+                    Pill(
+                        stringResource(hint),
+                        icon = painterResource(R.drawable.ic_donate),
+                        onClick = {},
+                    )
+                } else {
+                    Pill(stringResource(hint))
+                }
+            }
+            Spacer(Modifier.height(HINT_GAP))
+            // The side buttons stay put while the shutter turns into the wider count.
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                RoundButton(
+                    painterResource(R.drawable.ic_pick_photo),
+                    stringResource(R.string.pick_photo),
+                    pickPhoto,
+                    Modifier.align(BiasAlignment(-SIDE_BUTTON_BIAS, 0f)),
+                )
+                AnimatedContent(
+                    points != null,
+                    transitionSpec = {
+                        (fadeIn() + scaleIn(initialScale = 0.8f)) togetherWith
+                            (fadeOut() + scaleOut(targetScale = 0.8f))
+                    },
+                    contentAlignment = Alignment.Center,
+                    label = "shutter",
+                ) { counted ->
+                    if (counted) {
+                        CountChip(revealed)
+                    } else {
+                        Shutter(
+                            painterResource(R.drawable.ic_mark),
+                            stringResource(R.string.count),
+                            viewModel::count,
+                            enabled = state.exemplar != null,
+                            busy = state.counting,
+                        )
                     }
-                Hint(stringResource(hint), Modifier.align(Alignment.CenterHorizontally))
-                Photo(
-                    photo = photo,
-                    crop = crop,
-                    exemplar = state.exemplar.takeIf { points == null },
-                    points = points.orEmpty(),
-                    uncertain = state.uncertain,
-                    example = state.exemplar,
-                    heatmap = state.heatmap,
-                    counting = state.counting,
-                    animation = animation,
-                    onAdjustCrop = viewModel::adjustCrop.takeIf { !state.counting },
-                    onMarkExemplar =
-                        viewModel::markExemplar.takeIf { points == null && !state.counting },
-                    onTap = viewModel::toggle.takeIf { points != null },
-                    modifier =
-                        Modifier.fillMaxWidth()
-                            .weight(1f)
-                            .background(MaterialTheme.colorScheme.surfaceContainer),
+                }
+                RoundButton(
+                    painterResource(R.drawable.ic_clear),
+                    stringResource(R.string.clear),
+                    viewModel::clear,
+                    Modifier.align(BiasAlignment(SIDE_BUTTON_BIAS, 0f)),
+                    enabled = state.exemplar != null,
                 )
             }
         }
     }
 }
 
-/** The number of counted objects, large, with a word what it is. */
+/**
+ * The first screen: the mark glowing on black, what the app does, and the shutter to pick a photo
+ * where the count button will be.
+ */
 @Composable
-private fun Count(count: Int) {
-    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            count.toString(),
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.alignByBaseline(),
-        )
-        Text(
-            pluralStringResource(R.plurals.objects, count),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.alignByBaseline(),
-        )
-    }
-}
-
-@Composable
-private fun EmptyState(onPickPhoto: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier.padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Icon(
-            painterResource(R.drawable.ic_count),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(72.dp),
-        )
-        Text(
-            stringResource(R.string.empty_title),
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            stringResource(R.string.empty_text),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Button(
-            onClick = onPickPhoto,
-            contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
-        ) {
-            Icon(
-                painterResource(R.drawable.ic_pick_photo),
-                contentDescription = null,
-                modifier = Modifier.size(ButtonDefaults.IconSize),
+private fun EmptyState(onPickPhoto: () -> Unit) {
+    val glow = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+    Box(
+        Modifier.fillMaxSize().drawBehind {
+            drawRect(
+                Brush.radialGradient(
+                    listOf(glow, Color.Transparent),
+                    center = Offset(size.width / 2, size.height * 0.4f),
+                    radius = size.width * 0.75f,
+                )
             )
+        }
+    ) {
+        Column(
+            Modifier.align(BiasAlignment(0f, -0.2f)).padding(horizontal = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Image(
+                painterResource(R.drawable.ic_mark),
+                contentDescription = null,
+                modifier = Modifier.size(96.dp),
+            )
+            Spacer(Modifier.height(28.dp))
             Text(
+                stringResource(R.string.empty_title),
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+            )
+        }
+        Column(
+            Modifier.align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = CONTROLS_BOTTOM),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Pill(stringResource(R.string.empty_text), Modifier.padding(horizontal = 24.dp))
+            Spacer(Modifier.height(HINT_GAP))
+            Shutter(
+                painterResource(R.drawable.ic_pick_photo),
                 stringResource(R.string.pick_photo),
-                modifier = Modifier.padding(start = ButtonDefaults.IconSpacing),
+                onPickPhoto,
             )
         }
     }
-}
-
-/** A short instruction above the photo. */
-@Composable
-private fun Hint(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
 }
 
 /** What a one-finger drag on the photo does, decided where it starts. */
@@ -323,6 +341,7 @@ private sealed interface PhotoDrag {
 private fun Photo(
     photo: Bitmap,
     crop: ImageBox,
+    margin: Margin,
     exemplar: ImageBox?,
     points: List<Point>,
     uncertain: Set<Point>,
@@ -348,7 +367,12 @@ private fun Photo(
     val handleColor = MaterialTheme.colorScheme.primary
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val margin = with(density) { PHOTO_MARGIN.toPx() }
+    var viewSize by remember { mutableStateOf<Size?>(null) }
+    LaunchedEffect(photo, viewSize, margin) {
+        viewport = viewSize?.let {
+            Viewport.fit(it, Size(photo.width.toFloat(), photo.height.toFloat()), margin)
+        }
+    }
 
     LaunchedEffect(counting) {
         val from = viewport
@@ -360,14 +384,7 @@ private fun Photo(
     Box(
         modifier
             .clipToBounds()
-            .onSizeChanged { size ->
-                viewport =
-                    Viewport.fit(
-                        size.toSize(),
-                        Size(photo.width.toFloat(), photo.height.toFloat()),
-                        Margin(margin),
-                    )
-            }
+            .onSizeChanged { viewSize = it.toSize() }
             .pointerInput(photo) {
                 detectPhotoGestures(
                     onTap = { position ->
