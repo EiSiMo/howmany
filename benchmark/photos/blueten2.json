@@ -1,8 +1,8 @@
 {
   "sha256": "963f43218e8ffc3669d2e52da1b6b9c1513d8e1bd543bb70a86170a8fccd63b9",
   "category": "flowers",
-  "complete": true,
-  "excluded": false,
+  "complete": false,
+  "excluded": true,
   "exemplars": [[1499.4, 1346.7, 1619.5, 1448.3], [1249.2, 1917.6, 1393.9, 2048.8], [1473.2, 2592.3, 1631.3, 2739.7]],
   "points": [
     [1559.5, 1397.5],

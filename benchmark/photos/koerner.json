@@ -1,8 +1,8 @@
 {
   "sha256": "a71b6f09bc53df1e3214df84a34155a3b1273fbaed27472ce820636f36f21358",
   "category": "sunflower seeds",
-  "complete": true,
-  "excluded": false,
+  "complete": false,
+  "excluded": true,
   "exemplars": [[1466.2, 749.3, 1697.4, 1037.3], [1701.8, 1268.6, 1872.0, 1421.3], [2334.5, 2643.0, 2605.0, 2861.2]],
   "points": [
     [1581.8, 893.3],

@@ -39,6 +39,8 @@ A trainable prototype also defines `train(image_dir: Path) -> None`, which train
 
 Our own photos are a second benchmark of real phone photos (`photos.py`). Each photo is labelled like FSC-147: a category (English, plural, the text prompt), three exemplar boxes and a point per object, which gives the true count. Labels are `benchmark/photos/<name>.json` (committed); the photos stay local in `benchmark/data/photos/` (originals live in Google Drive). New photos arrive as Google Drive exports `~/Downloads/quantify-training-*.zip`; "new photos in Downloads" means: ingest all of them (idempotent, already ingested photos are skipped by hash), suggest a category for each new photo from its (German) name and content, then show the status. Other photos in `~/Downloads` are unrelated.
 
+Labelling conventions: count the category, not the exemplars' look (a red cap as exemplar means all caps, a green tomato means all tomatoes), as in FSC-147. Exclude a photo only if careful people would disagree on its true count, never because the model struggles with it.
+
 Run from `benchmark/`:
 - Ingest new photos: `uv run photos.py ingest ~/Downloads/quantify-training-*.zip`
 - What is left to label: `uv run photos.py status`

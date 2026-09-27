@@ -1,7 +1,7 @@
 {
   "sha256": "fd9d346060e6c2da612323f3eb3c4e0969087a2a238af681a4069f04f8cc107f",
-  "category": "red bottle caps",
-  "complete": true,
+  "category": "bottle caps",
+  "complete": false,
   "excluded": false,
   "exemplars": [[724.4, 1072.2, 964.4, 1290.4], [2596.3, 1155.1, 2818.8, 1395.1], [554.3, 2603.7, 837.9, 2821.9]],
   "points": [
