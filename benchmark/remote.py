@@ -22,7 +22,7 @@ GPU = "L4"
 
 app = modal.App("quantify-benchmark")
 volume = modal.Volume.from_name("quantify-data", create_if_missing=True)
-image = (
+container_image = (
     modal.Image.debian_slim(python_version="3.12")
     .uv_pip_install("numpy==2.5.3", "pillow==12.3.0", "torch==2.14.0", "transformers==5.17.0")
     .env({"HF_HOME": str(REMOTE_DIR / "data" / "huggingface")})
@@ -34,7 +34,7 @@ image = (
 )
 
 
-@app.function(image=image, gpu=GPU, volumes={str(DATA_DIR): volume}, timeout=3600)
+@app.function(image=container_image, gpu=GPU, volumes={str(DATA_DIR): volume}, timeout=3600)
 def train(prototype: str) -> bytes:
     """Train the prototype at the given benchmark-relative path and return its weights."""
     configure_logging()

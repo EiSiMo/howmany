@@ -159,7 +159,7 @@ class GeCo2:
         pixels = T.ToTensor()(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
         boxes = torch.tensor(exemplars, dtype=torch.float32)
         # Scales the image so that exemplars are at most ~80 px, then pads to 1024 x 1024.
-        padded, boxes, scale = resize_and_pad(pixels, boxes, size=1024.0)
+        padded, boxes, scale = resize_and_pad(pixels, boxes, size=float(INPUT_SIZE))
         padded = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(padded)
         with torch.no_grad():
             outputs: list[dict[str, Any]] = self.model(
@@ -172,7 +172,7 @@ class GeCo2:
             return []
         keep = scores > scores.max() * SCORE_RATIO
         predicted, scores = predicted[keep], scores[keep]
-        predicted = predicted[ops.nms(predicted, scores, NMS_IOU)].clamp(0, 1) * 1024
+        predicted = predicted[ops.nms(predicted, scores, NMS_IOU)].clamp(0, 1) * INPUT_SIZE
         # Drop boxes centred in the padding, then map back to original image pixels.
         centers = (predicted[:, :2] + predicted[:, 2:]) / 2
         height, width = pixels.shape[1:]

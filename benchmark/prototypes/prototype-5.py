@@ -43,10 +43,10 @@ WEIGHTS_URL = (
     "85b05896928f974e308f889d7ccb2eefc069de98/efficientsam3_ft/efficientsam3_efficientvit.pt"
 )
 WEIGHTS_PATH = f"{REPO_DIR}/efficientsam3_efficientvit.pt"
-# The EV-M configuration, as in the authors' ONNX export script.
 # Confidence thresholds minimising the count MAE on the validation manifest, for a text prompt
 # and for a single exemplar (a tap).
 THRESHOLDS = {"text": 0.16, "exemplars": 0.21}
+# The EV-M configuration, as in the authors' ONNX export script.
 MODEL_CONFIG = {
     "backbone_type": "efficientvit",
     "model_name": "b1",
@@ -55,7 +55,7 @@ MODEL_CONFIG = {
 }
 
 app = modal.App(APP_NAME)
-image = (
+container_image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("git", "curl")
     .pip_install(
@@ -79,7 +79,7 @@ image = (
 )
 
 
-@app.cls(image=image, gpu="L4", scaledown_window=120)
+@app.cls(image=container_image, gpu="L4", scaledown_window=120)
 class EfficientSam3:
     @modal.enter()
     def load(self) -> None:
@@ -125,7 +125,9 @@ def _model() -> Any:
     return modal.Cls.from_name(APP_NAME, "EfficientSam3")()
 
 
-def _request(image_path: Path, exemplars: Sequence[Box], text: str) -> tuple[Any, ...]:
+def _request(
+    image_path: Path, exemplars: Sequence[Box], text: str
+) -> tuple[bytes, list[list[float]], str]:
     return image_path.read_bytes(), [list(box) for box in exemplars], text
 
 
