@@ -10,7 +10,7 @@
     <string name="donate">Korrektur spenden</string>
     <string name="adjust_crop">Zieh die Ränder, um nur einen Ausschnitt zu zählen</string>
     <string name="correct">Tippe, um einen Punkt zu entfernen oder hinzuzufügen</string>
-    <string name="correct_uncertain">Prüfe die roten Punkte, tippe zum Entfernen oder Hinzufügen</string>
+    <string name="correct_uncertain">Prüfe die gelben Punkte, tippe zum Entfernen oder Hinzufügen</string>
     <plurals name="objects">
         <item quantity="one">Objekt</item>
         <item quantity="other">Objekte</item>

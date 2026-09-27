@@ -11,7 +11,7 @@
     <string name="donate">Donate correction</string>
     <string name="adjust_crop">Drag the edges to count only part of the photo</string>
     <string name="correct">Tap to remove or add a point</string>
-    <string name="correct_uncertain">Check the red points, tap to remove or add one</string>
+    <string name="correct_uncertain">Check the yellow points, tap to remove or add one</string>
     <plurals name="objects">
         <item quantity="one">object</item>
         <item quantity="other">objects</item>

@@ -83,6 +83,8 @@ import run.moritz.quantify.counting.Point
 private val POINT_RADIUS = 10.dp
 private val POINT_OUTLINE = 1.5.dp
 private const val POINT_ALPHA = 0.45f
+// Material has no warning color; yellow stands out from the theme's points on any photo.
+private val UNCERTAIN_COLOR = Color(0xFFFFD600)
 private val POINT_NUMBER_SIZE = 9.sp
 private val HIT_RADIUS = 24.dp
 private val EXEMPLAR_STROKE = 3.dp
@@ -311,7 +313,6 @@ private fun Photo(
     val tap by rememberUpdatedState(onTap)
     val exemplarColor = MaterialTheme.colorScheme.tertiary
     val pointColor = MaterialTheme.colorScheme.primary
-    val uncertainColor = MaterialTheme.colorScheme.error
     val handleColor = MaterialTheme.colorScheme.primary
     val textMeasurer = rememberTextMeasurer()
     val margin = with(LocalDensity.current) { PHOTO_MARGIN.toPx() }
@@ -408,7 +409,7 @@ private fun Photo(
         }
         drawCropHandles(cropRect, handleColor)
         points.forEachIndexed { index, point ->
-            val color = if (point in uncertain) uncertainColor else pointColor
+            val color = if (point in uncertain) UNCERTAIN_COLOR else pointColor
             drawPoint(current.toView(Offset(point.x, point.y)), index + 1, color, textMeasurer)
         }
         val dragged = drag
