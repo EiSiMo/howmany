@@ -17,7 +17,7 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
-from dataset import BENCHMARK_DIR, Sample, load_samples
+from dataset import BENCHMARK_DIR, EXEMPLARS, Sample, configure_logging, load_samples
 from metrics import Result, Summary, summarize
 from photos import PhotoStore
 from prototype import Quantify, load_prototype
@@ -60,7 +60,7 @@ def result_name(prototype: Path, exemplars: int, photos: bool) -> str:
     name = prototype.stem
     if photos:
         name += "-photos"
-    if exemplars != 3:
+    if exemplars != EXEMPLARS:
         name += f"-{exemplars}-exemplar"
     return name
 
@@ -101,9 +101,10 @@ def main() -> None:
     parser.add_argument(
         "--exemplars",
         type=int,
-        choices=(0, 1, 2, 3),
-        default=3,
-        help="exemplar boxes per image, 0 for text only; fewer than 3 adds an -N-exemplar suffix",
+        choices=range(EXEMPLARS + 1),
+        default=EXEMPLARS,
+        help=f"exemplar boxes per image, 0 for text only; fewer than {EXEMPLARS} adds an "
+        "-N-exemplar suffix",
     )
     parser.add_argument(
         "--photos",
@@ -127,5 +128,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    configure_logging()
     main()

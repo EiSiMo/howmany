@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
+from dataset import configure_logging
 from photos import Label, PhotoStore
 
 logger = logging.getLogger(__name__)
@@ -125,5 +126,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    configure_logging()
     main()

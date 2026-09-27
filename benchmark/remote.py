@@ -12,7 +12,7 @@ from pathlib import Path
 
 import modal
 
-from dataset import BENCHMARK_DIR, DATA_DIR, ensure_split
+from dataset import BENCHMARK_DIR, DATA_DIR, configure_logging, ensure_split
 from prototype import load_module
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ image = (
 @app.function(image=image, gpu=GPU, volumes={str(DATA_DIR): volume}, timeout=3600)
 def train(prototype: str) -> bytes:
     """Train the prototype at the given benchmark-relative path and return its weights."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    configure_logging()
     image_dir = DATA_DIR / "train"
     try:
         ensure_split("train", image_dir)
@@ -52,7 +52,7 @@ def train(prototype: str) -> bytes:
 
 @app.local_entrypoint()
 def main(prototype: str) -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    configure_logging()
     relative = (Path.cwd() / prototype).resolve().relative_to(BENCHMARK_DIR)
     weights = train.remote(str(relative))
     target = BENCHMARK_DIR / relative.with_suffix(".pt")

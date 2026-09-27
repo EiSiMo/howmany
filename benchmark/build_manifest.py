@@ -10,10 +10,17 @@ import logging
 import random
 from pathlib import Path
 
-from dataset import DATA_DIR, MANIFEST_FIELDS, MANIFEST_PATH, ensure_annotations
-
-# FSC-147's standard few-shot setting; some images have more than three exemplars.
-EXEMPLARS_PER_IMAGE = 3
+from dataset import (
+    ANNOTATIONS_FILE,
+    CATEGORIES_FILE,
+    DATA_DIR,
+    EXEMPLARS,
+    MANIFEST_FIELDS,
+    MANIFEST_PATH,
+    SPLITS_FILE,
+    configure_logging,
+    ensure_annotations,
+)
 
 
 def main() -> None:
@@ -26,11 +33,11 @@ def main() -> None:
 
     ensure_annotations()
 
-    annotations = json.loads((DATA_DIR / "annotation_FSC147_384.json").read_text())
-    splits = json.loads((DATA_DIR / "Train_Test_Val_FSC_147.json").read_text())
+    annotations = json.loads((DATA_DIR / ANNOTATIONS_FILE).read_text())
+    splits = json.loads((DATA_DIR / SPLITS_FILE).read_text())
     categories = dict(
         line.split("\t", 1)
-        for line in (DATA_DIR / "ImageClasses_FSC147.txt").read_text().splitlines()
+        for line in (DATA_DIR / CATEGORIES_FILE).read_text().splitlines()
         if line
     )
 
@@ -43,7 +50,7 @@ def main() -> None:
             annotation = annotations[image]
             exemplars = [
                 [*corners[0], *corners[2]]
-                for corners in annotation["box_examples_coordinates"][:EXEMPLARS_PER_IMAGE]
+                for corners in annotation["box_examples_coordinates"][:EXEMPLARS]
             ]
             writer.writerow(
                 (image, categories[image], len(annotation["points"]), json.dumps(exemplars))
@@ -52,5 +59,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    configure_logging()
     main()

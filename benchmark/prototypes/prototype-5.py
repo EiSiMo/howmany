@@ -140,9 +140,9 @@ def calibrate() -> None:
     """Find the thresholds minimising the count MAE on the validation manifest."""
     benchmark_dir = Path(__file__).parent.parent
     sys.path.insert(0, str(benchmark_dir))
-    from dataset import load_samples
+    from dataset import configure_logging, load_samples
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    configure_logging()
     samples = load_samples(benchmark_dir / "manifest-val.csv", exemplars=1)
     counts = np.array([sample.true_count for sample in samples])
     candidates = np.arange(0.05, 0.96, 0.01)

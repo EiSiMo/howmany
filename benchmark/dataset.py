@@ -6,6 +6,7 @@ import logging
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,11 +28,14 @@ IMAGE_DIR = DATA_DIR / "images"
 MANIFEST_FIELDS = ("image", "category", "count", "exemplars")
 DOWNLOAD_ATTEMPTS = 6
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
-ANNOTATION_FILES = (
-    "annotation_FSC147_384.json",
-    "Train_Test_Val_FSC_147.json",
-    "ImageClasses_FSC147.txt",
-)
+# FSC-147's annotations: exemplar boxes and points per image, the image names per split, and the
+# category per image.
+ANNOTATIONS_FILE = "annotation_FSC147_384.json"
+SPLITS_FILE = "Train_Test_Val_FSC_147.json"
+CATEGORIES_FILE = "ImageClasses_FSC147.txt"
+ANNOTATION_FILES = (ANNOTATIONS_FILE, SPLITS_FILE, CATEGORIES_FILE)
+# Exemplar boxes per image in FSC-147's standard few-shot setting, and per labelled photo.
+EXEMPLARS = 3
 
 
 # Axis-aligned box in image pixels: (x1, y1, x2, y2).
@@ -79,7 +83,12 @@ def download(url: str, target: Path) -> None:
     partial.replace(target)
 
 
-def _to_box(values: list[float]) -> Box:
+def configure_logging() -> None:
+    """Log INFO and above to stderr, for the benchmark's scripts and remote functions."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
+
+def to_box(values: Iterable[float]) -> Box:
     x1, y1, x2, y2 = (float(value) for value in values)
     return (x1, y1, x2, y2)
 
@@ -99,7 +108,7 @@ def load_samples(
         image_path = image_dir / row["image"]
         if not image_path.exists():
             download(f"{FSC147_BASE_URL}/{FSC147_IMAGE_DIR}/{row['image']}", image_path)
-        boxes = tuple(_to_box(box) for box in json.loads(row["exemplars"]))[:exemplars]
+        boxes = tuple(to_box(box) for box in json.loads(row["exemplars"]))[:exemplars]
         samples.append(Sample(image_path, row["category"], int(row["count"]), boxes))
     return samples
 
@@ -114,7 +123,7 @@ def ensure_annotations(data_dir: Path = DATA_DIR) -> None:
 def ensure_split(split: str, image_dir: Path, data_dir: Path = DATA_DIR) -> None:
     """Make sure every image of an FSC-147 split is available locally, downloading in parallel."""
     ensure_annotations(data_dir)
-    names = json.loads((data_dir / "Train_Test_Val_FSC_147.json").read_text())[split]
+    names = json.loads((data_dir / SPLITS_FILE).read_text())[split]
     missing = [name for name in names if not (image_dir / name).exists()]
     logger.info("%d of %d %s images missing", len(missing), len(names), split)
     with ThreadPoolExecutor(max_workers=16) as pool:

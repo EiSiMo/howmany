@@ -26,7 +26,7 @@ from PIL import Image
 from torch import nn
 from transformers import AutoModel
 
-from dataset import Box
+from dataset import ANNOTATIONS_FILE, SPLITS_FILE, Box
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +116,8 @@ def _encode_dataset(image_dir: Path, cache_path: Path) -> dict[str, torch.Tensor
     """Encode all train-split images once and cache features and target grids on disk."""
     if cache_path.exists():
         return torch.load(cache_path, weights_only=True)  # type: ignore[no-any-return]
-    annotations = json.loads((DATA_DIR / "annotation_FSC147_384.json").read_text())
-    train_names = set(json.loads((DATA_DIR / "Train_Test_Val_FSC_147.json").read_text())["train"])
+    annotations = json.loads((DATA_DIR / ANNOTATIONS_FILE).read_text())
+    train_names = set(json.loads((DATA_DIR / SPLITS_FILE).read_text())["train"])
     names = sorted(p.name for p in image_dir.glob("*.jpg") if p.name in train_names)
     logger.info("Encoding %d training images", len(names))
     patches, clss, targets = [], [], []
