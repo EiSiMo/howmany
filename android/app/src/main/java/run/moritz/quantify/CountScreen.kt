@@ -25,8 +25,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -35,14 +37,24 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.max
 import kotlin.math.min
 import run.moritz.quantify.counting.Box as ImageBox
 
 private val EXEMPLAR_COLOR = Color(0xFFFFC107)
-private val DETECTION_COLOR = Color(0xFF00E676)
+// Consecutive detections get hues a golden angle apart, so neighbours stand out from each other.
+private const val GOLDEN_ANGLE = 137.508f
+private const val DETECTION_FILL_ALPHA = 0.35f
+private val MIN_NUMBER_SIZE = 8.sp
+private val MAX_NUMBER_SIZE = 14.sp
 
 @Composable
 fun CountScreen(viewModel: CountViewModel) {
@@ -117,6 +129,7 @@ private fun PhotoWithBoxes(
             Offset((viewWidth - photo.width * scale) / 2, (viewHeight - photo.height * scale) / 2)
         fun toImage(point: Offset) = (point - offset) / scale
         var drag by remember(photo) { mutableStateOf<Pair<Offset, Offset>?>(null) }
+        val textMeasurer = rememberTextMeasurer()
 
         Image(
             photo.asImageBitmap(),
@@ -147,7 +160,9 @@ private fun PhotoWithBoxes(
                 )
             }
         ) {
-            for (box in detections) drawBox(box, scale, offset, DETECTION_COLOR, 2f)
+            detections.forEachIndexed { index, box ->
+                drawDetection(box.inView(scale, offset), index + 1, textMeasurer)
+            }
             val dragged = drag
             if (dragged != null) {
                 val (start, end) = dragged
@@ -158,22 +173,32 @@ private fun PhotoWithBoxes(
                     style = Stroke(4f),
                 )
             } else if (exemplar != null) {
-                drawBox(exemplar, scale, offset, EXEMPLAR_COLOR, 4f)
+                val rect = exemplar.inView(scale, offset)
+                drawRect(EXEMPLAR_COLOR, rect.topLeft, rect.size, style = Stroke(4f))
             }
         }
     }
 }
 
-private fun DrawScope.drawBox(
-    box: ImageBox,
-    scale: Float,
-    offset: Offset,
-    color: Color,
-    width: Float,
-) =
-    drawRect(
-        color,
-        Offset(box.left * scale, box.top * scale) + offset,
-        Size(box.width * scale, box.height * scale),
-        style = Stroke(width),
-    )
+/** Fills the detection with its own color and writes its number in the middle. */
+private fun DrawScope.drawDetection(rect: Rect, number: Int, textMeasurer: TextMeasurer) {
+    val color = Color.hsv((number - 1) * GOLDEN_ANGLE % 360, 0.8f, 1f)
+    drawRect(color.copy(alpha = DETECTION_FILL_ALPHA), rect.topLeft, rect.size)
+    drawRect(color, rect.topLeft, rect.size, style = Stroke(2f))
+    val fontSize = (rect.minDimension / 2).coerceIn(MIN_NUMBER_SIZE.toPx(), MAX_NUMBER_SIZE.toPx())
+    val text =
+        textMeasurer.measure(
+            number.toString(),
+            TextStyle(
+                color = Color.White,
+                fontSize = fontSize.toSp(),
+                fontWeight = FontWeight.Bold,
+                shadow = Shadow(Color.Black, blurRadius = 4f),
+            ),
+        )
+    drawText(text, topLeft = rect.center - Offset(text.size.width / 2f, text.size.height / 2f))
+}
+
+/** Where a box in image pixels lies in the view. */
+private fun ImageBox.inView(scale: Float, offset: Offset) =
+    Rect(Offset(left * scale, top * scale) + offset, Size(width * scale, height * scale))
