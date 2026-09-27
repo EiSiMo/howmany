@@ -22,9 +22,9 @@ class WaveTest {
     }
 
     @Test
-    fun `starts at the edge of the example and leaves it untouched`() {
-        val example = Box(50f, 50f, 100f, 100f)
-        val wave = Wave(Heatmap(16, 16, FloatArray(256), bounds), example, crop)
+    fun `starts at the edge of the exemplar and leaves it untouched`() {
+        val exemplar = Box(50f, 50f, 100f, 100f)
+        val wave = Wave(Heatmap(16, 16, FloatArray(256), bounds), exemplar, crop)
 
         assertEquals(0f, wave.arrival(Point(75f, 75f)), 0.001f)
         assertEquals(0f, wave.arrival(Point(100f, 60f)), 0.001f)

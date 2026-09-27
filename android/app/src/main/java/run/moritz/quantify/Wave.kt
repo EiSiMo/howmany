@@ -7,11 +7,11 @@ import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
 
 /**
- * When a wave from the edge of [example] reaches each place in [crop], in image pixels; the example
- * itself is reached at once. It runs straight out at the same speed everywhere; [heatmap] only sets
- * the grid of [arrivals].
+ * When a wave from the edge of [exemplar] reaches each place in [crop], in image pixels; the
+ * exemplar itself is reached at once. It runs straight out at the same speed everywhere; [heatmap]
+ * only sets the grid of [arrivals].
  */
-class Wave(val heatmap: Heatmap, private val example: Box, crop: Box) {
+class Wave(val heatmap: Heatmap, private val exemplar: Box, crop: Box) {
     private val cellWidth = heatmap.bounds.width / heatmap.columns
     private val cellHeight = heatmap.bounds.height / heatmap.rows
     private val farthest =
@@ -24,7 +24,7 @@ class Wave(val heatmap: Heatmap, private val example: Box, crop: Box) {
             .maxOf(::distance)
             .coerceAtLeast(1e-6f)
 
-    /** When the wave reaches [at], from 0 in the example to 1 at the last corner of the crop. */
+    /** When the wave reaches [at], from 0 in the exemplar to 1 at the last corner of the crop. */
     fun arrival(at: Point): Float = distance(at) / farthest
 
     /** The arrival at each heatmap cell's center, row-major on the heatmap's grid. */
@@ -42,7 +42,7 @@ class Wave(val heatmap: Heatmap, private val example: Box, crop: Box) {
 
     private fun distance(to: Point) =
         hypot(
-            max(0f, max(example.left - to.x, to.x - example.right)),
-            max(0f, max(example.top - to.y, to.y - example.bottom)),
+            max(0f, max(exemplar.left - to.x, to.x - exemplar.right)),
+            max(0f, max(exemplar.top - to.y, to.y - exemplar.bottom)),
         )
 }

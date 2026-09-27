@@ -146,7 +146,7 @@ fun CountScreen(viewModel: CountViewModel) {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (photo == null || crop == null) {
-            EmptyState(pickPhoto)
+            EmptyState(pickPhoto, state.error)
             return@Box
         }
         // The photo fills the screen behind the system bars and the controls, fitted between
@@ -167,10 +167,10 @@ fun CountScreen(viewModel: CountViewModel) {
             photo = photo,
             crop = crop,
             margin = margin,
-            exemplar = state.exemplar.takeIf { points == null },
+            exemplarFrame = state.exemplar.takeIf { points == null },
             points = points.orEmpty(),
             uncertain = shown.uncertain,
-            example = state.exemplar,
+            exemplar = state.exemplar,
             heatmap = state.heatmap,
             counting = state.counting,
             animation = animation,
@@ -201,12 +201,14 @@ fun CountScreen(viewModel: CountViewModel) {
                 .padding(bottom = CONTROLS_BOTTOM),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            val error = state.error
             val hint =
                 when {
+                    error != null -> error.message
                     state.corrected -> R.string.donate
                     state.points != null -> R.string.correct
                     state.counting -> R.string.counting
-                    state.exemplar == null -> R.string.mark_example
+                    state.exemplar == null -> R.string.mark_exemplar
                     else -> R.string.adjust_crop
                 }
             AnimatedContent(
@@ -273,10 +275,10 @@ fun CountScreen(viewModel: CountViewModel) {
 
 /**
  * The first screen: the mark glowing on black, what the app does, and the shutter to pick a photo
- * where the count button will be.
+ * where the count button will be. An [error] replaces the hint to pick a photo.
  */
 @Composable
-private fun EmptyState(onPickPhoto: () -> Unit) {
+private fun EmptyState(onPickPhoto: () -> Unit, error: CountError?) {
     val glow = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
     Box(
         Modifier.fillMaxSize().drawBehind {
@@ -319,7 +321,10 @@ private fun EmptyState(onPickPhoto: () -> Unit) {
                 .padding(bottom = CONTROLS_BOTTOM),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Pill(stringResource(R.string.empty_text), Modifier.padding(horizontal = 24.dp))
+            Pill(
+                stringResource(error?.message ?: R.string.empty_text),
+                Modifier.padding(horizontal = 24.dp),
+            )
             Spacer(Modifier.height(HINT_GAP))
             Shutter(
                 painterResource(R.drawable.ic_pick_photo),
@@ -340,22 +345,23 @@ private sealed interface PhotoDrag {
 }
 
 /**
- * Shows the photo with its crop and the example or the counted points, the [uncertain] ones
- * highlighted. While [counting], it zooms smoothly out to the whole photo and scans from the edge
- * of [example]; when the count arrives, it reveals the points and their [heatmap] from there, as
- * [animation] goes. Two fingers zoom and pan. One finger drags the crop's edges while
- * [onAdjustCrop] is given; elsewhere it drags a box around one object while [onMarkExemplar] is
- * given, and pans otherwise. Taps go to [onTap], with a hit radius in image pixels.
+ * Shows the photo with its crop and the [exemplarFrame] (the exemplar until counted) or the counted
+ * points, the [uncertain] ones highlighted. While [counting], it zooms smoothly out to the whole
+ * photo and scans from the edge of [exemplar]; when the count arrives, it reveals the points and
+ * their [heatmap] from there, as [animation] goes. Two fingers zoom and pan. One finger drags the
+ * crop's edges while [onAdjustCrop] is given; elsewhere it drags a box around one object while
+ * [onMarkExemplar] is given, and pans otherwise. Taps go to [onTap], with a hit radius in image
+ * pixels.
  */
 @Composable
 private fun Photo(
     photo: Bitmap,
     crop: ImageBox,
     margin: Margin,
-    exemplar: ImageBox?,
+    exemplarFrame: ImageBox?,
     points: List<Point>,
     uncertain: Set<Point>,
-    example: ImageBox?,
+    exemplar: ImageBox?,
     heatmap: Heatmap?,
     counting: Boolean,
     animation: CountingAnimation,
@@ -369,7 +375,7 @@ private fun Photo(
     var viewport by remember(photo) { mutableStateOf<Viewport?>(null) }
     var drag by remember(photo) { mutableStateOf<PhotoDrag?>(null) }
     val currentCrop by rememberUpdatedState(crop)
-    val currentExemplar by rememberUpdatedState(exemplar)
+    val currentExemplarFrame by rememberUpdatedState(exemplarFrame)
     val adjustCrop by rememberUpdatedState(onAdjustCrop)
     val markExemplar by rememberUpdatedState(onMarkExemplar)
     val tap by rememberUpdatedState(onTap)
@@ -425,7 +431,7 @@ private fun Photo(
                                                 kind.handle,
                                                 (position - start) / current.scale,
                                                 bounds,
-                                                keep = currentExemplar,
+                                                keep = currentExemplarFrame,
                                                 minSize = MIN_CROP_SIZE.toPx() / current.scale,
                                             )
                                         adjustCrop?.invoke(moved)
@@ -467,7 +473,7 @@ private fun Photo(
         Canvas(
             Modifier.matchParentSize().graphicsLayer {
                 val current = viewport
-                val source = example
+                val source = exemplar
                 renderEffect =
                     if (current == null || source == null) null
                     else
@@ -496,7 +502,7 @@ private fun Photo(
             ) {
                 drawRect(Color.Black.copy(alpha = CROPPED_ALPHA), photoRect.topLeft, photoRect.size)
             }
-            if (example != null) {
+            if (exemplar != null) {
                 drawCountingAnimation(
                     animation,
                     cropRect,
@@ -527,7 +533,7 @@ private fun Photo(
                             Size(abs(end.x - start.x), abs(end.y - start.y)),
                         )
                     }
-                    exemplar != null -> exemplar.inView(current)
+                    exemplarFrame != null -> exemplarFrame.inView(current)
                     else -> null
                 }
             if (rect != null) drawExemplarFrame(rect)

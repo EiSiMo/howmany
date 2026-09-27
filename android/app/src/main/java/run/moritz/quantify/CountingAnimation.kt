@@ -42,7 +42,7 @@ import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
 
 // While counting, the photo shimmers like Google Photos analysing it: it wobbles slightly, except
-// for the example, and a soft ring of light spreads from the example across the crop every
+// for the exemplar, and a soft ring of light spreads from the exemplar across the crop every
 // SCAN_PERIOD, lighting up the contours it passes.
 private const val SCAN_PERIOD = 1.8f
 private val SHIMMER = 2.dp
@@ -55,7 +55,7 @@ private const val DIM_FADE = 0.3f
 private const val REVEAL = 0.9f
 private const val CONDENSE = 0.6f
 private const val POP = 0.3f
-// Clearing plays the reveal backwards: from the farthest point in to the example, the points
+// Clearing plays the reveal backwards: from the farthest point in to the exemplar, the points
 // shrink away one after another at once.
 private const val HIDE = 0.3f
 private const val SHRINK = 0.2f
@@ -116,7 +116,7 @@ class CountingAnimation {
     }
 
     /**
-     * How far the reveal wave has come, as arrival: from 0 at the example to 1 at the last corner.
+     * How far the reveal wave has come, as arrival: from 0 at the exemplar to 1 at the last corner.
      */
     internal fun front(seconds: Float) = easeOut((seconds / REVEAL).coerceAtMost(1f))
 
@@ -147,11 +147,11 @@ class CountingAnimation {
     }
 
     /**
-     * The render effect on the photo, in view coordinates: the scan's shimmer around [example], or
+     * The render effect on the photo, in view coordinates: the scan's shimmer around [exemplar], or
      * the reveal's front bending it; null while neither runs or the device cannot run shaders.
      */
     internal fun distortion(
-        example: Rect,
+        exemplar: Rect,
         crop: Rect,
         heatmapRect: Rect?,
         density: Density,
@@ -161,9 +161,9 @@ class CountingAnimation {
             val shimmer = shimmer ?: return null
             return with(density) {
                 shimmer.effect(
-                    example,
+                    exemplar,
                     crop,
-                    reach(example, crop),
+                    reach(exemplar, crop),
                     seconds,
                     SHIMMER.toPx(),
                     SHIMMER_BLOB.toPx(),
@@ -174,11 +174,11 @@ class CountingAnimation {
         val distortion = distortion ?: return null
         val revealing = revealing
         if (revealing == null || revealing >= REVEAL) return null
-        val reach = reach(example, crop)
+        val reach = reach(exemplar, crop)
         val rings = listOf(front(revealing) * reach to fadeLate(revealing / REVEAL))
         val arrival = arrivalShader(heatmapRect) ?: return null
         return distortion.effect(
-            example,
+            exemplar,
             crop,
             rings,
             arrival,
@@ -219,19 +219,19 @@ class CountingAnimation {
 
 /**
  * Scans while [state] is counting; reveals the count when counting ends with a heatmap, with a wave
- * from the edge of the example across the crop; hides the points again, from the farthest in, after
- * [CountingAnimation.hide]. Each sweep of the scan and the reveal set off with a haptic tick.
+ * from the edge of the exemplar across the crop; hides the points again, from the farthest in,
+ * after [CountingAnimation.hide]. Each sweep of the scan and the reveal set off with a haptic tick.
  */
 @Composable
 fun rememberCountingAnimation(state: CountState): CountingAnimation {
     val animation = remember { CountingAnimation() }
     val shown = animation.shown(state)
     val heatmap = shown.heatmap
-    val example = shown.exemplar
+    val exemplar = shown.exemplar
     val crop = shown.crop
     val wave =
-        remember(heatmap, example, crop) {
-            if (heatmap != null && example != null && crop != null) Wave(heatmap, example, crop)
+        remember(heatmap, exemplar, crop) {
+            if (heatmap != null && exemplar != null && crop != null) Wave(heatmap, exemplar, crop)
             else null
         }
     if (animation.wave !== wave) animation.wave = wave
@@ -324,7 +324,7 @@ fun DrawScope.drawCountingAnimation(
 /**
  * How large to draw a counted point at [point] in image pixels while the count is revealed: 0 until
  * the wave reaches it, then popping up past 1 and settling at 1; while it is cleared, shrinking
- * back to 0 as the wave returns to the example.
+ * back to 0 as the wave returns to the exemplar.
  */
 fun pointScale(animation: CountingAnimation, point: Point): Float {
     if (animation.scanning != null) return 0f
@@ -361,13 +361,13 @@ private fun cellsTo(rect: Rect, columns: Int, rows: Int) =
         postTranslate(rect.left, rect.top)
     }
 
-/** The distance from the edge of [example] to the farthest corner of [crop]. */
-private fun reach(example: Rect, crop: Rect) =
+/** The distance from the edge of [exemplar] to the farthest corner of [crop]. */
+private fun reach(exemplar: Rect, crop: Rect) =
     listOf(crop.topLeft, crop.topRight, crop.bottomLeft, crop.bottomRight)
         .maxOf {
             Offset(
-                    max(0f, max(example.left - it.x, it.x - example.right)),
-                    max(0f, max(example.top - it.y, it.y - example.bottom)),
+                    max(0f, max(exemplar.left - it.x, it.x - exemplar.right)),
+                    max(0f, max(exemplar.top - it.y, it.y - exemplar.bottom)),
                 )
                 .getDistance()
         }
@@ -386,7 +386,7 @@ private fun easeOutBack(fraction: Float): Float {
 
 /**
  * Bends the photo along the waves like light through water: pixels move towards or away from the
- * example where a ring passes, colors split slightly, and the reveal's front shines. The example
+ * exemplar where a ring passes, colors split slightly, and the reveal's front shines. The exemplar
  * itself stays still.
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -402,10 +402,10 @@ private class Distortion {
 
     /**
      * With [arrival], the rings (radius, strength; at most two) are the reveal's front in arrival
-     * times [reach]; without, they run out from the edge of [example].
+     * times [reach]; without, they run out from the edge of [exemplar].
      */
     fun effect(
-        example: Rect,
+        exemplar: Rect,
         crop: Rect,
         rings: List<Pair<Float, Float>>,
         arrival: BitmapShader?,
@@ -415,7 +415,13 @@ private class Distortion {
     ): RenderEffect {
         val first = rings.getOrElse(0) { 0f to 0f }
         val second = rings.getOrElse(1) { 0f to 0f }
-        shader.setFloatUniform("example", example.left, example.top, example.right, example.bottom)
+        shader.setFloatUniform(
+            "exemplar",
+            exemplar.left,
+            exemplar.top,
+            exemplar.right,
+            exemplar.bottom,
+        )
         shader.setFloatUniform("crop", crop.left, crop.top, crop.right, crop.bottom)
         shader.setFloatUniform("rings", first.first, first.second, second.first, second.second)
         shader.setFloatUniform("reveal", if (arrival != null) 1f else 0f)
@@ -433,7 +439,7 @@ private class Distortion {
             """
             uniform shader content;
             uniform shader arrival;
-            uniform float4 example;
+            uniform float4 exemplar;
             uniform float4 crop;
             uniform float4 rings;
             uniform float reveal;
@@ -442,9 +448,9 @@ private class Distortion {
             uniform float width;
             uniform float brightness;
 
-            // From the example's edge out to p; zero inside the example.
+            // From the exemplar's edge out to p; zero inside the exemplar.
             float2 outwards(float2 p) {
-                return max(max(example.xy - p, p - example.zw), float2(0));
+                return max(max(exemplar.xy - p, p - exemplar.zw), float2(0));
             }
 
             // How far the wave has come to p, in pixels.
@@ -470,12 +476,12 @@ private class Distortion {
                     direction = float2(field(p + float2(e, 0)) - field(p - float2(e, 0)),
                                        field(p + float2(0, e)) - field(p - float2(0, e)));
                 } else {
-                    direction = outwards(p) * sign(p - (example.xy + example.zw) * 0.5);
+                    direction = outwards(p) * sign(p - (exemplar.xy + exemplar.zw) * 0.5);
                 }
                 float size = length(direction);
                 direction = size > 0.0001 ? direction / size : float2(0);
                 float push = rings.y * crest(d - rings.x) + rings.w * crest(d - rings.z);
-                // Fades in from the example's edge, so the example stays still without a seam.
+                // Fades in from the exemplar's edge, so the exemplar stays still without a seam.
                 push *= smoothstep(0.0, width * 0.5, length(outwards(p)));
                 float2 offset = direction * push * amplitude * 2.3;
                 half4 color = content.eval(p - offset);
@@ -492,8 +498,8 @@ private class Distortion {
 
 /**
  * Lets the photo shimmer while it is analysed: it wobbles slightly along slowly drifting noise,
- * except for the example, its contours glow faintly, and brightly where a soft band of light sweeps
- * diagonally across the crop.
+ * except for the exemplar, its contours glow faintly, and brightly where a soft band of light
+ * sweeps diagonally across the crop.
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 private class Shimmer {
@@ -502,10 +508,10 @@ private class Shimmer {
     /**
      * At [seconds] into the scan: pixels shift by up to [amplitude] in noise blobs about [blob]
      * wide, contours are found between pixels [spacing] apart, and the band of light spreads from
-     * [example] to [reach] away from it.
+     * [exemplar] to [reach] away from it.
      */
     fun effect(
-        example: Rect,
+        exemplar: Rect,
         crop: Rect,
         reach: Float,
         seconds: Float,
@@ -513,7 +519,13 @@ private class Shimmer {
         blob: Float,
         spacing: Float,
     ): RenderEffect {
-        shader.setFloatUniform("example", example.left, example.top, example.right, example.bottom)
+        shader.setFloatUniform(
+            "exemplar",
+            exemplar.left,
+            exemplar.top,
+            exemplar.right,
+            exemplar.bottom,
+        )
         shader.setFloatUniform("crop", crop.left, crop.top, crop.right, crop.bottom)
         shader.setFloatUniform("reach", reach)
         shader.setFloatUniform("time", seconds)
@@ -530,7 +542,7 @@ private class Shimmer {
         const val SHADER =
             """
             uniform shader content;
-            uniform float4 example;
+            uniform float4 exemplar;
             uniform float4 crop;
             uniform float reach;
             uniform float time;
@@ -561,8 +573,8 @@ private class Shimmer {
                 if (p.x < crop.x || p.y < crop.y || p.x > crop.z || p.y > crop.w) {
                     return content.eval(p);
                 }
-                // Wobble, calming towards the example so the example stays still without a seam.
-                float2 outwards = max(max(example.xy - p, p - example.zw), float2(0));
+                // Wobble, calming towards the exemplar so the exemplar stays still without a seam.
+                float2 outwards = max(max(exemplar.xy - p, p - exemplar.zw), float2(0));
                 float calm = smoothstep(0.0, blob * 0.5, length(outwards));
                 float2 q = p / blob;
                 float2 n = float2(noise(q + time * 0.3), noise(q + 17.0 - time * 0.3)) - 0.5;
@@ -574,7 +586,7 @@ private class Shimmer {
                 float gy = luma(s + float2(0, spacing)) - luma(s - float2(0, spacing));
                 float edge = smoothstep(0.08, 0.35, length(float2(gx, gy)));
 
-                // The band spreads as a ring from inside the example to past the farthest corner.
+                // The band spreads as a ring from inside the exemplar to past the farthest corner.
                 float d = length(outwards) / reach - (fract(time / period) * 2.0 - 0.5);
                 float band = exp(-d * d * 25.0);
 

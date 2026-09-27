@@ -1,5 +1,6 @@
 package run.moritz.quantify
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -32,5 +33,16 @@ class CountStateTest {
     @Test
     fun `is corrected when the crop cuts off a point`() {
         assertTrue(counted.copy(crop = Box(0f, 0f, 400f, 400f)).corrected)
+    }
+
+    @Test
+    fun `goes from marking to counted`() {
+        val marking = CountState(crop = Box(0f, 0f, 1000f, 1000f))
+        val ready = marking.copy(exemplar = Box(100f, 100f, 150f, 150f))
+        assertEquals(CountPhase.Empty, CountState().phase)
+        assertEquals(CountPhase.Marking, marking.phase)
+        assertEquals(CountPhase.Ready, ready.phase)
+        assertEquals(CountPhase.Counting, ready.copy(counting = true).phase)
+        assertEquals(CountPhase.Counted, ready.copy(points = detected, detected = detected).phase)
     }
 }
