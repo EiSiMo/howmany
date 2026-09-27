@@ -17,10 +17,10 @@ private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
 private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
 
 /** What the model found in an image: the objects, and where it saw anything like them. */
-class Scan(val detections: List<Detection>, val heatmap: Heatmap)
+class CountResult(val detections: List<Detection>, val heatmap: Heatmap)
 
 /**
- * Finds every object in an image that looks like the given examples, with GeCo2 (the benchmark's
+ * Finds every object in an image that looks like the given exemplars, with GeCo2 (the benchmark's
  * prototype 4) running on the CPU.
  */
 class ObjectCounter internal constructor(model: File, options: OrtSession.SessionOptions) :
@@ -42,33 +42,33 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
     private val session = environment.createSession(model.path, options)
 
     /**
-     * Returns one detection per object like the [exemplars] inside [region], with its box in image
+     * Returns one detection per object like the [exemplars] inside [crop], with its box in image
      * pixels, in reading order: row by row from the top, each row from left to right, and the
-     * heatmap they come from. Exemplars and region are image boxes; the model sees only the region,
-     * at a higher resolution the smaller it is. Confidences are relative to the best detection in
-     * the region.
+     * heatmap they come from. Exemplars and crop are image boxes; the model sees only the crop, at
+     * a higher resolution the smaller it is. Confidences are relative to the best detection in the
+     * crop.
      */
     fun detect(
         image: Bitmap,
         exemplars: List<Box>,
-        region: Box = Box(0f, 0f, image.width.toFloat(), image.height.toFloat()),
-    ): Scan {
+        crop: Box = Box(0f, 0f, image.width.toFloat(), image.height.toFloat()),
+    ): CountResult {
         require(exemplars.isNotEmpty()) { "At least one exemplar is needed" }
-        val left = floor(region.left).toInt().coerceIn(0, image.width - 1)
-        val top = floor(region.top).toInt().coerceIn(0, image.height - 1)
-        val right = ceil(region.right).toInt().coerceIn(left + 1, image.width)
-        val bottom = ceil(region.bottom).toInt().coerceIn(top + 1, image.height)
+        val left = floor(crop.left).toInt().coerceIn(0, image.width - 1)
+        val top = floor(crop.top).toInt().coerceIn(0, image.height - 1)
+        val right = ceil(crop.right).toInt().coerceIn(left + 1, image.width)
+        val bottom = ceil(crop.bottom).toInt().coerceIn(top + 1, image.height)
         val cropped = Bitmap.createBitmap(image, left, top, right - left, bottom - top)
         val x = left.toFloat()
         val y = top.toFloat()
-        val scan = detectInWhole(cropped, exemplars.map { it.translated(-x, -y) })
-        return Scan(
-            scan.detections.map { it.copy(box = it.box.translated(x, y)) },
-            scan.heatmap.translated(x, y),
+        val result = detectInWhole(cropped, exemplars.map { it.translated(-x, -y) })
+        return CountResult(
+            result.detections.map { it.copy(box = it.box.translated(x, y)) },
+            result.heatmap.translated(x, y),
         )
     }
 
-    private fun detectInWhole(image: Bitmap, exemplars: List<Box>): Scan {
+    private fun detectInWhole(image: Bitmap, exemplars: List<Box>): CountResult {
         val scale = inputScale(image.width, image.height, exemplars)
         val input = inputSize(image.width, image.height, scale)
         val boxes =
@@ -92,7 +92,7 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
                                 objectness = objectness.values,
                                 offsets = result.floats("offsets").values,
                             )
-                        return Scan(
+                        return CountResult(
                             decodeDetections(output, scale, image.width, image.height),
                             decodeHeatmap(output, scale, image.width, image.height),
                         )

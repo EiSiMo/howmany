@@ -62,23 +62,23 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
 
     // Every session is about counting, so prepare the counter (copying the model out of the APK
     // and loading it, seconds on a phone) in the background right away, while the user picks a
-    // photo and marks an example. It holds only the model weights until the first count.
-    private val counter = Preloaded {
+    // photo and marks an exemplar. It holds only the model weights until the first count.
+    private val objectCounter = Preloaded {
         val (counter, duration) = measureTimedValue { ObjectCounter(modelFile()) }
         Log.i(TAG, "Counter ready in $duration")
         counter
     }
-    private var counting: Job? = null
+    private var countJob: Job? = null
 
     fun pickPhoto(uri: Uri) {
         viewModelScope.launch {
             val photo = withContext(Dispatchers.IO) { decode(uri) }
-            counting?.cancel()
+            countJob?.cancel()
             _state.value = CountState(photo = photo)
         }
     }
 
-    /** Marks one object as the example of what to count; only before counting. */
+    /** Marks one object as the exemplar of what to count; only before counting. */
     fun markExemplar(box: Box) = _state.update {
         if (it.points == null) it.copy(exemplar = box) else it
     }
@@ -98,9 +98,9 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
         if (state.counting || state.crop == crop) state else state.copy(crop = crop)
     }
 
-    /** Forgets the example and the count, keeping the photo and its crop. */
+    /** Forgets the exemplar and the count, keeping the photo and its crop. */
     fun clear() {
-        counting?.cancel()
+        countJob?.cancel()
         _state.update { CountState(photo = it.photo, crop = it.crop) }
     }
 
@@ -110,17 +110,17 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
         val crop = _state.value.crop ?: return
         if (_state.value.counting) return
         _state.update { it.copy(counting = true) }
-        val cancelled = counting
-        counting = viewModelScope.launch {
+        val cancelled = countJob
+        countJob = viewModelScope.launch {
             // A cancelled count still occupies the model until it returns; don't run two at once.
             cancelled?.join()
             // Waits for the counter if it is still being prepared; a preparation error fails here.
-            val counter = counter.get()
-            val (scan, duration) =
+            val counter = objectCounter.get()
+            val (result, duration) =
                 withContext(Dispatchers.Default) {
                     measureTimedValue { counter.detect(photo, listOf(exemplar), crop) }
                 }
-            val detections = scan.detections
+            val detections = result.detections
             Log.i(TAG, "${detections.size} objects in $duration")
             val points = detections.map { detection -> detection.box.center }
             _state.update {
@@ -132,7 +132,7 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
                             .filter { detection -> detection.uncertain }
                             .map { detection -> detection.box.center }
                             .toSet(),
-                    heatmap = scan.heatmap,
+                    heatmap = result.heatmap,
                     duration = duration,
                     counting = false,
                 )
@@ -140,7 +140,7 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    override fun onCleared() = counter.close()
+    override fun onCleared() = objectCounter.close()
 
     private fun decode(uri: Uri): Bitmap {
         val source = ImageDecoder.createSource(getApplication<Application>().contentResolver, uri)
