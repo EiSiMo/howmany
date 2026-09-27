@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import java.nio.ShortBuffer
@@ -181,7 +183,7 @@ class CountingAnimation {
 
 /**
  * Scans while [counting]; reveals the count when counting ends with a [heatmap], with a wave from
- * the edge of [example] across [crop].
+ * the edge of [example] across [crop]. Each wave sets off with a light haptic tick.
  */
 @Composable
 fun rememberCountingAnimation(
@@ -197,14 +199,25 @@ fun rememberCountingAnimation(
             else null
         }
     if (animation.wave !== wave) animation.wave = wave
+    val haptics = LocalHapticFeedback.current
     var wasCounting by remember { mutableStateOf(false) }
     LaunchedEffect(counting) {
         if (counting) {
             wasCounting = true
-            everyFrame { seconds -> animation.scanning = seconds }
+            var rings = 0
+            everyFrame { seconds ->
+                animation.scanning = seconds
+                // A faint tick as each ring sets off.
+                if (seconds >= rings * SCAN_PERIOD) {
+                    rings++
+                    haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                }
+            }
         } else {
             animation.scanning = null
             if (wasCounting && heatmap != null) {
+                // A firmer click as the reveal sets off.
+                haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
                 everyFrame(until = REVEAL + CONDENSE) { seconds -> animation.revealing = seconds }
             }
             wasCounting = false
