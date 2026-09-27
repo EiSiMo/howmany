@@ -17,7 +17,7 @@ import run.moritz.quantify.counting.Box as ImageBox
 private const val MIN_EXEMPLAR_SIZE = 1f
 
 /** What a one-finger drag on the photo does, decided where it starts. */
-internal sealed interface PhotoDrag {
+sealed interface PhotoDrag {
     /** Moves the edges of [handle], starting from the crop as it was, [from]. */
     data class Crop(val handle: CropHandle, val from: ImageBox) : PhotoDrag
 
@@ -47,7 +47,7 @@ internal sealed interface PhotoDrag {
  * [handleReach] of the crop's edges and [canAdjustCrop]; otherwise it marks an exemplar if
  * [canMarkExemplar], or pans.
  */
-internal fun photoDrag(
+fun photoDrag(
     start: Offset,
     crop: ImageBox,
     viewport: Viewport,
@@ -68,7 +68,7 @@ private fun spanned(a: Offset, b: Offset) =
  * One finger taps or drags (from `start`, now at `position`, moved by `delta` since the last call);
  * two fingers zoom and pan. A second finger cancels a drag.
  */
-internal suspend fun PointerInputScope.detectPhotoGestures(
+suspend fun PointerInputScope.detectPhotoGestures(
     onTap: (Offset) -> Unit,
     onDrag: (start: Offset, position: Offset, delta: Offset) -> Unit,
     onDragEnd: () -> Unit,
