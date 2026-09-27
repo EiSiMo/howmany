@@ -6,6 +6,8 @@ import ai.onnxruntime.OrtSession
 import android.graphics.Bitmap
 import java.io.File
 import java.nio.FloatBuffer
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /** The GeCo2 model in the app assets, exported by the benchmark. */
 const val MODEL_ASSET = "geco2-int8.onnx"
@@ -36,9 +38,31 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
     private val environment = OrtEnvironment.getEnvironment()
     private val session = environment.createSession(model.path, options)
 
-    /** Returns one box in image pixels per object like the [exemplars], which are image boxes. */
-    fun detect(image: Bitmap, exemplars: List<Box>): List<Box> {
+    /**
+     * Returns one detection per object like the [exemplars] inside [region], with its box in image
+     * pixels, in reading order: row by row from the top, each row from left to right. Exemplars and
+     * region are image boxes; the model sees only the region, at a higher resolution the smaller it
+     * is. Confidences are relative to the best detection in the region.
+     */
+    fun detect(
+        image: Bitmap,
+        exemplars: List<Box>,
+        region: Box = Box(0f, 0f, image.width.toFloat(), image.height.toFloat()),
+    ): List<Detection> {
         require(exemplars.isNotEmpty()) { "At least one exemplar is needed" }
+        val left = floor(region.left).toInt().coerceIn(0, image.width - 1)
+        val top = floor(region.top).toInt().coerceIn(0, image.height - 1)
+        val right = ceil(region.right).toInt().coerceIn(left + 1, image.width)
+        val bottom = ceil(region.bottom).toInt().coerceIn(top + 1, image.height)
+        val cropped = Bitmap.createBitmap(image, left, top, right - left, bottom - top)
+        val x = left.toFloat()
+        val y = top.toFloat()
+        return detectInWhole(cropped, exemplars.map { it.translated(-x, -y) }).map {
+            it.copy(box = it.box.translated(x, y))
+        }
+    }
+
+    private fun detectInWhole(image: Bitmap, exemplars: List<Box>): List<Detection> {
         val scale = inputScale(image.width, image.height, exemplars)
         val input = inputSize(image.width, image.height, scale)
         val boxes =

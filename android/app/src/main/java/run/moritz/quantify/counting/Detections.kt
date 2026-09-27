@@ -10,7 +10,17 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
 
     val height
         get() = bottom - top
+
+    val center
+        get() = Point((left + right) / 2, (top + bottom) / 2)
+
+    operator fun contains(point: Point) = point.x in left..right && point.y in top..bottom
+
+    fun translated(x: Float, y: Float) = Box(left + x, top + y, right + x, bottom + y)
 }
+
+/** A point in image pixels. */
+data class Point(val x: Float, val y: Float)
 
 /** GeCo2 was trained on square images of this many pixels, the scaled image top-left. */
 internal const val INPUT_SIZE = 1024
@@ -23,6 +33,20 @@ private const val EXEMPLAR_SIZE = 80f
 private const val PEAK_RATIO = 1f / 8
 private const val SCORE_RATIO = 0.11f
 private const val NMS_IOU = 0.5f
+// Below this confidence, half of the detections on our photos and FSC-147 are false; above 0.7
+// only 2%. Flagging these asks the user to check a fifth of the detections, which hold three
+// quarters of the false ones.
+private const val UNCERTAIN_BELOW = 0.5f
+
+/**
+ * One detected object: its [box] in image pixels, and the model's [confidence] relative to the best
+ * detection in the image, from 1 for the best down to about 0.1.
+ */
+data class Detection(val box: Box, val confidence: Float) {
+    /** Whether the detection is often wrong, so the user should check it. */
+    val uncertain
+        get() = confidence < UNCERTAIN_BELOW
+}
 
 /** The size of the model input in pixels. */
 internal data class InputSize(val width: Int, val height: Int)
@@ -52,13 +76,16 @@ internal fun inputSize(imageWidth: Int, imageHeight: Int, scale: Float) =
 private fun paddedSide(side: Int, scale: Float) =
     ((side * scale).toInt() + SIZE_MULTIPLE - 1) / SIZE_MULTIPLE * SIZE_MULTIPLE
 
-/** Picks one box per detected object, in image pixels. */
+/**
+ * Picks one detection per object, with its box in image pixels, in reading order: row by row from
+ * the top, each row from left to right.
+ */
 internal fun decodeDetections(
     output: ModelOutput,
     scale: Float,
     imageWidth: Int,
     imageHeight: Int,
-): List<Box> {
+): List<Detection> {
     val input = inputSize(imageWidth, imageHeight, scale)
     val peaks = peaks(output)
     val best = peaks.maxOfOrNull { output.objectness[it] } ?: return emptyList()
@@ -66,10 +93,22 @@ internal fun decodeDetections(
         peaks
             .filter { output.objectness[it] > best * SCORE_RATIO }
             .sortedByDescending { output.objectness[it] }
-            .map { box(output, input, it) }
+            .map { Detection(box(output, input, it), output.objectness[it] / best) }
     return suppressDuplicates(candidates)
-        .map { it.scaled(1 / scale) }
-        .filter { (it.left + it.right) / 2 < imageWidth && (it.top + it.bottom) / 2 < imageHeight }
+        .map { it.copy(box = it.box.scaled(1 / scale)) }
+        .filter { it.box.center.x < imageWidth && it.box.center.y < imageHeight }
+        .inReadingOrder()
+}
+
+/** A box starts a new row unless its center lies within the height of the row's first box. */
+private fun List<Detection>.inReadingOrder(): List<Detection> {
+    val rows = mutableListOf<MutableList<Detection>>()
+    for (detection in sortedBy { it.box.center.y }) {
+        val row = rows.lastOrNull()
+        if (row != null && detection.box.center.y <= row.first().box.bottom) row += detection
+        else rows += mutableListOf(detection)
+    }
+    return rows.flatMap { row -> row.sortedBy { it.box.center.x } }
 }
 
 /** Cells that are 3 x 3 local maxima above the peak threshold. */
@@ -104,11 +143,11 @@ private fun box(output: ModelOutput, input: InputSize, cell: Int): Box {
     )
 }
 
-/** Greedy non-maximum suppression over boxes sorted by descending score. */
-private fun suppressDuplicates(boxes: List<Box>): List<Box> {
-    val kept = mutableListOf<Box>()
-    for (box in boxes) {
-        if (kept.none { iou(it, box) > NMS_IOU }) kept += box
+/** Greedy non-maximum suppression over detections sorted by descending confidence. */
+private fun suppressDuplicates(detections: List<Detection>): List<Detection> {
+    val kept = mutableListOf<Detection>()
+    for (detection in detections) {
+        if (kept.none { iou(it.box, detection.box) > NMS_IOU }) kept += detection
     }
     return kept
 }

@@ -1,0 +1,11 @@
+{
+  "sha256": "77bc1c275766790b0c2bdacba45bc33381de619b19a25bc8612f17077952b8ea",
+  "category": "dandelions",
+  "complete": false,
+  "excluded": true,
+  "exemplars": [[1003.7, 470.1, 1522.9, 915.2], [1509.8, 2717.2, 2029.0, 3306.2]],
+  "points": [
+    [1263.3, 692.7],
+    [1769.4, 3011.7]
+  ]
+}

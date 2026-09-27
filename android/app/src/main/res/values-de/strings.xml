@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="empty_title">Was möchtest du zählen?</string>
+    <string name="empty_text">Wähle ein Foto und zieh einen Rahmen um ein Objekt.</string>
     <string name="pick_photo">Foto wählen</string>
+    <string name="clear">Zurücksetzen</string>
     <string name="count">Zählen</string>
-    <string name="mark_example">Zieh einen Rahmen um ein Objekt</string>
     <string name="counting">Zähle…</string>
-    <plurals name="result">
-        <item quantity="one">%1$d Objekt in %2$.1f s</item>
-        <item quantity="other">%1$d Objekte in %2$.1f s</item>
+    <string name="mark_example">Zieh einen Rahmen um ein Objekt</string>
+    <string name="donate">Korrektur spenden</string>
+    <string name="adjust_crop">Zieh die Ränder, um nur einen Ausschnitt zu zählen</string>
+    <string name="correct">Tippe, um einen Punkt zu entfernen oder hinzuzufügen</string>
+    <plurals name="objects">
+        <item quantity="one">Objekt</item>
+        <item quantity="other">Objekte</item>
     </plurals>
 </resources>
