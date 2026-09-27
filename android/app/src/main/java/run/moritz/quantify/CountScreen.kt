@@ -1,6 +1,7 @@
 package run.moritz.quantify
 
 import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
@@ -46,9 +47,12 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
@@ -56,6 +60,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -96,11 +101,14 @@ private val UNCERTAIN_COLOR = Color(0xFFFFD600)
 private val POINT_NUMBER_SIZE = 9.sp
 private val HIT_RADIUS = 24.dp
 // The exemplar frame is white with a soft dark halo, so it reads on any photo without a theme tint.
-private val EXEMPLAR_OUTLINE = 1.dp
-private val EXEMPLAR_CORNER_STROKE = 3.dp
-private val EXEMPLAR_CORNER_LENGTH = 14.dp
+// Frames smaller than the full-size frame shrink as a whole, so the corners never merge.
+private val EXEMPLAR_FULL_SIZE = 72.dp
+private val EXEMPLAR_OUTLINE = 1.5.dp
+private val EXEMPLAR_CORNER_STROKE = 3.5.dp
+private val EXEMPLAR_CORNER_LENGTH = 16.dp
 private val EXEMPLAR_RADIUS = 8.dp
 private val EXEMPLAR_HALO = 2.dp
+private val EXEMPLAR_GLOW = 4.dp
 // Room around the photo, so its edges can be dragged without triggering the back gesture.
 private val PHOTO_MARGIN = 24.dp
 private val HANDLE_REACH = 24.dp
@@ -529,8 +537,9 @@ private fun DrawScope.drawCropHandles(crop: Rect, color: Color) {
 
 /** A thin rounded frame with bolder rounded corners, like a camera's focus frame. */
 private fun DrawScope.drawExemplarFrame(rect: Rect) {
-    val radius = min(EXEMPLAR_RADIUS.toPx(), min(rect.width, rect.height) / 2)
-    val length = min(EXEMPLAR_CORNER_LENGTH.toPx(), min(rect.width, rect.height) / 2)
+    val scale = min(1f, min(rect.width, rect.height) / EXEMPLAR_FULL_SIZE.toPx())
+    val radius = EXEMPLAR_RADIUS.toPx() * scale
+    val length = EXEMPLAR_CORNER_LENGTH.toPx() * scale
     val corners = Path()
     fun corner(x: Float, y: Float, dx: Float, dy: Float, startAngle: Float) {
         // dx and dy point from the corner into the rect; the arc sweeps from the vertical to the
@@ -552,21 +561,32 @@ private fun DrawScope.drawExemplarFrame(rect: Rect) {
     corner(rect.right, rect.top, -1f, 1f, 0f)
     corner(rect.right, rect.bottom, -1f, -1f, 0f)
     corner(rect.left, rect.bottom, 1f, -1f, 180f)
-    val cornerRadius = CornerRadius(radius)
-    val halo = Color.Black.copy(alpha = 0.3f)
-    val outline = EXEMPLAR_OUTLINE.toPx()
-    val cornerStroke = EXEMPLAR_CORNER_STROKE.toPx()
-    val haloWidth = EXEMPLAR_HALO.toPx()
-    drawRoundRect(halo, rect.topLeft, rect.size, cornerRadius, Stroke(outline + haloWidth))
-    drawPath(corners, halo, style = Stroke(cornerStroke + haloWidth, cap = StrokeCap.Round))
-    drawRoundRect(
-        Color.White.copy(alpha = 0.7f),
-        rect.topLeft,
-        rect.size,
-        cornerRadius,
-        Stroke(outline),
-    )
-    drawPath(corners, Color.White, style = Stroke(cornerStroke, cap = StrokeCap.Round))
+    val frame = Path().apply { addRoundRect(RoundRect(rect, CornerRadius(radius))) }
+    val outline = EXEMPLAR_OUTLINE.toPx() * scale
+    val cornerStroke = EXEMPLAR_CORNER_STROKE.toPx() * scale
+    val halo = EXEMPLAR_HALO.toPx() * scale
+    val glow = EXEMPLAR_GLOW.toPx() * scale
+    fun stroke(color: Color, extra: Float, blur: Float = 0f) {
+        drawIntoCanvas { canvas ->
+            val paint =
+                Paint().apply {
+                    this.color = color
+                    style = PaintingStyle.Stroke
+                    strokeCap = StrokeCap.Round
+                    if (blur > 0) {
+                        asFrameworkPaint().maskFilter =
+                            BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                    }
+                }
+            paint.strokeWidth = outline + extra
+            canvas.drawPath(frame, paint)
+            paint.strokeWidth = cornerStroke + extra
+            canvas.drawPath(corners, paint)
+        }
+    }
+    stroke(Color.Black.copy(alpha = 0.3f), halo)
+    stroke(Color.White.copy(alpha = 0.8f), glow, blur = glow)
+    stroke(Color.White, 0f)
 }
 
 /** Where a box in image pixels lies in the view. */
