@@ -43,11 +43,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -93,7 +95,12 @@ private const val POINT_ALPHA = 0.45f
 private val UNCERTAIN_COLOR = Color(0xFFFFD600)
 private val POINT_NUMBER_SIZE = 9.sp
 private val HIT_RADIUS = 24.dp
-private val EXEMPLAR_STROKE = 3.dp
+// The exemplar frame is white with a soft dark halo, so it reads on any photo without a theme tint.
+private val EXEMPLAR_OUTLINE = 1.dp
+private val EXEMPLAR_CORNER_STROKE = 3.dp
+private val EXEMPLAR_CORNER_LENGTH = 14.dp
+private val EXEMPLAR_RADIUS = 8.dp
+private val EXEMPLAR_HALO = 2.dp
 // Room around the photo, so its edges can be dragged without triggering the back gesture.
 private val PHOTO_MARGIN = 24.dp
 private val HANDLE_REACH = 24.dp
@@ -334,7 +341,6 @@ private fun Photo(
     val adjustCrop by rememberUpdatedState(onAdjustCrop)
     val markExemplar by rememberUpdatedState(onMarkExemplar)
     val tap by rememberUpdatedState(onTap)
-    val exemplarColor = MaterialTheme.colorScheme.tertiary
     val pointColor = MaterialTheme.colorScheme.primary
     val handleColor = MaterialTheme.colorScheme.primary
     val textMeasurer = rememberTextMeasurer()
@@ -496,14 +502,7 @@ private fun Photo(
                     exemplar != null -> exemplar.inView(current)
                     else -> null
                 }
-            if (rect != null) {
-                drawRect(
-                    exemplarColor,
-                    rect.topLeft,
-                    rect.size,
-                    style = Stroke(EXEMPLAR_STROKE.toPx()),
-                )
-            }
+            if (rect != null) drawExemplarFrame(rect)
         }
     }
 }
@@ -526,6 +525,48 @@ private fun DrawScope.drawCropHandles(crop: Rect, color: Color) {
     for (middle in listOf(crop.centerLeft, crop.centerRight)) {
         line(middle - Offset(0f, half), middle + Offset(0f, half))
     }
+}
+
+/** A thin rounded frame with bolder rounded corners, like a camera's focus frame. */
+private fun DrawScope.drawExemplarFrame(rect: Rect) {
+    val radius = min(EXEMPLAR_RADIUS.toPx(), min(rect.width, rect.height) / 2)
+    val length = min(EXEMPLAR_CORNER_LENGTH.toPx(), min(rect.width, rect.height) / 2)
+    val corners = Path()
+    fun corner(x: Float, y: Float, dx: Float, dy: Float, startAngle: Float) {
+        // dx and dy point from the corner into the rect; the arc sweeps from the vertical to the
+        // horizontal edge.
+        corners.moveTo(x, y + dy * length)
+        corners.lineTo(x, y + dy * radius)
+        corners.arcTo(
+            Rect(
+                Offset(min(x, x + 2 * dx * radius), min(y, y + 2 * dy * radius)),
+                Size(2 * radius, 2 * radius),
+            ),
+            startAngle,
+            if (dx * dy > 0) 90f else -90f,
+            forceMoveTo = false,
+        )
+        corners.lineTo(x + dx * length, y)
+    }
+    corner(rect.left, rect.top, 1f, 1f, 180f)
+    corner(rect.right, rect.top, -1f, 1f, 0f)
+    corner(rect.right, rect.bottom, -1f, -1f, 0f)
+    corner(rect.left, rect.bottom, 1f, -1f, 180f)
+    val cornerRadius = CornerRadius(radius)
+    val halo = Color.Black.copy(alpha = 0.3f)
+    val outline = EXEMPLAR_OUTLINE.toPx()
+    val cornerStroke = EXEMPLAR_CORNER_STROKE.toPx()
+    val haloWidth = EXEMPLAR_HALO.toPx()
+    drawRoundRect(halo, rect.topLeft, rect.size, cornerRadius, Stroke(outline + haloWidth))
+    drawPath(corners, halo, style = Stroke(cornerStroke + haloWidth, cap = StrokeCap.Round))
+    drawRoundRect(
+        Color.White.copy(alpha = 0.7f),
+        rect.topLeft,
+        rect.size,
+        cornerRadius,
+        Stroke(outline),
+    )
+    drawPath(corners, Color.White, style = Stroke(cornerStroke, cap = StrokeCap.Round))
 }
 
 /** Where a box in image pixels lies in the view. */
