@@ -18,7 +18,7 @@ class ObjectCounterTest {
     /** Apples scaled down to a 416 x 320 model input: the typical case. */
     @Test
     fun countsApplesLikeTheBenchmark() =
-        countsLikeTheBenchmark("2147.jpg", Box(122f, 133f, 222f, 231f), 36)
+        countsLikeTheBenchmark("2147.jpg", Box(122f, 133f, 222f, 231f), 34)
 
     /**
      * Small marbles filling the whole 1024 x 1024 model input: the worst case for time and memory.

@@ -26,6 +26,9 @@ data class Point(val x: Float, val y: Float)
 internal const val INPUT_SIZE = 1024
 // The model takes that image with the padding cut off, down to the next multiple of this.
 private const val SIZE_MULTIPLE = 32
+// But never smaller than this per side: with less padding around very small images (few, large
+// objects) GeCo2 miscounts, e.g. 48 instead of 32 planks.
+private const val MIN_INPUT_SIDE = 512
 // GeCo2 scales images so exemplars are at most this many pixels on average.
 private const val EXEMPLAR_SIZE = 80f
 // Post-processing as in GeCo2: objectness peaks above 1/8 of the maximum become candidate boxes,
@@ -74,7 +77,10 @@ internal fun inputSize(imageWidth: Int, imageHeight: Int, scale: Float) =
     InputSize(paddedSide(imageWidth, scale), paddedSide(imageHeight, scale))
 
 private fun paddedSide(side: Int, scale: Float) =
-    ((side * scale).toInt() + SIZE_MULTIPLE - 1) / SIZE_MULTIPLE * SIZE_MULTIPLE
+    max(
+        ((side * scale).toInt() + SIZE_MULTIPLE - 1) / SIZE_MULTIPLE * SIZE_MULTIPLE,
+        MIN_INPUT_SIDE,
+    )
 
 /**
  * Picks one detection per object, with its box in image pixels, in reading order: row by row from
