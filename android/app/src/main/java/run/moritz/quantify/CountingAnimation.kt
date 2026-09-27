@@ -49,7 +49,7 @@ private val SCAN_BAND = 48.dp
 private const val DIM_ALPHA = 0.3f
 private const val DIM_FADE = 0.3f
 // When the count arrives, one fast wave reveals the heatmap and pops the points up as it reaches
-// them, slowed down by the objects; then the glow condenses onto its peaks and fades.
+// them; then the glow condenses onto its peaks and fades.
 private const val REVEAL = 0.9f
 private const val CONDENSE = 0.6f
 private const val POP = 0.3f
@@ -182,7 +182,7 @@ class CountingAnimation {
 
 /**
  * Scans while [counting]; reveals the count when counting ends with a [heatmap], with a wave from
- * [origin] that is slowed down by the objects in [crop].
+ * [origin] across [crop].
  */
 @Composable
 fun rememberCountingAnimation(
