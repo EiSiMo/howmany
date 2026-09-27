@@ -38,7 +38,6 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
-import run.moritz.quantify.counting.Box
 import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
 
@@ -56,6 +55,10 @@ private const val DIM_FADE = 0.3f
 private const val REVEAL = 0.9f
 private const val CONDENSE = 0.6f
 private const val POP = 0.3f
+// Clearing plays the reveal backwards: from the farthest point in to the example, the points
+// shrink away one after another at once.
+private const val HIDE = 0.3f
+private const val SHRINK = 0.2f
 // How far behind the wave front, as a fraction of the whole way, a place is fully revealed.
 private const val REVEAL_SOFTNESS = 0.15f
 private const val GLOW_ALPHA = 0.65f
@@ -68,19 +71,40 @@ private val DISTORTION_WIDTH = 96.dp
 private const val FRONT_BRIGHTNESS = 0.06f
 
 /**
- * The time since counting started and since its result arrived, and the [wave] that reveals the
- * result, driving what is drawn.
+ * The time since counting started, since its result arrived and since it was cleared, and the
+ * [wave] that reveals the result, driving what is drawn.
  */
 @Stable
 class CountingAnimation {
     internal var scanning by mutableStateOf<Float?>(null)
     internal var revealing by mutableStateOf<Float?>(null)
+    internal var hiding by mutableStateOf<Float?>(null)
+
+    internal var cleared by mutableStateOf<CountState?>(null)
+    /** The arrival of the cleared count's farthest point, where hiding begins. */
+    internal var farthest = 1f
+
     internal var wave: Wave? = null
         set(value) {
             field = value
             arrivals = value?.arrivals()
             arrivalShader = null
         }
+
+    /**
+     * Hides the points of [count], which is about to be cleared; called right before clearing, so
+     * no frame shows them gone before they hide.
+     */
+    fun hide(count: CountState) {
+        val points = count.counted ?: return
+        val wave = wave ?: return
+        farthest = points.maxOfOrNull(wave::arrival)?.coerceAtLeast(1e-6f) ?: return
+        cleared = count
+        hiding = 0f
+    }
+
+    /** What to show of [state]: a count still hiding, unless the photo has changed since. */
+    fun shown(state: CountState): CountState = cleared?.takeIf { it.photo === state.photo } ?: state
 
     private var arrivals: FloatArray? = null
     private var arrivalShader: BitmapShader? = null
@@ -194,18 +218,17 @@ class CountingAnimation {
 }
 
 /**
- * Scans while [counting]; reveals the count when counting ends with a [heatmap], with a wave from
- * the edge of [example] across [crop]. Each sweep of the scan and the reveal set off with a haptic
- * tick.
+ * Scans while [state] is counting; reveals the count when counting ends with a heatmap, with a wave
+ * from the edge of the example across the crop; hides the points again, from the farthest in, after
+ * [CountingAnimation.hide]. Each sweep of the scan and the reveal set off with a haptic tick.
  */
 @Composable
-fun rememberCountingAnimation(
-    counting: Boolean,
-    heatmap: Heatmap?,
-    example: Box?,
-    crop: Box?,
-): CountingAnimation {
+fun rememberCountingAnimation(state: CountState): CountingAnimation {
     val animation = remember { CountingAnimation() }
+    val shown = animation.shown(state)
+    val heatmap = shown.heatmap
+    val example = shown.exemplar
+    val crop = shown.crop
     val wave =
         remember(heatmap, example, crop) {
             if (heatmap != null && example != null && crop != null) Wave(heatmap, example, crop)
@@ -214,6 +237,7 @@ fun rememberCountingAnimation(
     if (animation.wave !== wave) animation.wave = wave
     val haptics = LocalHapticFeedback.current
     var wasCounting by remember { mutableStateOf(false) }
+    val counting = state.counting
     LaunchedEffect(counting) {
         if (counting) {
             wasCounting = true
@@ -235,6 +259,19 @@ fun rememberCountingAnimation(
             }
             wasCounting = false
             animation.revealing = null
+        }
+    }
+    val cleared = animation.cleared
+    LaunchedEffect(cleared) {
+        if (cleared != null) {
+            try {
+                everyFrame(until = HIDE + SHRINK) { seconds -> animation.hiding = seconds }
+            } finally {
+                if (animation.cleared === cleared) {
+                    animation.hiding = null
+                    animation.cleared = null
+                }
+            }
         }
     }
     return animation
@@ -286,10 +323,18 @@ fun DrawScope.drawCountingAnimation(
 
 /**
  * How large to draw a counted point at [point] in image pixels while the count is revealed: 0 until
- * the wave reaches it, then popping up past 1 and settling at 1.
+ * the wave reaches it, then popping up past 1 and settling at 1; while it is cleared, shrinking
+ * back to 0 as the wave returns to the example.
  */
 fun pointScale(animation: CountingAnimation, point: Point): Float {
     if (animation.scanning != null) return 0f
+    animation.hiding?.let { seconds ->
+        val wave = animation.wave ?: return 0f
+        val hit = (1 - wave.arrival(point) / animation.farthest).coerceIn(0f, 1f) * HIDE
+        val left = 1 - ((seconds - hit) / SHRINK).coerceIn(0f, 1f)
+        // Shrinking fastest at first, so it visibly starts at once.
+        return left * left
+    }
     val seconds = animation.revealing ?: return 1f
     val wave = animation.wave ?: return 1f
     // Inverts easeOut, when the wave front reaches the point.

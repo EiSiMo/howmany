@@ -133,14 +133,10 @@ fun CountScreen(viewModel: CountViewModel) {
     val pickPhoto = { picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }
     val photo = state.photo
     val crop = state.crop
-    val points = state.counted
-    val animation =
-        rememberCountingAnimation(
-            state.counting,
-            state.heatmap,
-            state.exemplar,
-            state.crop,
-        )
+    val animation = rememberCountingAnimation(state)
+    // A cleared count's points stay until they have hidden.
+    val shown = animation.shown(state)
+    val points = shown.counted
     // The count rises with the points the reveal has shown so far.
     val revealed by
         remember(points) { derivedStateOf { points?.count { pointScale(animation, it) > 0 } ?: 0 } }
@@ -170,14 +166,15 @@ fun CountScreen(viewModel: CountViewModel) {
             margin = margin,
             exemplar = state.exemplar.takeIf { points == null },
             points = points.orEmpty(),
-            uncertain = state.uncertain,
+            uncertain = shown.uncertain,
             example = state.exemplar,
             heatmap = state.heatmap,
             counting = state.counting,
             animation = animation,
             onAdjustCrop = viewModel::adjustCrop.takeIf { !state.counting },
-            onMarkExemplar = viewModel::markExemplar.takeIf { points == null && !state.counting },
-            onTap = viewModel::toggle.takeIf { points != null },
+            onMarkExemplar =
+                viewModel::markExemplar.takeIf { state.points == null && !state.counting },
+            onTap = viewModel::toggle.takeIf { state.points != null },
             modifier = Modifier.fillMaxSize(),
         )
         // Scrims keep the status bar and the controls readable on bright photos.
@@ -204,7 +201,7 @@ fun CountScreen(viewModel: CountViewModel) {
             val hint =
                 when {
                     state.corrected -> R.string.donate
-                    points != null -> R.string.correct
+                    state.points != null -> R.string.correct
                     state.counting -> R.string.counting
                     state.exemplar == null -> R.string.mark_example
                     else -> R.string.adjust_crop
@@ -259,7 +256,10 @@ fun CountScreen(viewModel: CountViewModel) {
                 RoundButton(
                     painterResource(R.drawable.ic_clear),
                     stringResource(R.string.clear),
-                    viewModel::clear,
+                    {
+                        animation.hide(state)
+                        viewModel.clear()
+                    },
                     Modifier.align(BiasAlignment(SIDE_BUTTON_BIAS, 0f)),
                     enabled = state.exemplar != null,
                 )
