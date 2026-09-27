@@ -12,6 +12,8 @@ import kotlin.math.floor
 /** The GeCo2 model in the app assets, exported by the benchmark. */
 const val MODEL_ASSET = "geco2-int8.onnx"
 
+// The model runs its operators on this many threads.
+private const val THREADS = 4
 // ImageNet normalization, as GeCo2's backbone was trained with.
 private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
 private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
@@ -23,23 +25,18 @@ class CountResult(val detections: List<Detection>, val heatmap: Heatmap)
  * Finds every object in an image that looks like the given exemplars, with GeCo2 (the benchmark's
  * prototype 4) running on the CPU.
  */
-class ObjectCounter internal constructor(model: File, options: OrtSession.SessionOptions) :
-    AutoCloseable {
-    constructor(
-        model: File,
-        threads: Int = 4,
-    ) : this(
-        model,
-        OrtSession.SessionOptions().apply {
-            setIntraOpNumThreads(threads)
-            // Planning all activations up front costs ~1 GB more peak memory, and Android
-            // throttles apps above 3 GB. On a Pixel 8 Pro it is also no faster.
-            setMemoryPatternOptimization(false)
-        },
-    )
-
+class ObjectCounter(model: File) : AutoCloseable {
     private val environment = OrtEnvironment.getEnvironment()
-    private val session = environment.createSession(model.path, options)
+    private val session =
+        environment.createSession(
+            model.path,
+            OrtSession.SessionOptions().apply {
+                setIntraOpNumThreads(THREADS)
+                // Planning all activations up front costs ~1 GB more peak memory, and Android
+                // throttles apps above 3 GB. On a Pixel 8 Pro it is also no faster.
+                setMemoryPatternOptimization(false)
+            },
+        )
 
     /**
      * Returns one detection per object like the [exemplars] inside [crop], with its box in image
@@ -58,10 +55,14 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
         val top = floor(crop.top).toInt().coerceIn(0, image.height - 1)
         val right = ceil(crop.right).toInt().coerceIn(left + 1, image.width)
         val bottom = ceil(crop.bottom).toInt().coerceIn(top + 1, image.height)
-        val cropped = Bitmap.createBitmap(image, left, top, right - left, bottom - top)
         val x = left.toFloat()
         val y = top.toFloat()
-        val result = detectInWhole(cropped, exemplars.map { it.translated(-x, -y) })
+        val result =
+            Bitmap.createBitmap(image, left, top, right - left, bottom - top).useDerivedFrom(
+                image
+            ) {
+                detectInWhole(it, exemplars.map { box -> box.translated(-x, -y) })
+            }
         return CountResult(
             result.detections.map { it.copy(box = it.box.translated(x, y)) },
             result.heatmap.translated(x, y),
@@ -71,46 +72,43 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
     private fun detectInWhole(image: Bitmap, exemplars: List<Box>): CountResult {
         val scale = inputScale(image.width, image.height, exemplars)
         val input = inputSize(image.width, image.height, scale)
+        val pixels = pixels(image, scale, input)
         val boxes =
             exemplars.flatMap { listOf(it.left, it.top, it.right, it.bottom) }.map { it * scale }
-        val imageShape = longArrayOf(1, 3, input.height.toLong(), input.width.toLong())
-        OnnxTensor.createTensor(environment, pixels(image, scale, input), imageShape).use {
-            imageTensor ->
-            OnnxTensor.createTensor(
-                    environment,
-                    FloatBuffer.wrap(boxes.toFloatArray()),
-                    longArrayOf(1, exemplars.size.toLong(), 4),
-                )
-                .use { exemplarTensor ->
-                    session.run(mapOf("image" to imageTensor, "exemplars" to exemplarTensor)).use {
-                        result ->
-                        val objectness = result.floats("objectness")
-                        val output =
-                            ModelOutput(
-                                rows = objectness.shape[1].toInt(),
-                                columns = objectness.shape[2].toInt(),
-                                objectness = objectness.values,
-                                offsets = result.floats("offsets").values,
-                            )
-                        return CountResult(
-                            decodeDetections(output, scale, image.width, image.height),
-                            decodeHeatmap(output, scale, image.width, image.height),
-                        )
-                    }
+        val output =
+            tensor(pixels, 1, 3, input.height, input.width).use { pixelTensor ->
+                tensor(FloatBuffer.wrap(boxes.toFloatArray()), 1, exemplars.size, 4).use {
+                    infer(pixelTensor, it)
                 }
-        }
+            }
+        return CountResult(
+            decodeDetections(output, scale, image.width, image.height),
+            decodeHeatmap(output, scale, image.width, image.height),
+        )
     }
 
     override fun close() = session.close()
 
-    private class Floats(val shape: LongArray, val values: FloatArray)
+    private fun tensor(values: FloatBuffer, vararg shape: Int) =
+        OnnxTensor.createTensor(environment, values, shape.map { it.toLong() }.toLongArray())
 
-    private fun OrtSession.Result.floats(name: String): Floats {
-        val tensor =
-            get(name).orElseThrow { IllegalStateException("Model has no output $name") }
-                as OnnxTensor
-        val buffer = tensor.floatBuffer
-        return Floats(tensor.info.shape, FloatArray(buffer.remaining()).also { buffer.get(it) })
+    private fun infer(image: OnnxTensor, exemplars: OnnxTensor): ModelOutput =
+        session.run(mapOf("image" to image, "exemplars" to exemplars)).use { result ->
+            val objectness = result.tensor("objectness")
+            ModelOutput(
+                rows = objectness.info.shape[1].toInt(),
+                columns = objectness.info.shape[2].toInt(),
+                objectness = objectness.floats(),
+                offsets = result.tensor("offsets").floats(),
+            )
+        }
+
+    private fun OrtSession.Result.tensor(name: String) =
+        get(name).orElseThrow { IllegalStateException("Model has no output $name") } as OnnxTensor
+
+    private fun OnnxTensor.floats(): FloatArray {
+        val buffer = floatBuffer
+        return FloatArray(buffer.remaining()).also { buffer.get(it) }
     }
 
     private companion object {
@@ -119,8 +117,9 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
             val width = (image.width * scale).toInt()
             val height = (image.height * scale).toInt()
             val colors = IntArray(width * height)
-            Bitmap.createScaledBitmap(image, width, height, true)
-                .getPixels(colors, 0, width, 0, 0, width, height)
+            Bitmap.createScaledBitmap(image, width, height, true).useDerivedFrom(image) {
+                it.getPixels(colors, 0, width, 0, 0, width, height)
+            }
             val plane = input.width * input.height
             val values = FloatArray(3 * plane)
             for (channel in 0..2) {
@@ -138,5 +137,16 @@ class ObjectCounter internal constructor(model: File, options: OrtSession.Sessio
             }
             return FloatBuffer.wrap(values)
         }
+
+        /**
+         * Runs [block] on this bitmap derived from [source], then frees it, unless Android returned
+         * [source] itself (as it does when there is nothing to crop or scale).
+         */
+        fun <T> Bitmap.useDerivedFrom(source: Bitmap, block: (Bitmap) -> T): T =
+            try {
+                block(this)
+            } finally {
+                if (this !== source) recycle()
+            }
     }
 }
