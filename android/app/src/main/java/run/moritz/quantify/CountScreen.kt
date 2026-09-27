@@ -175,8 +175,6 @@ fun CountScreen(viewModel: CountViewModel) {
             Column(Modifier.fillMaxSize().padding(padding)) {
                 val hint =
                     when {
-                        points != null && points.any { it in state.uncertain } ->
-                            R.string.correct_uncertain
                         points != null -> R.string.correct
                         state.counting -> R.string.counting
                         state.exemplar == null -> R.string.mark_example
