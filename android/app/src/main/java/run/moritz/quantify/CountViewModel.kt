@@ -75,7 +75,11 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun toggle(at: Point, hitRadius: Float) = _state.update { state ->
         val points = state.points ?: return@update state
-        state.copy(points = points.toggled(at, hitRadius, state.crop), corrected = true)
+        val exemplar = state.exemplar ?: return@update state
+        state.copy(
+            points = points.toggled(at, hitRadius, exemplar.height, state.crop),
+            corrected = true,
+        )
     }
 
     /** Counts only inside [crop] from now on; after counting, this corrects the count. */
