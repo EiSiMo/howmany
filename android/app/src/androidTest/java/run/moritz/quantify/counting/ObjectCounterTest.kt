@@ -8,6 +8,7 @@ import java.io.File
 import kotlin.time.measureTimedValue
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -37,13 +38,25 @@ class ObjectCounterTest {
     companion object {
         private const val TAG = "ObjectCounterTest"
         private val instrumentation = InstrumentationRegistry.getInstrumentation()
-        private val counter by lazy {
+        private lateinit var counter: ObjectCounter
+
+        /** Creates the counter before any timed run, so the runs are comparable. */
+        @JvmStatic
+        @BeforeClass
+        fun createCounter() {
             val context = instrumentation.targetContext
-            val model =
-                File(context.cacheDir, MODEL_ASSET).also { file ->
-                    context.assets.open(MODEL_ASSET).use { it.copyTo(file.outputStream()) }
+            val (created, duration) =
+                measureTimedValue {
+                    val model =
+                        File(context.cacheDir, MODEL_ASSET).also { file ->
+                            context.assets.open(MODEL_ASSET).use { input ->
+                                file.outputStream().use { input.copyTo(it) }
+                            }
+                        }
+                    ObjectCounter(model)
                 }
-            ObjectCounter(model)
+            counter = created
+            Log.i(TAG, "Counter created in $duration")
         }
 
         /** The process's peak resident memory, as Android's low-memory killer sees it. */
