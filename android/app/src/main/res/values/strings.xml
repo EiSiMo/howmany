@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name" translatable="false">Quantify</string>
     <string name="empty_title">What do you want to count?</string>
-    <string name="empty_text">Pick a photo, then drag a box around one object.</string>
+    <string name="empty_text">Pick a photo</string>
     <string name="pick_photo">Pick photo</string>
     <string name="clear">Clear</string>
     <string name="count">Count</string>

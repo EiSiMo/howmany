@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="empty_title">Was möchtest du zählen?</string>
-    <string name="empty_text">Wähle ein Foto und zieh einen Rahmen um ein Objekt.</string>
+    <string name="empty_text">Wähle ein Foto</string>
     <string name="pick_photo">Foto wählen</string>
     <string name="clear">Zurücksetzen</string>
     <string name="count">Zählen</string>
