@@ -134,7 +134,7 @@ class CountingAnimation {
             when {
                 scanning != null -> scanRings(scanning, reach)
                 revealing != null && revealing < REVEAL ->
-                    listOf(front(revealing) * reach to 1 - revealing / REVEAL)
+                    listOf(front(revealing) * reach to fadeLate(revealing / REVEAL))
                 else -> return null
             }
         val arrival = if (revealing != null) arrivalShader(heatmapRect) else null
@@ -272,13 +272,16 @@ fun pointScale(animation: CountingAnimation, point: Point): Float {
     return if (pop <= 0) 0f else easeOutBack(pop.coerceAtMost(1f))
 }
 
-/** The scan's rings at [seconds]: each with its radius and a strength fading from 1 to 0. */
+/**
+ * The scan's rings at [seconds]: each with its radius and a strength that holds until the ring
+ * nears the crop's far corner, then fades to 0.
+ */
 private fun scanRings(seconds: Float, reach: Float): List<Pair<Float, Float>> {
     val rings = mutableListOf<Pair<Float, Float>>()
     var emitted = 0f
     while (emitted <= seconds) {
         val age = (seconds - emitted) / SCAN_RING_LIFE
-        if (age < 1) rings += easeOut(age) * reach to (1 - age).pow(1.5f)
+        if (age < 1) rings += easeOut(age) * reach to fadeLate(age)
         emitted += SCAN_PERIOD
     }
     return rings
@@ -313,6 +316,9 @@ private fun reach(example: Rect, crop: Rect) =
                 .getDistance()
         }
         .coerceAtLeast(1f)
+
+/** From 1 down to 0 as [fraction] goes from 0 to 1, keeping near full strength until late. */
+private fun fadeLate(fraction: Float) = 1 - fraction.pow(4)
 
 private fun easeOut(fraction: Float) = 1 - (1 - fraction) * (1 - fraction)
 
