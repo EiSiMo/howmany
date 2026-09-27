@@ -1,15 +1,7 @@
 package run.moritz.quantify
 
-import android.annotation.SuppressLint
-import android.graphics.Bitmap
 import android.graphics.BitmapShader
-import android.graphics.Matrix
-import android.graphics.RenderEffect as AndroidRenderEffect
-import android.graphics.RuntimeShader
-import android.graphics.Shader
 import android.os.Build
-import android.util.Half
-import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -21,19 +13,14 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RenderEffect
-import androidx.compose.ui.graphics.ShaderBrush
-import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.dp
-import java.nio.ShortBuffer
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -45,9 +32,6 @@ import run.moritz.quantify.counting.Point
 // for the exemplar, and a soft ring of light spreads from the exemplar across the crop every
 // SCAN_PERIOD, lighting up the contours it passes.
 private const val SCAN_PERIOD = 1.8f
-private val SHIMMER = 2.dp
-private val SHIMMER_BLOB = 80.dp
-private val EDGE_STEP = 1.dp
 private const val DIM_ALPHA = 0.3f
 private const val DIM_FADE = 0.3f
 // When the count arrives, one fast wave reveals the heatmap and pops the points up as it reaches
@@ -64,11 +48,6 @@ private const val REVEAL_SOFTNESS = 0.15f
 private const val GLOW_ALPHA = 0.65f
 private const val GAMMA_FROM = 1.5f
 private const val GAMMA_TO = 10f
-// The waves bend the photo like water: pixels shift by up to about this much where a ring passes,
-// easing in and out over about this width on either side so the ring has no visible edges.
-private val DISTORTION = 3.dp
-private val DISTORTION_WIDTH = 96.dp
-private const val FRONT_BRIGHTNESS = 0.06f
 
 /**
  * The time since counting started, since its result arrived and since it was cleared, and the
@@ -109,10 +88,10 @@ class CountingAnimation {
     private var arrivals: FloatArray? = null
     private var arrivalShader: BitmapShader? = null
     private val distortion by lazy {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Distortion() else null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) DistortionShader() else null
     }
     private val shimmer by lazy {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Shimmer() else null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ShimmerShader() else null
     }
 
     /**
@@ -159,17 +138,15 @@ class CountingAnimation {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
         scanning?.let { seconds ->
             val shimmer = shimmer ?: return null
-            return with(density) {
-                shimmer.effect(
-                    exemplar,
-                    crop,
-                    reach(exemplar, crop),
-                    seconds,
-                    SHIMMER.toPx(),
-                    SHIMMER_BLOB.toPx(),
-                    EDGE_STEP.toPx(),
-                )
-            }
+            return shimmer.effect(
+                exemplar,
+                crop,
+                reach(exemplar, crop),
+                seconds,
+                SCAN_PERIOD,
+                (seconds / DIM_FADE).coerceAtMost(1f),
+                density,
+            )
         }
         val distortion = distortion ?: return null
         val revealing = revealing
@@ -183,36 +160,19 @@ class CountingAnimation {
             fadeLate(revealing / REVEAL),
             arrival,
             reach,
-            with(density) { DISTORTION.toPx() },
-            with(density) { DISTORTION_WIDTH.toPx() },
+            density,
         )
     }
 
     /** The arrivals as a texture spanning [heatmapRect], interpolated between cell centers. */
-    // Lint takes the half floats for plain shorts, but they go straight into a half float bitmap.
-    @SuppressLint("HalfFloat")
     private fun arrivalShader(heatmapRect: Rect?): BitmapShader? {
         val arrivals = arrivals ?: return null
         heatmapRect ?: return null
         val grid = wave?.heatmap ?: return null
         val shader =
             arrivalShader
-                ?: run {
-                    val halves = ShortArray(arrivals.size * 4)
-                    for (cell in arrivals.indices) {
-                        halves.fill(Half.toHalf(arrivals[cell]), cell * 4, cell * 4 + 4)
-                    }
-                    val bitmap =
-                        Bitmap.createBitmap(grid.columns, grid.rows, Bitmap.Config.RGBA_F16)
-                    bitmap.copyPixelsFromBuffer(ShortBuffer.wrap(halves))
-                    BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).also {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            it.filterMode = BitmapShader.FILTER_MODE_LINEAR
-                        }
-                        arrivalShader = it
-                    }
-                }
-        shader.setLocalMatrix(cellsTo(heatmapRect, grid.columns, grid.rows))
+                ?: cellsShader(arrivals, grid.columns, grid.rows).also { arrivalShader = it }
+        shader.stretchCells(grid.columns, grid.rows, heatmapRect)
         return shader
     }
 }
@@ -310,9 +270,13 @@ fun DrawScope.drawCountingAnimation(
         val seconds = animation.revealing
         if (seconds != null && heatmap != null && heatmapRect != null) {
             val (dim, glow) = animation.revealPixels(heatmap, seconds, glowColor)
-            drawRect(cellsBrush(dim, heatmap, heatmapRect), crop.topLeft, crop.size)
             drawRect(
-                cellsBrush(glow, heatmap, heatmapRect),
+                cellsBrush(dim, heatmap.columns, heatmap.rows, heatmapRect),
+                crop.topLeft,
+                crop.size,
+            )
+            drawRect(
+                cellsBrush(glow, heatmap.columns, heatmap.rows, heatmapRect),
                 crop.topLeft,
                 crop.size,
                 blendMode = BlendMode.Screen,
@@ -343,24 +307,6 @@ fun pointScale(animation: CountingAnimation, point: Point): Float {
     return if (pop <= 0) 0f else easeOutBack(pop.coerceAtMost(1f))
 }
 
-/** Per-cell ARGB [pixels] of a square grid, stretched smoothly over [rect] and clamped beyond. */
-private fun cellsBrush(pixels: IntArray, heatmap: Heatmap, rect: Rect): Brush {
-    val bitmap = Bitmap.createBitmap(pixels, heatmap.columns, heatmap.rows, Bitmap.Config.ARGB_8888)
-    val shader = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        shader.filterMode = BitmapShader.FILTER_MODE_LINEAR
-    }
-    shader.setLocalMatrix(cellsTo(rect, heatmap.columns, heatmap.rows))
-    return ShaderBrush(shader)
-}
-
-/** Maps a grid of [columns] x [rows] cells onto [rect]. */
-private fun cellsTo(rect: Rect, columns: Int, rows: Int) =
-    Matrix().apply {
-        setScale(rect.width / columns, rect.height / rows)
-        postTranslate(rect.left, rect.top)
-    }
-
 /** The distance from the edge of [exemplar] to the farthest corner of [crop]. */
 private fun reach(exemplar: Rect, crop: Rect) =
     listOf(crop.topLeft, crop.topRight, crop.bottomLeft, crop.bottomRight)
@@ -382,202 +328,4 @@ private fun easeOutBack(fraction: Float): Float {
     val overshoot = 1.70158f
     val x = fraction - 1
     return 1 + (overshoot + 1) * x * x * x + overshoot * x * x
-}
-
-/**
- * Bends the photo along the reveal's front like light through water: pixels move towards or away
- * from the exemplar where the front passes, colors split slightly, and the front shines. The
- * exemplar itself stays still.
- */
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private class Distortion {
-    private val shader = RuntimeShader(SHADER)
-
-    /**
-     * The front is a ring of [radius] and [strength] in [arrival] times [reach], the distance the
-     * wave covers from the edge of [exemplar] to the farthest corner of [crop].
-     */
-    fun effect(
-        exemplar: Rect,
-        crop: Rect,
-        radius: Float,
-        strength: Float,
-        arrival: BitmapShader,
-        reach: Float,
-        amplitude: Float,
-        width: Float,
-    ): RenderEffect {
-        shader.setFloatUniform(
-            "exemplar",
-            exemplar.left,
-            exemplar.top,
-            exemplar.right,
-            exemplar.bottom,
-        )
-        shader.setFloatUniform("crop", crop.left, crop.top, crop.right, crop.bottom)
-        shader.setFloatUniform("ring", radius, strength)
-        shader.setFloatUniform("reach", reach)
-        shader.setFloatUniform("amplitude", amplitude)
-        shader.setFloatUniform("width", width)
-        shader.setFloatUniform("brightness", FRONT_BRIGHTNESS)
-        shader.setInputShader("arrival", arrival)
-        return AndroidRenderEffect.createRuntimeShaderEffect(shader, "content")
-            .asComposeRenderEffect()
-    }
-
-    private companion object {
-        const val SHADER =
-            """
-            uniform shader content;
-            uniform shader arrival;
-            uniform float4 exemplar;
-            uniform float4 crop;
-            uniform float2 ring;
-            uniform float reach;
-            uniform float amplitude;
-            uniform float width;
-            uniform float brightness;
-
-            // From the exemplar's edge out to p; zero inside the exemplar.
-            float2 outwards(float2 p) {
-                return max(max(exemplar.xy - p, p - exemplar.zw), float2(0));
-            }
-
-            // How far the wave has come to p, in pixels.
-            float field(float2 p) {
-                return arrival.eval(p).r * reach;
-            }
-
-            // One wave crest: pushes outwards just ahead of the ring, inwards just behind it.
-            float crest(float d) {
-                float x = d / width;
-                return x * exp(-x * x);
-            }
-
-            half4 main(float2 p) {
-                if (p.x < crop.x || p.y < crop.y || p.x > crop.z || p.y > crop.w) {
-                    return content.eval(p);
-                }
-                float d = field(p);
-                float e = 2.0;
-                float2 direction = float2(field(p + float2(e, 0)) - field(p - float2(e, 0)),
-                                          field(p + float2(0, e)) - field(p - float2(0, e)));
-                float size = length(direction);
-                direction = size > 0.0001 ? direction / size : float2(0);
-                float push = ring.y * crest(d - ring.x);
-                // Fades in from the exemplar's edge, so the exemplar stays still without a seam.
-                push *= smoothstep(0.0, width * 0.5, length(outwards(p)));
-                float2 offset = direction * push * amplitude * 2.3;
-                half4 color = content.eval(p - offset);
-                color.r = content.eval(p - offset * 1.1).r;
-                color.b = content.eval(p - offset * 0.9).b;
-                float behind = (d - ring.x) / width;
-                float shine = ring.y * exp(-behind * behind) * brightness;
-                color.rgb += half3(shine) * color.a;
-                return color;
-            }
-            """
-    }
-}
-
-/**
- * Lets the photo shimmer while it is analysed: it wobbles slightly along slowly drifting noise,
- * except for the exemplar, its contours glow faintly, and brightly where a soft band of light
- * sweeps diagonally across the crop.
- */
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private class Shimmer {
-    private val shader = RuntimeShader(SHADER)
-
-    /**
-     * At [seconds] into the scan: pixels shift by up to [amplitude] in noise blobs about [blob]
-     * wide, contours are found between pixels [spacing] apart, and the band of light spreads from
-     * [exemplar] to [reach] away from it.
-     */
-    fun effect(
-        exemplar: Rect,
-        crop: Rect,
-        reach: Float,
-        seconds: Float,
-        amplitude: Float,
-        blob: Float,
-        spacing: Float,
-    ): RenderEffect {
-        shader.setFloatUniform(
-            "exemplar",
-            exemplar.left,
-            exemplar.top,
-            exemplar.right,
-            exemplar.bottom,
-        )
-        shader.setFloatUniform("crop", crop.left, crop.top, crop.right, crop.bottom)
-        shader.setFloatUniform("reach", reach)
-        shader.setFloatUniform("time", seconds)
-        shader.setFloatUniform("period", SCAN_PERIOD)
-        shader.setFloatUniform("fade", (seconds / DIM_FADE).coerceAtMost(1f))
-        shader.setFloatUniform("amplitude", amplitude)
-        shader.setFloatUniform("blob", blob)
-        shader.setFloatUniform("spacing", spacing)
-        return AndroidRenderEffect.createRuntimeShaderEffect(shader, "content")
-            .asComposeRenderEffect()
-    }
-
-    private companion object {
-        const val SHADER =
-            """
-            uniform shader content;
-            uniform float4 exemplar;
-            uniform float4 crop;
-            uniform float reach;
-            uniform float time;
-            uniform float period;
-            uniform float fade;
-            uniform float amplitude;
-            uniform float blob;
-            uniform float spacing;
-
-            float hash(float2 p) {
-                return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453);
-            }
-
-            // Smooth value noise between 0 and 1.
-            float noise(float2 p) {
-                float2 i = floor(p);
-                float2 f = fract(p);
-                float2 u = f * f * (3.0 - 2.0 * f);
-                return mix(mix(hash(i), hash(i + float2(1, 0)), u.x),
-                           mix(hash(i + float2(0, 1)), hash(i + float2(1, 1)), u.x), u.y);
-            }
-
-            float luma(float2 p) {
-                return dot(content.eval(p).rgb, half3(0.299, 0.587, 0.114));
-            }
-
-            half4 main(float2 p) {
-                if (p.x < crop.x || p.y < crop.y || p.x > crop.z || p.y > crop.w) {
-                    return content.eval(p);
-                }
-                // Wobble, calming towards the exemplar so the exemplar stays still without a seam.
-                float2 outwards = max(max(exemplar.xy - p, p - exemplar.zw), float2(0));
-                float calm = smoothstep(0.0, blob * 0.5, length(outwards));
-                float2 q = p / blob;
-                float2 n = float2(noise(q + time * 0.3), noise(q + 17.0 - time * 0.3)) - 0.5;
-                float2 s = p + n * 2.0 * amplitude * calm * fade;
-                half4 color = content.eval(s);
-
-                // Contours: how sharply the brightness changes around s.
-                float gx = luma(s + float2(spacing, 0)) - luma(s - float2(spacing, 0));
-                float gy = luma(s + float2(0, spacing)) - luma(s - float2(0, spacing));
-                float edge = smoothstep(0.08, 0.35, length(float2(gx, gy)));
-
-                // The band spreads as a ring from inside the exemplar to past the farthest corner.
-                float d = length(outwards) / reach - (fract(time / period) * 2.0 - 0.5);
-                float band = exp(-d * d * 25.0);
-
-                color.rgb += half3(0.85, 0.92, 1.0) * edge * (0.12 + band * 0.6) * 0.35 * fade * color.a;
-                color.rgb += half3(band * 0.02 * fade) * color.a;
-                return color;
-            }
-            """
-    }
 }
