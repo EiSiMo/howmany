@@ -34,6 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -111,13 +112,27 @@ fun CountScreen(viewModel: CountViewModel) {
     val pickPhoto = { picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }
     val photo = state.photo
     val points = state.counted
+    val animation = rememberCountingAnimation(state.counting, state.heatmap)
+    // The count rises with the points the reveal has shown so far.
+    val revealed by
+        remember(points, state.exemplar, state.crop) {
+            derivedStateOf {
+                val origin = state.exemplar?.center
+                val crop = state.crop
+                if (points == null || origin == null || crop == null) points?.size ?: 0
+                else {
+                    val from = Offset(origin.x, origin.y)
+                    val area = Rect(crop.left, crop.top, crop.right, crop.bottom)
+                    points.count { pointScale(animation, from, area, Offset(it.x, it.y)) > 0 }
+                }
+            }
+        }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    if (points != null) Count(points.size)
-                    else Text(stringResource(R.string.app_name))
+                    if (points != null) Count(revealed) else Text(stringResource(R.string.app_name))
                 },
                 actions = {
                     if (state.corrected) {
@@ -194,6 +209,7 @@ fun CountScreen(viewModel: CountViewModel) {
                     origin = state.exemplar?.center,
                     heatmap = state.heatmap,
                     counting = state.counting,
+                    animation = animation,
                     onAdjustCrop = viewModel::adjustCrop.takeIf { !state.counting },
                     onMarkExemplar =
                         viewModel::markExemplar.takeIf { points == null && !state.counting },
@@ -292,10 +308,10 @@ private sealed interface PhotoDrag {
 /**
  * Shows the photo with its crop and the example or the counted points, the [uncertain] ones
  * highlighted. While [counting], it zooms smoothly out to the whole photo and scans from [origin];
- * when the count arrives, it reveals the points and their [heatmap] from there. Two fingers zoom
- * and pan. One finger drags the crop's edges while [onAdjustCrop] is given; elsewhere it drags a
- * box around one object while [onMarkExemplar] is given, and pans otherwise. Taps go to [onTap],
- * with a hit radius in image pixels.
+ * when the count arrives, it reveals the points and their [heatmap] from there, as [animation]
+ * goes. Two fingers zoom and pan. One finger drags the crop's edges while [onAdjustCrop] is given;
+ * elsewhere it drags a box around one object while [onMarkExemplar] is given, and pans otherwise.
+ * Taps go to [onTap], with a hit radius in image pixels.
  */
 @Composable
 private fun Photo(
@@ -307,6 +323,7 @@ private fun Photo(
     origin: Point?,
     heatmap: Heatmap?,
     counting: Boolean,
+    animation: CountingAnimation,
     onAdjustCrop: ((ImageBox) -> Unit)?,
     onMarkExemplar: ((ImageBox) -> Unit)?,
     onTap: ((at: Point, hitRadius: Float) -> Unit)?,
@@ -326,7 +343,6 @@ private fun Photo(
     val handleColor = MaterialTheme.colorScheme.primary
     val textMeasurer = rememberTextMeasurer()
     val margin = with(LocalDensity.current) { PHOTO_MARGIN.toPx() }
-    val animation = rememberCountingAnimation(counting, heatmap)
 
     LaunchedEffect(counting) {
         val from = viewport

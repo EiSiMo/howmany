@@ -174,7 +174,8 @@ fun DrawScope.drawCountingAnimation(
 
 /**
  * How large to draw a point at [position] while the count is revealed from [origin]: 0 until the
- * wave reaches it, then popping up past 1 and settling at 1.
+ * wave reaches it, then popping up past 1 and settling at 1. Works in view or image coordinates, as
+ * long as all arguments share them.
  */
 fun pointScale(animation: CountingAnimation, origin: Offset, crop: Rect, position: Offset): Float {
     if (animation.scanning != null) return 0f
