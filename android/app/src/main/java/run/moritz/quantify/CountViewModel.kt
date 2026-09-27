@@ -53,7 +53,14 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(CountState())
     val state: StateFlow<CountState> = _state
 
-    private val counter by lazy { ObjectCounter(modelFile()) }
+    // Every session is about counting, so prepare the counter (copying the model out of the APK
+    // and loading it, seconds on a phone) in the background right away, while the user picks a
+    // photo and marks an example. It holds only the model weights until the first count.
+    private val counter = Preloaded {
+        val (counter, duration) = measureTimedValue { ObjectCounter(modelFile()) }
+        Log.i(TAG, "Counter ready in $duration")
+        counter
+    }
     private var counting: Job? = null
 
     fun pickPhoto(uri: Uri) {
@@ -104,6 +111,8 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
         counting = viewModelScope.launch {
             // A cancelled count still occupies the model until it returns; don't run two at once.
             cancelled?.join()
+            // Waits for the counter if it is still being prepared; a preparation error fails here.
+            val counter = counter.get()
             val (detections, duration) =
                 withContext(Dispatchers.Default) {
                     measureTimedValue { counter.detect(photo, listOf(exemplar), crop) }
