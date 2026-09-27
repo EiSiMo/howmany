@@ -10,7 +10,13 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
 
     val height
         get() = bottom - top
+
+    val center
+        get() = Point((left + right) / 2, (top + bottom) / 2)
 }
+
+/** A point in image pixels. */
+data class Point(val x: Float, val y: Float)
 
 /** The model takes a square image of this many pixels. */
 internal const val INPUT_SIZE = 1024
@@ -54,19 +60,19 @@ internal fun decodeDetections(
             .map { box(output, it) }
     return suppressDuplicates(candidates)
         .map { it.scaled(INPUT_SIZE / scale) }
-        .filter { it.centerX < imageWidth && it.centerY < imageHeight }
+        .filter { it.center.x < imageWidth && it.center.y < imageHeight }
         .inReadingOrder()
 }
 
 /** A box starts a new row unless its center lies within the height of the row's first box. */
 private fun List<Box>.inReadingOrder(): List<Box> {
     val rows = mutableListOf<MutableList<Box>>()
-    for (box in sortedBy { it.centerY }) {
+    for (box in sortedBy { it.center.y }) {
         val row = rows.lastOrNull()
-        if (row != null && box.centerY <= row.first().bottom) row += box
+        if (row != null && box.center.y <= row.first().bottom) row += box
         else rows += mutableListOf(box)
     }
-    return rows.flatMap { row -> row.sortedBy { it.centerX } }
+    return rows.flatMap { row -> row.sortedBy { it.center.x } }
 }
 
 /** Cells that are 3 x 3 local maxima above the peak threshold. */
@@ -114,12 +120,6 @@ private fun iou(a: Box, b: Box): Float {
     val intersection = width * height
     return intersection / (a.width * a.height + b.width * b.height - intersection)
 }
-
-private val Box.centerX
-    get() = (left + right) / 2
-
-private val Box.centerY
-    get() = (top + bottom) / 2
 
 private fun Box.scaled(factor: Float) =
     Box(left * factor, top * factor, right * factor, bottom * factor)
