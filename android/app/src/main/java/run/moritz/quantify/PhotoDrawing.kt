@@ -1,5 +1,8 @@
 package run.moritz.quantify
 
+import android.icu.text.NumberFormat
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -11,12 +14,16 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 import kotlin.math.min
 import run.moritz.quantify.counting.Box as ImageBox
 
@@ -117,13 +124,8 @@ fun DrawScope.drawExemplarFrame(rect: Rect) {
 fun ImageBox.inView(viewport: Viewport) =
     Rect(viewport.toView(Offset(left, top)), viewport.toView(Offset(right, bottom)))
 
-/** A see-through dot with its number, which stays readable over any photo. */
-fun DrawScope.drawPoint(
-    center: Offset,
-    number: Int,
-    color: Color,
-    textMeasurer: TextMeasurer,
-) {
+/** A see-through dot with its [number], which stays readable over any photo. */
+fun DrawScope.drawPoint(center: Offset, number: TextLayoutResult, color: Color) {
     drawCircle(color.copy(alpha = POINT_ALPHA), POINT_RADIUS.toPx(), center)
     drawCircle(
         POINT_OUTLINE_COLOR,
@@ -131,15 +133,35 @@ fun DrawScope.drawPoint(
         center,
         style = Stroke(POINT_OUTLINE.toPx()),
     )
-    val text =
-        textMeasurer.measure(
-            number.toString(),
-            TextStyle(
-                color = Color.White,
-                fontSize = POINT_NUMBER_SIZE,
-                fontWeight = FontWeight.Bold,
-                shadow = Shadow(Color.Black, blurRadius = POINT_NUMBER_SHADOW_BLUR),
-            ),
-        )
-    drawText(text, topLeft = center - Offset(text.size.width / 2f, text.size.height / 2f))
+    drawText(number, topLeft = center - Offset(number.size.width / 2f, number.size.height / 2f))
+}
+
+/**
+ * The points' numbers as [drawPoint] draws them, in the user's locale, each measured only once
+ * rather than for every point in every frame.
+ */
+class PointNumbers(private val textMeasurer: TextMeasurer, locale: Locale) {
+    // Grouping would only widen the numbers in their small dots.
+    private val format = NumberFormat.getIntegerInstance(locale).apply { isGroupingUsed = false }
+    private val measured = mutableMapOf<Int, TextLayoutResult>()
+
+    operator fun get(number: Int): TextLayoutResult =
+        measured.getOrPut(number) {
+            textMeasurer.measure(
+                format.format(number),
+                TextStyle(
+                    color = Color.White,
+                    fontSize = POINT_NUMBER_SIZE,
+                    fontWeight = FontWeight.Bold,
+                    shadow = Shadow(Color.Black, blurRadius = POINT_NUMBER_SHADOW_BLUR),
+                ),
+            )
+        }
+}
+
+@Composable
+fun rememberPointNumbers(): PointNumbers {
+    val textMeasurer = rememberTextMeasurer()
+    val locale = LocalConfiguration.current.locales[0]
+    return remember(textMeasurer, locale) { PointNumbers(textMeasurer, locale) }
 }

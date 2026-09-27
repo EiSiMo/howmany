@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -85,7 +84,7 @@ fun Photo(
     val tap by rememberUpdatedState(onTap)
     val pointColor = MaterialTheme.colorScheme.primary
     val handleColor = MaterialTheme.colorScheme.primary
-    val textMeasurer = rememberTextMeasurer()
+    val numbers = rememberPointNumbers()
     val density = LocalDensity.current
     var viewSize by remember { mutableStateOf<Size?>(null) }
     LaunchedEffect(photo, viewSize, margin) {
@@ -213,7 +212,7 @@ fun Photo(
                 val center = current.toView(Offset(point.x, point.y))
                 val scale = pointScale(animation, point)
                 if (scale > 0) {
-                    scale(scale, center) { drawPoint(center, index + 1, color, textMeasurer) }
+                    scale(scale, center) { drawPoint(center, numbers[index + 1], color) }
                 }
             }
             val dragged = drag
