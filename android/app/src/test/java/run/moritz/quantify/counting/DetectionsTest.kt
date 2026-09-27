@@ -119,6 +119,20 @@ class DetectionsTest {
         assertEquals(listOf(false, false, true), detections.map { it.uncertain })
     }
 
+    @Test
+    fun `places the heatmap so each cell is centered on its position in image pixels`() {
+        val output = emptyOutput(gridSize = 4)
+        output.objectness(row = 1, column = 2, value = 4f)
+        output.objectness(row = 3, column = 0, value = 1f)
+
+        val heatmap = decodeHeatmap(output, scale = 0.5f)
+
+        // A cell is 2048 / 4 = 512 image pixels; cell (0, 0) is centered on the origin.
+        assertBoxes(listOf(Box(-256f, -256f, 1792f, 1792f)), listOf(heatmap.bounds))
+        assertEquals(1f, heatmap.values[1 * 4 + 2])
+        assertEquals(0.25f, heatmap.values[3 * 4 + 0])
+    }
+
     private fun Box.center() = (left + right) / 2 / 1024 to (top + bottom) / 2 / 1024
 
     private fun emptyOutput(gridSize: Int) =

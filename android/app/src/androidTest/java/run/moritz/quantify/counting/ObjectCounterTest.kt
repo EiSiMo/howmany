@@ -27,7 +27,8 @@ class ObjectCounterTest {
 
     private fun countsLikeTheBenchmark(name: String, exemplar: Box, expected: Int) {
         val image = instrumentation.context.assets.open(name).use(BitmapFactory::decodeStream)
-        val runs = List(4) { measureTimedValue { counter.detect(image, listOf(exemplar)) } }
+        val runs =
+            List(4) { measureTimedValue { counter.detect(image, listOf(exemplar)).detections } }
         runs.forEach { Log.i(TAG, "$name: ${it.value.size} objects in ${it.duration}") }
         Log.i(TAG, "$name: peak memory so far ${peakMemoryMb()} MB")
 

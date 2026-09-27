@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -78,6 +79,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import run.moritz.quantify.counting.Box as ImageBox
+import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
 
 // Points keep their size on screen at any zoom; taps within the hit radius hit them.
@@ -189,7 +191,9 @@ fun CountScreen(viewModel: CountViewModel) {
                     exemplar = state.exemplar.takeIf { points == null },
                     points = points.orEmpty(),
                     uncertain = state.uncertain,
-                    zoomOut = state.counting,
+                    origin = state.exemplar?.center,
+                    heatmap = state.heatmap,
+                    counting = state.counting,
                     onAdjustCrop = viewModel::adjustCrop.takeIf { !state.counting },
                     onMarkExemplar =
                         viewModel::markExemplar.takeIf { points == null && !state.counting },
@@ -287,9 +291,10 @@ private sealed interface PhotoDrag {
 
 /**
  * Shows the photo with its crop and the example or the counted points, the [uncertain] ones
- * highlighted. Two fingers zoom and pan; when [zoomOut] turns true, it zooms smoothly out to the
- * whole photo. One finger drags the crop's edges while [onAdjustCrop] is given; elsewhere it drags
- * a box around one object while [onMarkExemplar] is given, and pans otherwise. Taps go to [onTap],
+ * highlighted. While [counting], it zooms smoothly out to the whole photo and scans from [origin];
+ * when the count arrives, it reveals the points and their [heatmap] from there. Two fingers zoom
+ * and pan. One finger drags the crop's edges while [onAdjustCrop] is given; elsewhere it drags a
+ * box around one object while [onMarkExemplar] is given, and pans otherwise. Taps go to [onTap],
  * with a hit radius in image pixels.
  */
 @Composable
@@ -299,7 +304,9 @@ private fun Photo(
     exemplar: ImageBox?,
     points: List<Point>,
     uncertain: Set<Point>,
-    zoomOut: Boolean,
+    origin: Point?,
+    heatmap: Heatmap?,
+    counting: Boolean,
     onAdjustCrop: ((ImageBox) -> Unit)?,
     onMarkExemplar: ((ImageBox) -> Unit)?,
     onTap: ((at: Point, hitRadius: Float) -> Unit)?,
@@ -319,10 +326,11 @@ private fun Photo(
     val handleColor = MaterialTheme.colorScheme.primary
     val textMeasurer = rememberTextMeasurer()
     val margin = with(LocalDensity.current) { PHOTO_MARGIN.toPx() }
+    val animation = rememberCountingAnimation(counting, heatmap)
 
-    LaunchedEffect(zoomOut) {
+    LaunchedEffect(counting) {
         val from = viewport
-        if (zoomOut && from != null) {
+        if (counting && from != null) {
             animate(0f, 1f) { fraction, _ -> viewport = from.zoomedOut(fraction) }
         }
     }
@@ -417,10 +425,27 @@ private fun Photo(
         clipRect(cropRect.left, cropRect.top, cropRect.right, cropRect.bottom, ClipOp.Difference) {
             drawRect(Color.Black.copy(alpha = CROPPED_ALPHA), photoRect.topLeft, photoRect.size)
         }
+        val originInView = origin?.let { current.toView(Offset(it.x, it.y)) }
+        if (originInView != null) {
+            drawCountingAnimation(
+                animation,
+                originInView,
+                cropRect,
+                heatmap,
+                heatmap?.bounds?.inView(current),
+                pointColor,
+            )
+        }
         drawCropHandles(cropRect, handleColor)
         points.forEachIndexed { index, point ->
             val color = if (point in uncertain) UNCERTAIN_COLOR else pointColor
-            drawPoint(current.toView(Offset(point.x, point.y)), index + 1, color, textMeasurer)
+            val center = current.toView(Offset(point.x, point.y))
+            val scale =
+                if (originInView == null) 1f
+                else pointScale(animation, originInView, cropRect, center)
+            if (scale > 0) {
+                scale(scale, center) { drawPoint(center, index + 1, color, textMeasurer) }
+            }
         }
         val dragged = drag
         val rect =
