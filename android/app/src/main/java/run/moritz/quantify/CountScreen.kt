@@ -102,7 +102,18 @@ fun CountScreen(viewModel: CountViewModel) {
                 title = {
                     if (points != null) Count(points.size)
                     else Text(stringResource(R.string.app_name))
-                }
+                },
+                actions = {
+                    if (state.corrected) {
+                        // Donating corrections as training data is not built yet.
+                        IconButton(onClick = {}) {
+                            Icon(
+                                painterResource(R.drawable.ic_donate),
+                                stringResource(R.string.donate),
+                            )
+                        }
+                    }
+                },
             )
         },
         bottomBar = {
@@ -135,14 +146,6 @@ fun CountScreen(viewModel: CountViewModel) {
                                 },
                                 icon = { Icon(painterResource(R.drawable.ic_count), null) },
                                 onClick = viewModel::count,
-                                elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
-                            )
-                        } else if (state.corrected) {
-                            ExtendedFloatingActionButton(
-                                text = { Text(stringResource(R.string.donate)) },
-                                icon = { Icon(painterResource(R.drawable.ic_donate), null) },
-                                // Donating corrections as training data is not built yet.
-                                onClick = {},
                                 elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
                             )
                         }
