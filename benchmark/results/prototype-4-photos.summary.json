@@ -1,10 +1,10 @@
 {
   "samples": 29,
-  "mae": 4.275862068965517,
-  "rmse": 8.325283468302217,
-  "mean_relative_error": 0.20862838071415893,
+  "mae": 3.7241379310344827,
+  "rmse": 7.745966692414834,
+  "mean_relative_error": 0.18755165064909218,
   "exact_rate": 0.3103448275862069,
-  "within_5_percent_rate": 0.3793103448275862,
-  "within_10_percent_rate": 0.5862068965517241,
-  "mean_seconds": 2.8708785804137418
+  "within_5_percent_rate": 0.41379310344827586,
+  "within_10_percent_rate": 0.6206896551724138,
+  "mean_seconds": 2.917200956517263
 }

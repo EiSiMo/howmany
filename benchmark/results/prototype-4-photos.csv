@@ -1,30 +1,30 @@
 image,category,true_count,predicted_count,error,seconds
-bolzen.jpg,bolts,13,9,-4,3.9654
-bonbons.jpg,candies,10,15,5,1.7844
-buecher.jpg,books,11,17,6,0.3585
-cents.jpg,coins,68,68,0,4.2270
-colas.jpg,gummy bottles,10,10,0,2.7705
-discokugeln.jpg,disco balls,10,11,1,4.2458
-files.jpg,files,17,52,35,4.1194
-gluehbirnen.jpg,light bulbs,8,8,0,4.1827
-kaffee.jpg,coffee beans,58,60,2,4.1607
-latten.jpg,planks,32,48,16,0.3711
-mauer.jpg,bricks,257,273,16,4.2257
-menschen.jpg,people,6,9,3,0.4253
-muenzen.jpg,coins,22,22,0,1.4050
-muenzen-stapel.jpg,coins,14,17,3,1.0083
-muttern.jpg,hex nuts,10,12,2,4.1998
-noppen.jpg,hexagons,63,63,0,4.1499
-pflastersteine.jpg,paving stones,145,147,2,4.1974
-pillen1.jpg,pills,35,32,-3,4.1530
-pillen2.jpg,pills,16,15,-1,4.1483
-pilze.jpg,mushrooms,40,49,9,4.4459
-schrauben.jpg,screws,19,18,-1,2.2688
-schwarze-steine.jpg,black stones,28,35,7,2.1694
-steine.jpg,stones,22,22,0,3.3745
-strichliste.jpg,tally marks,31,35,4,4.1891
-tomaten1.jpg,tomatoes,14,14,0,1.4579
-tomaten2.jpg,tomatoes,22,24,2,2.1628
-waescheklammern.jpg,clothespins,17,15,-2,0.7315
-wallnuesse.jpg,walnuts,26,26,0,3.7392
-zitronen.jpg,lemons,4,4,0,0.6183
+bolzen.jpg,bolts,13,9,-4,3.4347
+bonbons.jpg,candies,10,15,5,1.7481
+buecher.jpg,books,11,14,3,1.2914
+cents.jpg,coins,68,68,0,4.0884
+colas.jpg,gummy bottles,10,10,0,2.6662
+discokugeln.jpg,disco balls,10,11,1,4.1158
+files.jpg,files,17,52,35,3.9361
+gluehbirnen.jpg,light bulbs,8,8,0,3.9993
+kaffee.jpg,coffee beans,58,60,2,3.9545
+latten.jpg,planks,32,33,1,1.3802
+mauer.jpg,bricks,257,273,16,4.0428
+menschen.jpg,people,6,9,3,1.3357
+muenzen.jpg,coins,22,22,0,1.5183
+muenzen-stapel.jpg,coins,14,18,4,1.2450
+muttern.jpg,hex nuts,10,12,2,4.0063
+noppen.jpg,hexagons,63,63,0,4.0372
+pflastersteine.jpg,paving stones,145,147,2,4.0452
+pillen1.jpg,pills,35,32,-3,4.0460
+pillen2.jpg,pills,16,15,-1,4.0166
+pilze.jpg,mushrooms,40,49,9,4.0882
+schrauben.jpg,screws,19,18,-1,2.1192
+schwarze-steine.jpg,black stones,28,35,7,2.1007
+steine.jpg,stones,22,22,0,3.2623
+strichliste.jpg,tally marks,31,35,4,4.0638
+tomaten1.jpg,tomatoes,14,14,0,1.6193
+tomaten2.jpg,tomatoes,22,24,2,2.1019
+waescheklammern.jpg,clothespins,17,14,-3,1.3998
+wallnuesse.jpg,walnuts,26,26,0,3.5533
+zitronen.jpg,lemons,4,4,0,1.3824

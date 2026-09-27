@@ -34,6 +34,9 @@ THREADS = 4
 INPUT_SIZE = 1024
 # The model takes that image with the padding cut off, down to the next multiple of this.
 SIZE_MULTIPLE = 32
+# But never smaller than this per side: with less padding around very small images (few, large
+# objects) GeCo2 miscounts, e.g. 48 instead of 32 planks.
+MIN_INPUT_SIDE = 512
 # GeCo2 scales images so exemplars are at most this many pixels on average.
 EXEMPLAR_SIZE = 80
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -59,7 +62,7 @@ def _session() -> onnxruntime.InferenceSession:
 
 
 def _prepare(image: MatLike, exemplars: Boxes) -> tuple[NDArray[np.float32], float]:
-    """Scale the image so exemplars are at most ~80 px, pad it to a multiple of 32 and normalize."""
+    """Scale the image so exemplars are at most ~80 px, pad it (see above) and normalize."""
     height, width = image.shape[:2]
     scale = INPUT_SIZE / max(height, width)
     sizes = (exemplars[:, 2:] - exemplars[:, :2]) * scale
@@ -68,7 +71,7 @@ def _prepare(image: MatLike, exemplars: Boxes) -> tuple[NDArray[np.float32], flo
         image, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR
     )
     input_height, input_width = (
-        -(-side // SIZE_MULTIPLE) * SIZE_MULTIPLE for side in resized.shape[:2]
+        max(-(-side // SIZE_MULTIPLE) * SIZE_MULTIPLE, MIN_INPUT_SIDE) for side in resized.shape[:2]
     )
     padded = np.zeros((input_height, input_width, 3), dtype=np.float32)
     padded[: resized.shape[0], : resized.shape[1]] = resized / 255
