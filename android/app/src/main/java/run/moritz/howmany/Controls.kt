@@ -181,7 +181,7 @@ fun Controls(
                 painterResource(R.drawable.ic_clear),
                 stringResource(R.string.clear),
                 onClear,
-                enabled = phase != CountPhase.Empty && phase != CountPhase.Marking,
+                enabled = state.canStartOver,
             )
             AnimatedContent(
                 count != null,

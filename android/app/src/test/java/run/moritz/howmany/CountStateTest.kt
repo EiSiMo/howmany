@@ -1,6 +1,8 @@
 package run.moritz.howmany
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import run.moritz.howmany.counting.Box
 import run.moritz.howmany.counting.CountResult
@@ -75,5 +77,19 @@ class CountStateTest {
 
         assertEquals(whole, counting.withCount(result()).cleared().cropped(whole).crop)
         assertEquals(whole, counting.countFailed().cropped(whole).crop)
+    }
+
+    @Test
+    fun `starts over with the count first, then with the crop`() {
+        val count = counting.withCount(result(Point(200f, 200f)))
+
+        val once = count.cleared()
+        assertEquals(CountPhase.Marking, once.phase)
+        assertEquals(area, once.crop)
+        assertTrue(once.canStartOver)
+        // Without a photo, its whole is no crop at all.
+        val twice = once.cleared()
+        assertEquals(null, twice.crop)
+        assertFalse(twice.canStartOver)
     }
 }

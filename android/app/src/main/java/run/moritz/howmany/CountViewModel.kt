@@ -36,7 +36,7 @@ data class CountState(
      * The part of the photo to count in; the whole photo unless the user drags its edges. Inside
      * the counted area once counting has started.
      */
-    val crop: Box? = photo?.let { Box(0f, 0f, it.width.toFloat(), it.height.toFloat()) },
+    val crop: Box? = photo?.whole(),
     /**
      * The part of the photo the model counts in: the crop as counting started; null until then.
      * There are no points outside it, so the crop can shrink and grow back, but never beyond it.
@@ -96,9 +96,20 @@ data class CountState(
     fun countFailed(): CountState =
         copy(counting = false, countedArea = null, error = CountError.CountFailed)
 
-    /** Forgets the exemplar and the count, keeping the photo and its crop. */
-    fun cleared(): CountState = CountState(photo = photo, crop = crop)
+    /** Whether starting over changes anything: there is an exemplar, or the crop is not whole. */
+    val canStartOver: Boolean
+        get() = exemplar != null || crop != photo?.whole()
+
+    /**
+     * Starts over one step: forgets the exemplar and the count, keeping the photo and its crop, or
+     * with neither of them, crops the whole photo again.
+     */
+    fun cleared(): CountState =
+        if (exemplar != null) CountState(photo = photo, crop = crop) else CountState(photo = photo)
 }
+
+/** All of this photo, in its pixels. */
+private fun Bitmap.whole() = Box(0f, 0f, width.toFloat(), height.toFloat())
 
 /** This box cut to [limit]. */
 private fun Box.coercedIn(limit: Box) =
@@ -198,7 +209,10 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun adjustCrop(crop: Box) = _state.update { it.cropped(crop) }
 
-    /** Forgets the exemplar, the count and the counted area, keeping the photo and its crop. */
+    /**
+     * Forgets the exemplar, the count and the counted area, keeping the photo and its crop; with
+     * nothing of them left, crops the whole photo again.
+     */
     fun clear() {
         countJob?.cancel()
         _state.update { it.cleared() }
