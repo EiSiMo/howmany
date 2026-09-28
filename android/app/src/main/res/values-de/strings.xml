@@ -34,7 +34,7 @@
     <string name="tip_crop">Schneide das Foto auf den Bereich zu, in dem du zählen willst.</string>
     <string name="tip_correct">Tippe falsche Punkte weg und fehlende hinzu.</string>
     <string name="credits_title">Gebaut mit</string>
-    <string name="credit_geco2">Zählt die Objekte, von Jer Pelhan, Alan Lukežič und Matej Kristan</string>
+    <string name="credit_geco2">Zählt die Objekte, von Pelhan, Lukežič und Kristan</string>
     <string name="credit_sam2">Der Bildencoder, auf dem GeCo2 aufbaut, von Meta</string>
     <string name="credit_onnxruntime">Führt das Modell auf deinem Handy aus, von Microsoft</string>
     <string name="credit_space_grotesk">Die Schrift der Anzahl, von Florian Karsten</string>

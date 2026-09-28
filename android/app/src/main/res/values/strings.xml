@@ -35,7 +35,7 @@
     <string name="tip_crop">Crop the photo to the area you want to count.</string>
     <string name="tip_correct">Tap to remove wrong points and add missed ones.</string>
     <string name="credits_title">Built on</string>
-    <string name="credit_geco2">Counts the objects, by Jer Pelhan, Alan Lukežič and Matej Kristan</string>
+    <string name="credit_geco2">Counts the objects, by Pelhan, Lukežič and Kristan</string>
     <string name="credit_sam2">The image encoder GeCo2 builds on, by Meta</string>
     <string name="credit_onnxruntime">Runs the model on your phone, by Microsoft</string>
     <string name="credit_space_grotesk">The typeface of the count, by Florian Karsten</string>
