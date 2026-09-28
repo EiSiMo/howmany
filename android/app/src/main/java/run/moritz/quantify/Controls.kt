@@ -44,7 +44,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -87,6 +86,7 @@ private const val SHUTTER_SMALLEST_DISC = 0.6f
 private const val SHUTTER_FILL_BOUNCE = 0.55f
 private val SHUTTER_TRACK = Color.White.copy(alpha = 0.15f)
 private val SIDE_BUTTON_SIZE = 56.dp
+private val SIDE_BUTTON_GAP = 12.dp
 /** The smallest height of a [Pill], which the controls reserve for the hint. */
 private val PILL_HEIGHT = 36.dp
 private val PILL_PADDING_HORIZONTAL = 16.dp
@@ -102,7 +102,8 @@ val HINT_GAP = 12.dp
 /** How much of the screen's bottom the controls take. */
 val CONTROLS_HEIGHT = CONTROLS_BOTTOM + SHUTTER_SIZE + HINT_GAP + PILL_HEIGHT + HINT_GAP
 val HINT_PADDING = 24.dp
-private const val SIDE_BUTTON_BIAS = 0.74f
+// The side buttons sit at the screen's edges, leaving the widest count room between them.
+val SIDE_BUTTON_EDGE = 24.dp
 // The shutter and the count grow in from and shrink to this part of their size.
 private const val SWAP_SCALE = 0.8f
 
@@ -112,15 +113,15 @@ private fun Modifier.floating(shape: Shape = CircleShape) =
 
 /**
  * The hint at what to do next, or at what went wrong, above the shutter to count, which turns into
- * the count once there is one, between the buttons to pick another photo and to clear the exemplar.
- * The count shows [revealed] as it rises towards [count], which a tap copies.
+ * the count once there is one, between the buttons to take or pick another photo and to clear the
+ * exemplar. The count shows [revealed] as it rises towards [count], which a tap copies.
  */
 @Composable
 fun Controls(
     state: CountState,
     count: Int?,
     revealed: () -> Int,
-    onPickPhoto: () -> Unit,
+    sources: PhotoSources,
     onCount: () -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
@@ -150,12 +151,22 @@ fun Controls(
         Spacer(Modifier.height(HINT_GAP))
         // The side buttons stay put while the shutter turns into the wider count.
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            RoundButton(
-                painterResource(R.drawable.ic_pick_photo),
-                stringResource(R.string.pick_photo),
-                onPickPhoto,
-                Modifier.align(BiasAlignment(-SIDE_BUTTON_BIAS, 0f)),
-            )
+            // The gallery sits at the edge, where the empty state has it too.
+            Row(
+                Modifier.align(Alignment.CenterStart).padding(start = SIDE_BUTTON_EDGE),
+                horizontalArrangement = Arrangement.spacedBy(SIDE_BUTTON_GAP),
+            ) {
+                RoundButton(
+                    painterResource(R.drawable.ic_pick_photo),
+                    stringResource(R.string.pick_photo),
+                    sources.pickPhoto,
+                )
+                RoundButton(
+                    painterResource(R.drawable.ic_take_photo),
+                    stringResource(R.string.take_photo),
+                    sources.takePhoto,
+                )
+            }
             AnimatedContent(
                 count != null,
                 transitionSpec = {
@@ -182,7 +193,7 @@ fun Controls(
                 painterResource(R.drawable.ic_clear),
                 stringResource(R.string.clear),
                 onClear,
-                Modifier.align(BiasAlignment(SIDE_BUTTON_BIAS, 0f)),
+                Modifier.align(Alignment.CenterEnd).padding(end = SIDE_BUTTON_EDGE),
                 enabled = phase != CountPhase.Marking,
             )
         }

@@ -1,8 +1,5 @@
 package run.moritz.quantify
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -33,17 +30,13 @@ private val SCRIM_TOP = Color.Black.copy(alpha = 0.5f)
 private val SCRIM_BOTTOM = Color.Black.copy(alpha = 0.6f)
 
 /**
- * The one screen: picking a photo, marking an exemplar, counting and correcting the count, with the
- * photo behind the controls.
+ * The one screen: taking or picking a photo, marking an exemplar, counting and correcting the
+ * count, with the photo behind the controls.
  */
 @Composable
 fun CountScreen(viewModel: CountViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val picker =
-        rememberLauncherForActivityResult(PickVisualMedia()) { uri ->
-            uri?.let(viewModel::pickPhoto)
-        }
-    val pickPhoto = { picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }
+    val sources = rememberPhotoSources(viewModel::pickPhoto, viewModel::noCamera)
     val photo = state.photo
     val crop = state.crop
     val animation = rememberCountingAnimation(state)
@@ -56,7 +49,7 @@ fun CountScreen(viewModel: CountViewModel) {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (photo == null || crop == null) {
-            EmptyState(pickPhoto, hint(state))
+            EmptyState(sources, hint(state))
             return@Box
         }
         // The photo fills the screen behind the system bars and the controls, fitted between
@@ -113,7 +106,7 @@ fun CountScreen(viewModel: CountViewModel) {
             state = state,
             count = points?.size,
             revealed = { revealed },
-            onPickPhoto = pickPhoto,
+            sources = sources,
             onCount = viewModel::count,
             onClear = {
                 animation.hide(state)

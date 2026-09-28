@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -38,11 +39,11 @@ private val APP_NAME_SPACING = 4.sp
 private val APP_NAME_GAP = 12.dp
 
 /**
- * The first screen: the mark glowing on black, what the app does, and the shutter to pick a photo
- * where the count button will be, with the [hint] above it.
+ * The first screen: the mark glowing on black, what the app does, and the shutter to take a photo
+ * where the count button will be, with the [hint] above it and the button to pick one beside it.
  */
 @Composable
-fun EmptyState(onPickPhoto: () -> Unit, @StringRes hint: Int) {
+fun EmptyState(sources: PhotoSources, @StringRes hint: Int) {
     val glow = MaterialTheme.colorScheme.primary.copy(alpha = GLOW_ALPHA)
     Box(
         Modifier.fillMaxSize().drawBehind {
@@ -87,11 +88,19 @@ fun EmptyState(onPickPhoto: () -> Unit, @StringRes hint: Int) {
         ) {
             Pill(stringResource(hint), Modifier.padding(horizontal = HINT_PADDING))
             Spacer(Modifier.height(HINT_GAP))
-            Shutter(
-                painterResource(R.drawable.ic_pick_photo),
-                stringResource(R.string.pick_photo),
-                onPickPhoto,
-            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                RoundButton(
+                    painterResource(R.drawable.ic_pick_photo),
+                    stringResource(R.string.pick_photo),
+                    sources.pickPhoto,
+                    Modifier.align(Alignment.CenterStart).padding(start = SIDE_BUTTON_EDGE),
+                )
+                Shutter(
+                    painterResource(R.drawable.ic_take_photo),
+                    stringResource(R.string.take_photo),
+                    sources.takePhoto,
+                )
+            }
         }
     }
 }

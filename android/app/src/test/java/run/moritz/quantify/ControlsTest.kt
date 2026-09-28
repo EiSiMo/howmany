@@ -31,5 +31,6 @@ class ControlsTest {
             R.string.error_photo_unreadable,
             hint(CountState(error = CountError.PhotoUnreadable)),
         )
+        assertEquals(R.string.error_no_camera, hint(CountState(error = CountError.NoCamera)))
     }
 }

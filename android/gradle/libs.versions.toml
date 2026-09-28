@@ -5,6 +5,7 @@ spotless = "8.10.3"
 ktfmt = "0.64"
 compose-bom = "2026.09.00"
 activity-compose = "1.13.0"
+core = "1.19.1"
 lifecycle = "2.11.0"
 coroutines = "1.11.0"
 onnxruntime = "1.30.0"
@@ -17,6 +18,7 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-
 compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
+core = { module = "androidx.core:core", version.ref = "core" }
 lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }

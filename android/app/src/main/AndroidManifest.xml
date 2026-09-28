@@ -29,6 +29,16 @@
                 <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
+        <!-- Lets the camera app write the photo it takes into the app's cache. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.photos"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/photo_paths" />
+        </provider>
         <!-- Starts ONNX Runtime's telemetry as the app starts. -->
         <provider
             android:name="ai.onnxruntime.TelemetryInitializer"

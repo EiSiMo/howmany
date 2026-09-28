@@ -136,6 +136,8 @@ enum class CountPhase {
 enum class CountError(@StringRes val message: Int) {
     /** The picked photo cannot be read. */
     PhotoUnreadable(R.string.error_photo_unreadable),
+    /** No camera app can take a photo. */
+    NoCamera(R.string.error_no_camera),
     /** Counting failed; the user may try again. */
     CountFailed(R.string.error_count_failed),
 }
@@ -173,6 +175,9 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
             _state.value = CountState(photo = photo)
         }
     }
+
+    /** Tells the user that no camera app can take a photo, keeping everything else. */
+    fun noCamera() = _state.update { it.copy(error = CountError.NoCamera) }
 
     /** Marks one object as the exemplar of what to count; only before counting. */
     fun markExemplar(box: Box) = _state.update {
