@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.util.lerp
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -103,6 +104,19 @@ fun Photo(
             Viewport.fit(it, Size(photo.width.toFloat(), photo.height.toFloat()), margin)
         }
     }
+
+    // The crop follows a drag at once, but glides to where starting over puts it.
+    var settledCrop by remember(photo) { mutableStateOf(crop) }
+    var glidingCrop by remember(photo) { mutableStateOf<ImageBox?>(null) }
+    LaunchedEffect(crop) {
+        val from = glidingCrop ?: settledCrop
+        settledCrop = crop
+        if (drag !is PhotoDrag.Crop && from != crop) {
+            animate(0f, 1f) { fraction, _ -> glidingCrop = from.toward(crop, fraction) }
+        }
+        glidingCrop = null
+    }
+    val shownCrop = if (drag is PhotoDrag.Crop) crop else glidingCrop ?: settledCrop
 
     LaunchedEffect(counting) {
         val from = viewport
@@ -221,7 +235,7 @@ fun Photo(
                 dstOffset = IntOffset(photoRect.left.roundToInt(), photoRect.top.roundToInt()),
                 dstSize = IntSize(photoRect.width.roundToInt(), photoRect.height.roundToInt()),
             )
-            val cropRect = crop.inView(current)
+            val cropRect = shownCrop.inView(current)
             clipPath(cropOutline(cropRect), ClipOp.Difference) {
                 drawRect(Color.Black.copy(alpha = CROPPED_ALPHA), photoRect.topLeft, photoRect.size)
             }
@@ -238,7 +252,7 @@ fun Photo(
         }
         Canvas(Modifier.matchParentSize()) {
             val current = viewport ?: return@Canvas
-            drawCropHandles(crop.inView(current), handleColor)
+            drawCropHandles(shownCrop.inView(current), handleColor)
             points.forEachIndexed { index, point ->
                 val color = if (point in uncertain) UNCERTAIN_COLOR else pointColor
                 val center = current.toView(Offset(point.x, point.y))
@@ -261,7 +275,7 @@ fun Photo(
                 Box(
                     Modifier.offset {
                             val current = viewport ?: return@offset IntOffset.Zero
-                            val at = handle(crop.inView(current))
+                            val at = handle(shownCrop.inView(current))
                             val halfHeight = SIDE_HANDLE_EXCLUSION_HEIGHT.toPx() / 2
                             (at - Offset(HANDLE_REACH.toPx(), halfHeight)).round()
                         }
@@ -272,3 +286,12 @@ fun Photo(
         }
     }
 }
+
+/** The box [fraction] of the way from this one to [target]. */
+private fun ImageBox.toward(target: ImageBox, fraction: Float) =
+    ImageBox(
+        lerp(left, target.left, fraction),
+        lerp(top, target.top, fraction),
+        lerp(right, target.right, fraction),
+        lerp(bottom, target.bottom, fraction),
+    )
