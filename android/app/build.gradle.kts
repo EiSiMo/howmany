@@ -18,6 +18,8 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "MODEL_ASSET", "\"$modelAsset\"")
+        // The model needs a modern 64-bit ARM phone; other ABIs would only bloat the APK.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     buildTypes {
