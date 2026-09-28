@@ -11,7 +11,10 @@ time (median, minimum, maximum) and peak memory (the process's maximum resident 
   built with the Android NDK against libonnxruntime.so from the onnxruntime-android AAR the app
   ships, with the app's session options.
 
-Usage: uv run measure_litert.py [--runs 10] [--warmup-runs 2] [--cooldown 60]
+With --gpu, measures only LiteRT on the phone's GPU instead, with its GPU delegate computing in
+float16 on the unquantized export and XNNPACK running what the GPU delegate rejects.
+
+Usage: uv run measure_litert.py [--gpu] [--runs 10] [--warmup-runs 2] [--cooldown 60]
 """
 
 import argparse
@@ -41,6 +44,12 @@ BENCHMARK_MODEL_URL = (
 ORT_BENCHMARK_SOURCE = BENCHMARK_DIR / "device" / "ort_benchmark.cc"
 ANDROID_DIR = BENCHMARK_DIR.parent / "android"
 PHONE_DIR = "/data/local/tmp/quantify-litert"
+GPU_MODEL = DEVICE_DIR.parent / "geco2-fp32-1024.tflite"
+CPU_FLAGS = f"--num_threads={THREADS} --use_xnnpack=true --use_gpu=false"
+# Ops the GPU delegate rejects run on the CPU, with XNNPACK as in CPU_FLAGS.
+GPU_FLAGS = (
+    f"--use_gpu=true --gpu_precision_loss_allowed=true {CPU_FLAGS.replace('--use_gpu=false', '')}"
+)
 
 
 def _ndk_clang() -> Path:
@@ -116,10 +125,9 @@ def _peak_memory_mb(output: str) -> float:
     return int(match[1]) / 1024
 
 
-def _measure_litert(runs: int, warmup_runs: int) -> dict[str, float]:
+def _measure_litert(runs: int, warmup_runs: int, model: Path, flags: str) -> dict[str, float]:
     output = _run_on_phone(
-        f"./benchmark_model --graph={LITERT_MODEL.name} --num_threads={THREADS} "
-        "--use_xnnpack=true --use_gpu=false "
+        f"./benchmark_model --graph={model.name} {flags} "
         f"--warmup_runs={warmup_runs} --warmup_min_secs=0 --num_runs={runs} --min_secs=0 "
         "--max_secs=100000 --input_layer=args_0,args_1 --input_layer_shape=1,3,1024,1024:1,1,4 "
         f"--input_layer_value_files=args_0:{DEVICE_IMAGE.name},args_1:{DEVICE_EXEMPLARS.name}"
@@ -179,10 +187,12 @@ def main() -> None:
     parser.add_argument(
         "--cooldown", type=int, default=60, help="seconds to let the phone cool between runtimes"
     )
+    parser.add_argument("--gpu", action="store_true", help="measure only LiteRT on the GPU")
     arguments = parser.parse_args()
     configure_logging()
 
-    for required in (LITERT_MODEL, ONNX_MODEL, DEVICE_IMAGE, DEVICE_EXEMPLARS):
+    models = [GPU_MODEL] if arguments.gpu else [LITERT_MODEL, ONNX_MODEL]
+    for required in (*models, DEVICE_IMAGE, DEVICE_EXEMPLARS):
         if not required.exists():
             raise FileNotFoundError(
                 f"{required} missing, see export_geco2_litert.py and compare_litert.py"
@@ -190,22 +200,16 @@ def main() -> None:
     if shutil.which("adb") is None:
         raise RuntimeError("adb not found")
     benchmark_model, ort_benchmark, library = _prepare_programs()
-    _push(
-        [
-            benchmark_model,
-            ort_benchmark,
-            library,
-            LITERT_MODEL,
-            ONNX_MODEL,
-            DEVICE_IMAGE,
-            DEVICE_EXEMPLARS,
-        ]
-    )
+    _push([benchmark_model, ort_benchmark, library, *models, DEVICE_IMAGE, DEVICE_EXEMPLARS])
 
-    results = {"ONNX Runtime": _measure_onnx_runtime(arguments.runs, arguments.warmup_runs)}
-    logger.info("Letting the phone cool down for %d s", arguments.cooldown)
-    time.sleep(arguments.cooldown)
-    results["LiteRT"] = _measure_litert(arguments.runs, arguments.warmup_runs)
+    runs, warmup_runs = arguments.runs, arguments.warmup_runs
+    if arguments.gpu:
+        results = {"LiteRT GPU": _measure_litert(runs, warmup_runs, GPU_MODEL, GPU_FLAGS)}
+    else:
+        results = {"ONNX Runtime": _measure_onnx_runtime(runs, warmup_runs)}
+        logger.info("Letting the phone cool down for %d s", arguments.cooldown)
+        time.sleep(arguments.cooldown)
+        results["LiteRT"] = _measure_litert(runs, warmup_runs, LITERT_MODEL, CPU_FLAGS)
 
     print("| runtime | load | median | min | max | mean | peak memory |")
     print("|---|---|---|---|---|---|---|")
@@ -215,13 +219,8 @@ def main() -> None:
             f"| {result['min_ms'] / 1000:.2f} s | {result['max_ms'] / 1000:.2f} s "
             f"| {result['mean_ms'] / 1000:.2f} s | {result['peak_mb']:.0f} MB |"
         )
-    sizes = {
-        "libonnxruntime.so": library,
-        ONNX_MODEL.name: ONNX_MODEL,
-        LITERT_MODEL.name: LITERT_MODEL,
-    }
-    for name, path in sizes.items():
-        print(f"{name}: {path.stat().st_size / 1e6:.1f} MB")
+    for path in [library, *models]:
+        print(f"{path.name}: {path.stat().st_size / 1e6:.1f} MB")
 
 
 if __name__ == "__main__":

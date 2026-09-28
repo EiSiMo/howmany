@@ -6,7 +6,8 @@ exemplar. Both quantize their weights dynamically to int8 with float32 activatio
 export_geco2.py's. For LiteRT, a few modules are replaced by equivalents that convert to builtin
 ops within reasonable memory: RoiAlign, deformable attention and linear layers (see
 _roi_align and _use_litert_friendly_modules), each checked against the original. Runs on Modal and
-writes data/geco2-int8-1024.tflite and data/geco2-int8-1024.onnx.
+writes data/geco2-int8-1024.tflite and data/geco2-int8-1024.onnx, and the unquantized
+data/geco2-fp32-1024.tflite for LiteRT's GPU delegate, which computes in float16 anyway.
 
 Usage: uv run modal run export_geco2_litert.py
 """
@@ -213,8 +214,9 @@ def _export_onnx(network: Any, image: Any, exemplars: Any, directory: Path) -> b
     return int8_path.read_bytes()
 
 
-def _export_litert(network: Any, image: Any, exemplars: Any) -> bytes:
-    """Convert to LiteRT with builtin ops only and quantize the weights dynamically to int8."""
+def _export_litert(network: Any, image: Any, exemplars: Any) -> tuple[bytes, bytes]:
+    """Convert to LiteRT with builtin ops only; returns the model in float32 and with its weights
+    quantized dynamically to int8."""
     import litert_torch  # type: ignore[import-not-found]
     from ai_edge_quantizer import quantizer, recipe  # type: ignore[import-not-found]
 
@@ -224,14 +226,14 @@ def _export_litert(network: Any, image: Any, exemplars: Any) -> bytes:
         "LiteRT", [output[0] for output in outputs], export_geco2._dense(network, image, exemplars)
     )
     int8 = quantizer.Quantizer(edge_model.model_content(), recipe.dynamic_wi8_afp32()).quantize()
-    return bytes(int8.quantized_model)
+    return edge_model.model_content(), bytes(int8.quantized_model)
 
 
 @app.function(image=container_image, cpu=8, memory=65536, timeout=3600)
 def export_models(image_bytes: bytes, exemplars: list[list[float]]) -> dict[str, bytes]:
     """Export GeCo2 at 1024 x 1024 with one exemplar to LiteRT and ONNX, both int8.
 
-    Returns the models' bytes by file suffix, "tflite" and "onnx".
+    Returns the models' bytes by file name without the "geco2-" prefix, see the module docstring.
     """
     configure_logging()
     model = export_geco2.geco2.load_model("cpu")
@@ -249,15 +251,19 @@ def export_models(image_bytes: bytes, exemplars: list[list[float]]) -> dict[str,
     litert_network = export_geco2._dense_network(model, roi_align=_roi_align, fixed_size=True)
     replaced = export_geco2._dense(litert_network, padded, one_exemplar)
     _check("Network with replacements", replaced, reference)
-    tflite = _export_litert(litert_network, padded, one_exemplar)
-    return {"tflite": tflite, "onnx": onnx}
+    fp32_tflite, int8_tflite = _export_litert(litert_network, padded, one_exemplar)
+    return {
+        f"int8-{INPUT_SIZE}.tflite": int8_tflite,
+        f"fp32-{INPUT_SIZE}.tflite": fp32_tflite,
+        f"int8-{INPUT_SIZE}.onnx": onnx,
+    }
 
 
 @app.local_entrypoint()
 def export() -> None:
     configure_logging()
     image_bytes = (IMAGE_DIR / export_geco2.CHECK_IMAGE).read_bytes()
-    for suffix, model in export_models.remote(image_bytes, export_geco2.CHECK_EXEMPLARS).items():
-        target = DATA_DIR / f"geco2-int8-{INPUT_SIZE}.{suffix}"
+    for name, model in export_models.remote(image_bytes, export_geco2.CHECK_EXEMPLARS).items():
+        target = DATA_DIR / f"geco2-{name}"
         target.write_bytes(model)
         logger.info("Saved %s (%.0f MB)", target, len(model) / 1e6)

@@ -61,3 +61,21 @@ outweigh the other costs:
   1024 x 1024. ORT counts a small crop at 416 x 320 in ~1.7 s instead of ~7 s. Several fixed-size
   models would cost APK size again.
 - **Maintenance:** four rewrites of GeCo2 modules.
+
+## GPU (follow-up)
+
+Quick test of LiteRT's GPU delegate (OpenCL, float16) on the float32 export
+(`uv run measure_litert.py --gpu`, with XNNPACK running whatever the GPU delegate rejects): only
+**84 of 3182 ops** run on the GPU, and one run takes **18.4 s** (CPU: ~10 to 13 s), with 5.8 GB of
+memory.
+
+The delegate rejects Hiera's core ops, not just deformable attention. It handles only tensors of
+up to four dimensions, and the window partitioning and multi-head reshapes in Hiera use five and
+six (ADD v4, SLICE v5 and TRANSPOSE v6 are rejected, and so are FULLY_CONNECTED, MUL and RESHAPE on
+these shapes). The gathers, casts and comparisons of deformable attention are unsupported
+anyway (GATHER_ND, CAST to int64, LESS and the like).
+
+Getting the backbone onto the GPU would mean rewriting Hiera throughout with tensors of at most
+four dimensions. That is far beyond small rewrites. The newer GPU accelerator in LiteRT's
+CompiledModel API may cover more, but it has no prebuilt benchmark tool, and even then deformable
+attention would stay on the CPU. So the GPU path is not worth pursuing either.
