@@ -21,11 +21,13 @@ A fully open source, fully local Android app that counts objects in a photo, suc
 
 ## Stack & Commands
 ### App (`android/`)
-Kotlin, Jetpack Compose, ONNX Runtime Android, built with Gradle (Kotlin DSL, version catalog in `gradle/libs.versions.toml`); no Android Studio needed. Formatting with Spotless (ktfmt, kotlinlang style). The app bundles the GeCo2 model exported by `model/export.py` (`geco2-int8.onnx`, not committed). Builds download it from the `model-v<N>` GitHub release, checked against a SHA-256 in `app/build.gradle.kts`, so anyone (like F-Droid) can build without the export; a local export in `model/data/` takes precedence. After a new export, publish it as the next release (`gh release create model-v<N> model/data/geco2-int8.onnx`) and update URL and checksum. `counting/` is the counting module (`ObjectCounter`, mirroring `model/counter.py`); the rest is UI. The about page lists the licenses of all bundled works: AboutLibraries collects the Gradle dependencies; works bundled otherwise (model, font) need an entry in `android/config/libraries/` and `android/config/licenses/`.
+Kotlin, Jetpack Compose, ONNX Runtime Android, built with Gradle (Kotlin DSL, version catalog in `gradle/libs.versions.toml`); no Android Studio needed. Formatting with Spotless (ktfmt, kotlinlang style). The app bundles the GeCo2 model exported by `model/export.py` (`geco2-int8.onnx`, not committed). Builds download it from the `model-v<N>` GitHub release, checked against a SHA-256 in `app/build.gradle.kts`, so anyone (like F-Droid) can build without the export; a local export in `model/data/` takes precedence. After a new export, publish it as the next release (`gh release create model-v<N> model/data/geco2-int8.onnx`) and update URL and checksum. `counting/` is the counting module (`ObjectCounter`, mirroring `model/counter.py`); the rest is UI. Release builds are signed with keys from `.env` (`.env.example`), unsigned without them: the app signing key signs what users install, on every channel (F-Droid ships it via reproducible builds, Play holds a copy); the upload key only signs uploads to Play. The about page lists the licenses of all bundled works: AboutLibraries collects the Gradle dependencies; works bundled otherwise (model, font) need an entry in `android/config/libraries/` and `android/config/licenses/`.
 
 Run from `android/` (JDK 21, Android SDK in `local.properties`, phone with USB debugging attached):
 - Build and install: `./gradlew installDebug`
-- Build and install the release build (signed with the debug key, for judging performance): `./gradlew installRelease`
+- Build and install the release build (for judging performance): `./gradlew installRelease`
+- Release APK for GitHub and F-Droid, signed with the app signing key: `./gradlew assembleRelease`
+- Release bundle for Play, signed with the upload key: `./gradlew bundlePlay`
 - Unit tests: `./gradlew testDebugUnitTest`
 - Device tests (count two benchmark images on the phone and log timings, check the app stays offline; `adb logcat -s ObjectCounterTest`): `./gradlew connectedDebugAndroidTest`
 - Lint: `./gradlew lintDebug`

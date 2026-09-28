@@ -14,6 +14,19 @@ val modelAsset = "geco2-int8.onnx"
 val publishedModelUrl = "https://github.com/EiSiMo/howmany/releases/download/model-v1/$modelAsset"
 val publishedModelSha256 = "d4ca4eb15fd01c58ef993c100eee41883ceb6c766c4b71d472238d4174f9a3ec"
 
+// Signing keys, from .env at the project root or the environment (see .env.example). Without them,
+// release builds stay unsigned, as F-Droid builds them before adding the published signature.
+val dotEnv: Map<String, String> =
+    rootDir
+        .resolve("../.env")
+        .takeIf { it.exists() }
+        ?.readLines()
+        .orEmpty()
+        .filter { "=" in it && !it.trimStart().startsWith("#") }
+        .associate { it.substringBefore("=").trim() to it.substringAfter("=").trim() }
+
+fun secret(key: String): String? = System.getenv(key) ?: dotEnv[key]
+
 android {
     namespace = "run.moritz.howmany"
     compileSdk = 37
@@ -30,6 +43,20 @@ android {
         ndk { abiFilters += "arm64-v8a" }
     }
 
+    signingConfigs {
+        // The app signing key signs what users install, from GitHub, F-Droid and Play alike; Play
+        // holds a copy. The upload key only signs what is uploaded to Play.
+        for (key in listOf("signing", "upload")) {
+            val keystore = secret("${key.uppercase()}_KEYSTORE") ?: continue
+            create(key) {
+                storeFile = file(keystore)
+                storePassword = secret("${key.uppercase()}_PASSWORD")
+                keyAlias = key
+                keyPassword = storePassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -38,8 +65,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Signed with the debug key so it installs locally for measuring performance.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("signing")
+        }
+        // The release for uploading to Play, which signs it with the app signing key.
+        create("play") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.findByName("upload")
+            matchingFallbacks += "release"
         }
     }
 
