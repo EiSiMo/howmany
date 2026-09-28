@@ -7,9 +7,14 @@ import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -35,7 +40,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,8 +51,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.DrawStyle
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -101,8 +115,11 @@ private val HINT_GAP = 12.dp
 /** How much of the screen's bottom the controls take. */
 val CONTROLS_HEIGHT = CONTROLS_BOTTOM + SHUTTER_SIZE + HINT_GAP + PILL_HEIGHT + HINT_GAP
 private val HINT_PADDING = 24.dp
-// The side buttons sit at the screen's edges, leaving the widest count room between them.
+// The side buttons sit at the screen's edges; the shutter fills the room between them.
 private val SIDE_BUTTON_EDGE = 16.dp
+// How much of the shutter's outline the spinner covers while counting.
+private const val SPINNER_LENGTH = 0.2f
+private const val SPINNER_PERIOD_MILLIS = 1600
 // The shutter and the count grow in from and shrink to this part of their size.
 private const val SWAP_SCALE = 0.8f
 
@@ -141,27 +158,28 @@ fun Controls(
             Pill(stringResource(hint))
         }
         Spacer(Modifier.height(HINT_GAP))
-        // The side buttons stay put while the shutter turns into the wider count.
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Row(
-                Modifier.align(Alignment.CenterStart).padding(start = SIDE_BUTTON_EDGE),
-                horizontalArrangement = Arrangement.spacedBy(SIDE_BUTTON_GAP),
-            ) {
-                RoundButton(
-                    painterResource(R.drawable.ic_export),
-                    stringResource(R.string.export),
-                    onExport,
-                    enabled = phase == CountPhase.Counted,
-                )
-                RoundButton(
-                    painterResource(R.drawable.ic_clear),
-                    stringResource(R.string.clear),
-                    onClear,
-                    enabled = phase != CountPhase.Empty && phase != CountPhase.Marking,
-                )
-            }
+        // The shutter and the count fill the room between the side buttons, with the same gaps
+        // around them as between the side buttons.
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = SIDE_BUTTON_EDGE),
+            horizontalArrangement = Arrangement.spacedBy(SIDE_BUTTON_GAP),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RoundButton(
+                painterResource(R.drawable.ic_export),
+                stringResource(R.string.export),
+                onExport,
+                enabled = phase == CountPhase.Counted,
+            )
+            RoundButton(
+                painterResource(R.drawable.ic_clear),
+                stringResource(R.string.clear),
+                onClear,
+                enabled = phase != CountPhase.Empty && phase != CountPhase.Marking,
+            )
             AnimatedContent(
                 count != null,
+                Modifier.weight(1f),
                 transitionSpec = {
                     (fadeIn() + scaleIn(initialScale = SWAP_SCALE)) togetherWith
                         (fadeOut() + scaleOut(targetScale = SWAP_SCALE))
@@ -171,32 +189,28 @@ fun Controls(
             ) { counted ->
                 if (counted) {
                     // A cleared count fades out with nothing left to copy.
-                    CountChip(revealed(), count ?: 0)
+                    CountChip(revealed(), count ?: 0, Modifier.fillMaxWidth())
                 } else {
                     Shutter(
                         painterResource(R.drawable.ic_mark),
                         stringResource(R.string.count),
                         onCount,
+                        Modifier.fillMaxWidth(),
                         enabled = phase != CountPhase.Empty && phase != CountPhase.Marking,
                         busy = phase == CountPhase.Counting,
                     )
                 }
             }
-            Row(
-                Modifier.align(Alignment.CenterEnd).padding(end = SIDE_BUTTON_EDGE),
-                horizontalArrangement = Arrangement.spacedBy(SIDE_BUTTON_GAP),
-            ) {
-                RoundButton(
-                    painterResource(R.drawable.ic_pick_photo),
-                    stringResource(R.string.pick_photo),
-                    sources.pickPhoto,
-                )
-                RoundButton(
-                    painterResource(R.drawable.ic_take_photo),
-                    stringResource(R.string.take_photo),
-                    sources.takePhoto,
-                )
-            }
+            RoundButton(
+                painterResource(R.drawable.ic_pick_photo),
+                stringResource(R.string.pick_photo),
+                sources.pickPhoto,
+            )
+            RoundButton(
+                painterResource(R.drawable.ic_take_photo),
+                stringResource(R.string.take_photo),
+                sources.takePhoto,
+            )
         }
     }
 }
@@ -214,8 +228,9 @@ fun hint(state: CountState): Int =
         }
 
 /**
- * The primary action, like a camera's shutter: a white ring around an accent disc with [icon].
- * Without [enabled] only a dim ring is left; while [busy] a spinner runs around it.
+ * The primary action, like a camera's shutter stretched into a pill: a white ring around an accent
+ * pill with [icon]. Without [enabled] only a dim ring is left; while [busy] a spinner runs around
+ * it.
  */
 @Composable
 fun Shutter(
@@ -230,7 +245,7 @@ fun Shutter(
     val onAccent = MaterialTheme.colorScheme.onPrimary
     val interaction = remember { MutableInteractionSource() }
     val scale by pressedScale(interaction)
-    // The disc grows in with a little bounce when there is something to do.
+    // The inner pill grows in with a little bounce when there is something to do.
     val fill by
         animateFloatAsState(
             if (enabled && !busy) 1f else if (busy) SHUTTER_BUSY_FILL else 0f,
@@ -242,7 +257,7 @@ fun Shutter(
         )
     Box(
         modifier
-            .size(SHUTTER_SIZE)
+            .height(SHUTTER_SIZE)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -259,35 +274,70 @@ fun Shutter(
     ) {
         Canvas(Modifier.matchParentSize()) {
             val ring = SHUTTER_RING.toPx()
-            val outer = size.minDimension / 2
-            drawCircle(SCRIM, outer)
+            drawPill(SCRIM, inset = 0f)
             if (!busy) {
-                drawCircle(
+                drawPill(
                     Color.White.copy(alpha = DISABLED_ALPHA + (1 - DISABLED_ALPHA) * fill),
-                    outer - ring / 2,
-                    style = Stroke(ring),
+                    inset = ring / 2,
+                    Stroke(ring),
                 )
             }
-            val disc = outer - ring - SHUTTER_GAP.toPx()
-            drawCircle(
-                lerp(accent.copy(alpha = 0f), accent, fill),
-                disc * (SHUTTER_SMALLEST_DISC + (1 - SHUTTER_SMALLEST_DISC) * fill),
-            )
+            // The inner pill shrinks by the same amount on all sides, so it stays a pill.
+            val inner = ring + SHUTTER_GAP.toPx()
+            val shrink = (size.height / 2 - inner) * (1 - SHUTTER_SMALLEST_DISC) * (1 - fill)
+            drawPill(lerp(accent.copy(alpha = 0f), accent, fill), inset = inner + shrink)
         }
-        if (busy) {
-            CircularProgressIndicator(
-                Modifier.size(SHUTTER_SIZE),
-                color = accent,
-                strokeWidth = SHUTTER_RING,
-                trackColor = SHUTTER_TRACK,
-            )
-        }
+        if (busy) PillSpinner(accent, Modifier.matchParentSize())
         Icon(
             icon,
             contentDescription,
             tint = iconColor,
             modifier = Modifier.size(SHUTTER_ICON_SIZE),
         )
+    }
+}
+
+/** A pill filling the canvas, [inset] from its edges. */
+private fun DrawScope.drawPill(color: Color, inset: Float, style: DrawStyle = Fill) {
+    val pill = Size(size.width - 2 * inset, size.height - 2 * inset)
+    drawRoundRect(color, Offset(inset, inset), pill, CornerRadius(pill.height / 2), style = style)
+}
+
+/** A spinner in [color] running around the ring of a pill the size of its box. */
+@Composable
+private fun PillSpinner(color: Color, modifier: Modifier = Modifier) {
+    val phase by
+        rememberInfiniteTransition(label = "spinner")
+            .animateFloat(
+                0f,
+                1f,
+                infiniteRepeatable(tween(SPINNER_PERIOD_MILLIS, easing = LinearEasing)),
+                label = "phase",
+            )
+    Canvas(modifier) {
+        val ring = SHUTTER_RING.toPx()
+        val inset = ring / 2
+        val outline =
+            Path().apply {
+                addRoundRect(
+                    RoundRect(
+                        inset,
+                        inset,
+                        size.width - inset,
+                        size.height - inset,
+                        CornerRadius(size.height / 2 - inset),
+                    )
+                )
+            }
+        drawPath(outline, SHUTTER_TRACK, style = Stroke(ring))
+        val measure = PathMeasure().apply { setPath(outline, forceClosed = true) }
+        val start = phase * measure.length
+        val end = start + SPINNER_LENGTH * measure.length
+        val segment = Path()
+        measure.getSegment(start, minOf(end, measure.length), segment)
+        // The segment wraps around where the outline starts.
+        if (end > measure.length) measure.getSegment(0f, end - measure.length, segment)
+        drawPath(segment, color, style = Stroke(ring, cap = StrokeCap.Round))
     }
 }
 
