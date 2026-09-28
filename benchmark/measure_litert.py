@@ -124,14 +124,14 @@ def _measure_litert(runs: int, warmup_runs: int) -> dict[str, float]:
         "--max_secs=100000 --input_layer=args_0,args_1 --input_layer_shape=1,3,1024,1024:1,1,4 "
         f"--input_layer_value_files=args_0:{DEVICE_IMAGE.name},args_1:{DEVICE_EXEMPLARS.name}"
     )
-    logger.debug("benchmark_model output:\n%s", output)
+    logger.info("benchmark_model output:\n%s", output)
     init = re.search(r"Inference timings in us: Init: (\d+)", output)
     # Statistics lines like "count=10 first=... min=... max=... avg=... median=...", in us; the
     # timed runs' come after the warm-up's.
     stats = [
         dict(re.findall(r"(\w+)=([\d.e+]+)", line))
         for line in output.splitlines()
-        if line.lstrip().startswith("count=")
+        if "count=" in line
     ]
     if not init or not stats:
         raise RuntimeError(f"Unexpected benchmark_model output:\n{output}")
@@ -153,6 +153,7 @@ def _measure_onnx_runtime(runs: int, warmup_runs: int) -> dict[str, float]:
         f"env LD_LIBRARY_PATH=. ./ort_benchmark {ONNX_MODEL.name} {DEVICE_IMAGE.name} "
         f"{DEVICE_EXEMPLARS.name} {THREADS} {warmup_runs} {runs}"
     )
+    logger.info("ort_benchmark output:\n%s", output)
     match = re.search(
         r"load_ms=(\d+) runs=(\d+) median_ms=(\d+) min_ms=(\d+) max_ms=(\d+) mean_ms=(\d+)", output
     )
