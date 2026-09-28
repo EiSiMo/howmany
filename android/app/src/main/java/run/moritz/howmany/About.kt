@@ -90,7 +90,6 @@ private val ROW_CONTENT_GAP = 16.dp
 private const val ROW_TEXT_ALPHA = 0.72f
 private val BADGE_SIZE = 40.dp
 private val BADGE_ICON_SIZE = 20.dp
-private val MARK_BADGE_SIZE = 24.dp
 private val TRAILING_ICON_SIZE = 20.dp
 private val SECTION_TITLE_PADDING_TOP = 28.dp
 private val SECTION_TITLE_PADDING_BOTTOM = 8.dp
@@ -108,7 +107,7 @@ private val FOOTER_PADDING = 32.dp
 // The page fades out under the status bar and the back button, over this part of the scrim.
 private const val SCRIM_SOLID = 0.6f
 
-private val TIPS = listOf(R.string.tip_exemplar, R.string.tip_crop, R.string.tip_correct)
+private val TIPS = listOf(R.string.tip_light, R.string.tip_crop, R.string.tip_correct)
 
 /** A work the app builds on, with what it does for the app. */
 private class Credit(val name: String, @StringRes val text: Int, val url: String)
@@ -180,20 +179,11 @@ fun AboutScreen(onBack: () -> Unit) {
 
             item { SectionTitle(R.string.credits_title) }
             itemsIndexed(CREDITS) { index, credit ->
-                // The model does the counting, so it leads, in the accent color.
-                val model = index == 0
                 ListRow(
                     credit.name,
                     groupShape(index, CREDITS.size),
                     text = stringResource(credit.text),
-                    leading = if (model) ({ MarkBadge() }) else null,
                     trailing = painterResource(R.drawable.ic_open_link),
-                    container =
-                        if (model) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceContainer,
-                    content =
-                        if (model) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurface,
                     onClick = { context.openLink(credit.url) },
                 )
             }
@@ -437,8 +427,6 @@ private fun ListRow(
     leading: (@Composable () -> Unit)? = null,
     trailing: Painter? = null,
     trailingRotation: Float = 0f,
-    container: Color = MaterialTheme.colorScheme.surfaceContainer,
-    content: Color = MaterialTheme.colorScheme.onSurface,
     onClick: (() -> Unit)? = null,
     dense: Boolean = false,
 ) {
@@ -446,7 +434,7 @@ private fun ListRow(
         modifier
             .page()
             .clip(shape)
-            .background(container)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
             .then(
                 if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick)
                 else Modifier
@@ -466,7 +454,7 @@ private fun ListRow(
                 style =
                     if (dense) MaterialTheme.typography.bodyLarge
                     else MaterialTheme.typography.titleMedium,
-                color = content,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             if (text != null) {
                 Text(
@@ -474,7 +462,7 @@ private fun ListRow(
                     style =
                         if (dense) MaterialTheme.typography.bodySmall
                         else MaterialTheme.typography.bodyMedium,
-                    color = content.copy(alpha = ROW_TEXT_ALPHA),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -483,7 +471,7 @@ private fun ListRow(
                 trailing,
                 null,
                 Modifier.size(TRAILING_ICON_SIZE).rotate(trailingRotation),
-                tint = content.copy(alpha = ROW_TEXT_ALPHA),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -504,17 +492,6 @@ private fun IconBadge(icon: Painter) {
             Modifier.size(BADGE_ICON_SIZE),
             tint = MaterialTheme.colorScheme.onSecondaryContainer,
         )
-    }
-}
-
-/** The app's mark on a dark disc, for the model that counts. */
-@Composable
-private fun MarkBadge() {
-    Box(
-        Modifier.size(BADGE_SIZE).clip(CircleShape).background(Color.Black),
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(painterResource(R.drawable.ic_mark), null, Modifier.size(MARK_BADGE_SIZE))
     }
 }
 

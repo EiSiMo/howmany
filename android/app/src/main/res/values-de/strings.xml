@@ -28,13 +28,13 @@
     <string name="tagline">Zählt Objekte auf Fotos</string>
     <string name="version">Version %s</string>
     <string name="private_title">Bleibt auf deinem Handy</string>
-    <string name="private_text">Fotos werden nur auf deinem Handy gezählt. Die App hat keinen Internetzugriff.</string>
+    <string name="private_text">Fotos werden auf deinem Handy ausgewertet. Die App hat keinen Internetzugriff.</string>
     <string name="tips_title">So zählst du gut</string>
-    <string name="tip_exemplar">Zieh den Rahmen eng um ein typisches Objekt.</string>
-    <string name="tip_crop">Bei vielen Objekten: zähl einen Ausschnitt oder geh näher ran.</string>
+    <string name="tip_light">Fotografiere bei gutem Licht und halte das Handy parallel zu den Objekten.</string>
+    <string name="tip_crop">Schneide das Foto auf den Bereich zu, in dem du zählen willst.</string>
     <string name="tip_correct">Tippe falsche Punkte weg und fehlende hinzu.</string>
     <string name="credits_title">Gebaut mit</string>
-    <string name="credit_geco2">Zählt die Objekte, von Pelhan et al.</string>
+    <string name="credit_geco2">Zählt die Objekte, von Jer Pelhan, Alan Lukežič und Matej Kristan</string>
     <string name="credit_sam2">Der Bildencoder, auf dem GeCo2 aufbaut, von Meta</string>
     <string name="credit_onnxruntime">Führt das Modell auf deinem Handy aus, von Microsoft</string>
     <string name="credit_space_grotesk">Die Schrift der Anzahl, von Florian Karsten</string>
@@ -42,7 +42,7 @@
     <string name="source_code">Quellcode</string>
     <string name="source_code_text">Freie Software auf GitHub</string>
     <string name="report_problem">Problem melden</string>
-    <string name="report_problem_text">Falsch gezählt oder abgestürzt? Erstell ein Issue</string>
+    <string name="report_problem_text">Absturz oder Feature-Wunsch? Erstell ein Issue</string>
     <string name="contact">Kontakt</string>
     <string name="licenses_title">Open-Source-Lizenzen</string>
     <plurals name="licenses_count">

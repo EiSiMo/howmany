@@ -5,7 +5,13 @@
   "website": "https://github.com/jerpelhan/GECO2",
   "developers": [
     {
-      "name": "Pelhan et al."
+      "name": "Jer Pelhan"
+    },
+    {
+      "name": "Alan Lukežič"
+    },
+    {
+      "name": "Matej Kristan"
     }
   ],
   "scm": {
