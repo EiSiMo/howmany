@@ -30,10 +30,10 @@
     <string name="version">Version %s</string>
     <string name="private_title">Stays on your phone</string>
     <string name="private_text">Photos are analyzed on your phone. The app has no internet access.</string>
-    <string name="tips_title">Counting well</string>
-    <string name="tip_light">Shoot in good light, with the phone parallel to the objects.</string>
-    <string name="tip_crop">Crop the photo to the area you want to count.</string>
-    <string name="tip_correct">Tap to remove wrong points and add missed ones.</string>
+    <string name="tips_title">For better results</string>
+    <string name="tip_light">Shoot in good light, parallel to the objects.</string>
+    <string name="tip_crop">Crop the photo to the area to count.</string>
+    <string name="tip_correct">Tap away wrong points, tap to add missed ones.</string>
     <string name="credits_title">Built on</string>
     <string name="credit_geco2">Counts the objects, by Pelhan, Lukežič and Kristan</string>
     <string name="credit_sam2">The image encoder GeCo2 builds on, by Meta</string>

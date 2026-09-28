@@ -29,10 +29,10 @@
     <string name="version">Version %s</string>
     <string name="private_title">Bleibt auf deinem Handy</string>
     <string name="private_text">Fotos werden auf deinem Handy ausgewertet. Die App hat keinen Internetzugriff.</string>
-    <string name="tips_title">So zählst du gut</string>
-    <string name="tip_light">Fotografiere bei gutem Licht und halte das Handy parallel zu den Objekten.</string>
-    <string name="tip_crop">Schneide das Foto auf den Bereich zu, in dem du zählen willst.</string>
-    <string name="tip_correct">Tippe falsche Punkte weg und fehlende hinzu.</string>
+    <string name="tips_title">Für bessere Ergebnisse</string>
+    <string name="tip_light">Bei gutem Licht parallel zu den Objekten fotografieren.</string>
+    <string name="tip_crop">Foto auf den Bereich zuschneiden, der gezählt werden soll.</string>
+    <string name="tip_correct">Falsche Punkte wegtippen, fehlende hinzufügen.</string>
     <string name="credits_title">Gebaut mit</string>
     <string name="credit_geco2">Zählt die Objekte, von Pelhan, Lukežič und Kristan</string>
     <string name="credit_sam2">Der Bildencoder, auf dem GeCo2 aufbaut, von Meta</string>
