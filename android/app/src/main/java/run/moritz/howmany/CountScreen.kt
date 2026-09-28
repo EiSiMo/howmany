@@ -1,14 +1,24 @@
 package run.moritz.howmany
 
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -17,8 +27,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -103,6 +116,28 @@ fun CountScreen(viewModel: CountViewModel) {
                 .navigationBarsPadding()
                 .height(CONTROLS_HEIGHT + PHOTO_MARGIN)
         )
+        // What the app is and builds on, only while there is no photo whose frame takes the top.
+        AnimatedVisibility(
+            photo == null,
+            Modifier.align(Alignment.TopEnd)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End)
+                )
+                .padding(end = TOP_BUTTON_EDGE),
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            val context = LocalContext.current
+            IconButton(
+                onClick = { context.startActivity(Intent(context, AboutActivity::class.java)) }
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_info),
+                    stringResource(R.string.about),
+                    tint = Color.White,
+                )
+            }
+        }
         Controls(
             state = state,
             count = points?.size,
