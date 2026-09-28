@@ -41,6 +41,8 @@ private val PHOTO_MARGIN = 24.dp
 private val PHOTO_MARGIN_TOP = HANDLE_REACH + PHOTO_MARGIN
 private val SCRIM_TOP = Color.Black.copy(alpha = 0.5f)
 private val SCRIM_BOTTOM = Color.Black.copy(alpha = 0.6f)
+// The about button stays in the background of the empty screen, yet clearly not disabled.
+private val ABOUT_ICON = Color.White.copy(alpha = 0.7f)
 
 /**
  * The one screen: taking or picking a photo, marking an exemplar, counting and correcting the
@@ -134,7 +136,7 @@ fun CountScreen(viewModel: CountViewModel) {
                 Icon(
                     painterResource(R.drawable.ic_info),
                     stringResource(R.string.about),
-                    tint = Color.White,
+                    tint = ABOUT_ICON,
                 )
             }
         }
