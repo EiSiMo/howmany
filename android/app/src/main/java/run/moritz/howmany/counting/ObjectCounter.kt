@@ -38,6 +38,11 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
                 setMemoryPatternOptimization(false)
             },
         )
+    // Closing frees the session only once no detection runs on it anymore, as freeing it under a
+    // running one crashes the app natively.
+    private val lock = Any()
+    private var running = 0
+    private var closed = false
 
     /**
      * Returns one detection per object like the [exemplars] inside [crop], with its box in image
@@ -58,11 +63,19 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
         val bottom = ceil(crop.bottom).toInt().coerceIn(top + 1, image.height)
         val x = left.toFloat()
         val y = top.toFloat()
+        synchronized(lock) {
+            check(!closed) { "The counter is closed" }
+            running++
+        }
         val result =
-            Bitmap.createBitmap(image, left, top, right - left, bottom - top).useDerivedFrom(
-                image
-            ) {
-                detectInWhole(it, exemplars.map { box -> box.translated(-x, -y) })
+            try {
+                Bitmap.createBitmap(image, left, top, right - left, bottom - top).useDerivedFrom(
+                    image
+                ) {
+                    detectInWhole(it, exemplars.map { box -> box.translated(-x, -y) })
+                }
+            } finally {
+                synchronized(lock) { if (--running == 0 && closed) session.close() }
             }
         return CountResult(
             result.detections.map { it.copy(box = it.box.translated(x, y)) },
@@ -88,7 +101,16 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
         )
     }
 
-    override fun close() = session.close()
+    /**
+     * Frees the model without waiting: now, or once the detections running on it have finished.
+     * Don't detect afterwards.
+     */
+    override fun close() =
+        synchronized(lock) {
+            if (closed) return
+            closed = true
+            if (running == 0) session.close()
+        }
 
     private fun tensor(values: FloatBuffer, vararg shape: Int) =
         OnnxTensor.createTensor(environment, values, shape.map { it.toLong() }.toLongArray())

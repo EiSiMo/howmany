@@ -5,9 +5,11 @@ import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
+import java.util.concurrent.CompletableFuture
 import kotlin.time.measureTimedValue
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,6 +29,23 @@ class ObjectCounterTest {
     @Test
     fun countsMarblesLikeTheBenchmark() =
         countsLikeTheBenchmark("5574.jpg", Box(280f, 218f, 301f, 240f), 93)
+
+    /** Leaving the app while it counts closes the counter; the count still finishes. */
+    @Test
+    fun closingWhileCountingLetsTheCountFinish() {
+        val image = instrumentation.context.assets.open("5574.jpg").use(BitmapFactory::decodeStream)
+        val closing = ObjectCounter.fromAssets(instrumentation.targetContext)
+        val count = CompletableFuture.supplyAsync {
+            closing.detect(image, listOf(Box(280f, 218f, 301f, 240f))).detections.size
+        }
+        // Long enough for the count to start, far shorter than it takes.
+        Thread.sleep(500)
+
+        closing.close()
+
+        assertFalse(count.isDone)
+        assertEquals(93f, count.get().toFloat(), 93 * 0.05f)
+    }
 
     private fun countsLikeTheBenchmark(name: String, exemplar: Box, expected: Int) {
         val image = instrumentation.context.assets.open(name).use(BitmapFactory::decodeStream)
