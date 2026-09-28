@@ -4,7 +4,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import run.moritz.quantify.counting.Box
 
@@ -57,6 +59,21 @@ class PhotoGesturesTest {
         assertNull(PhotoDrag.Exemplar(Offset(300f, 300f), Offset(301f, 400f)).box(viewport, crop))
         assertNull(PhotoDrag.Exemplar(Offset(10f, 10f), Offset(50f, 50f)).box(viewport, crop))
     }
+
+    @Test
+    fun `a second tap soon and close by makes a double tap`() {
+        assertTrue(isDoubleTap(Offset(500f, 500f), Offset(520f, 480f), elapsedMillis = 100))
+    }
+
+    @Test
+    fun `a second tap too soon, too late or too far away does not`() {
+        assertFalse(isDoubleTap(Offset(500f, 500f), Offset(500f, 500f), elapsedMillis = 10))
+        assertFalse(isDoubleTap(Offset(500f, 500f), Offset(500f, 500f), elapsedMillis = 400))
+        assertFalse(isDoubleTap(Offset(500f, 500f), Offset(700f, 500f), elapsedMillis = 100))
+    }
+
+    private fun isDoubleTap(first: Offset, second: Offset, elapsedMillis: Long) =
+        isDoubleTap(first, second, elapsedMillis, window = 40L..300L, slop = 100f)
 
     private companion object {
         const val HANDLE_REACH = 24f

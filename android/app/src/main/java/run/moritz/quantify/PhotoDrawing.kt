@@ -51,7 +51,6 @@ private val POINT_NUMBER_SIZE = 9.sp
 private const val POINT_NUMBER_SHADOW_BLUR = 3f
 
 // The handles on the crop's left and right edges, where the back gesture would steal the drag.
-// Android excludes at most 200dp per screen edge, which these fit.
 val SIDE_HANDLES: List<(Rect) -> Offset> =
     listOf(
         Rect::topLeft,

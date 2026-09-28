@@ -27,6 +27,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 // Room around the photo, so its edges can be grabbed from outside too.
 private val PHOTO_MARGIN = 24.dp
+// The status bar's pull-down cannot be excluded, so the top edge's grab zone stays a margin away.
+private val PHOTO_MARGIN_TOP = HANDLE_REACH + PHOTO_MARGIN
 private val SCRIM_TOP = Color.Black.copy(alpha = 0.5f)
 private val SCRIM_BOTTOM = Color.Black.copy(alpha = 0.6f)
 
@@ -66,7 +68,7 @@ fun CountScreen(viewModel: CountViewModel) {
             with(density) {
                 Margin(
                     left = insets.getLeft(this, direction) + PHOTO_MARGIN.toPx(),
-                    top = insets.getTop(this) + PHOTO_MARGIN.toPx(),
+                    top = insets.getTop(this) + PHOTO_MARGIN_TOP.toPx(),
                     right = insets.getRight(this, direction) + PHOTO_MARGIN.toPx(),
                     bottom = insets.getBottom(this) + CONTROLS_HEIGHT.toPx(),
                 )
@@ -75,6 +77,7 @@ fun CountScreen(viewModel: CountViewModel) {
         Photo(
             photo = photo,
             crop = crop,
+            countedArea = state.countedArea,
             margin = margin,
             exemplarFrame = state.exemplar.takeIf { points == null },
             points = points.orEmpty(),
@@ -83,12 +86,13 @@ fun CountScreen(viewModel: CountViewModel) {
             heatmap = state.heatmap,
             counting = phase == CountPhase.Counting,
             animation = animation,
-            onAdjustCrop = viewModel::adjustCrop.takeIf { phase != CountPhase.Counting },
+            onAdjustCrop = viewModel::adjustCrop,
             onMarkExemplar =
                 viewModel::markExemplar.takeIf {
                     phase == CountPhase.Marking || phase == CountPhase.Ready
                 },
             onTap = viewModel::toggle.takeIf { phase == CountPhase.Counted },
+            zoomOnDoubleTap = phase == CountPhase.Marking || phase == CountPhase.Ready,
             modifier = Modifier.fillMaxSize(),
         )
         // Scrims keep the status bar and the controls readable on bright photos.
@@ -96,7 +100,7 @@ fun CountScreen(viewModel: CountViewModel) {
             Modifier.fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(SCRIM_TOP, Color.Transparent)))
                 .statusBarsPadding()
-                .height(PHOTO_MARGIN)
+                .height(PHOTO_MARGIN_TOP)
         )
         Box(
             Modifier.align(Alignment.BottomCenter)
@@ -107,8 +111,8 @@ fun CountScreen(viewModel: CountViewModel) {
         )
         Controls(
             state = state,
-            counted = points != null,
-            count = { revealed },
+            count = points?.size,
+            revealed = { revealed },
             onPickPhoto = pickPhoto,
             onCount = viewModel::count,
             onClear = {

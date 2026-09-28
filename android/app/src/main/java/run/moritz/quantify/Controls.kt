@@ -1,6 +1,9 @@
 package run.moritz.quantify
 
+import android.content.ClipData
 import android.icu.text.NumberFormat
+import android.os.Build
+import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -16,6 +19,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -35,8 +39,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -47,16 +53,22 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 // The controls float over the photo: dark and see-through, with a hairline edge that separates
 // them from dark photos. Only the primary action and the count carry the accent.
@@ -100,13 +112,14 @@ private fun Modifier.floating(shape: Shape = CircleShape) =
 
 /**
  * The hint at what to do next, or at what went wrong, above the shutter to count, which turns into
- * the [count] once [counted], between the buttons to pick another photo and to clear the exemplar.
+ * the count once there is one, between the buttons to pick another photo and to clear the exemplar.
+ * The count shows [revealed] as it rises towards [count], which a tap copies.
  */
 @Composable
 fun Controls(
     state: CountState,
-    counted: Boolean,
-    count: () -> Int,
+    count: Int?,
+    revealed: () -> Int,
     onPickPhoto: () -> Unit,
     onCount: () -> Unit,
     onClear: () -> Unit,
@@ -144,7 +157,7 @@ fun Controls(
                 Modifier.align(BiasAlignment(-SIDE_BUTTON_BIAS, 0f)),
             )
             AnimatedContent(
-                counted,
+                count != null,
                 transitionSpec = {
                     (fadeIn() + scaleIn(initialScale = SWAP_SCALE)) togetherWith
                         (fadeOut() + scaleOut(targetScale = SWAP_SCALE))
@@ -153,7 +166,8 @@ fun Controls(
                 label = "shutter",
             ) { counted ->
                 if (counted) {
-                    CountChip(count())
+                    // A cleared count fades out with nothing left to copy.
+                    CountChip(revealed(), count ?: 0)
                 } else {
                     Shutter(
                         painterResource(R.drawable.ic_mark),
@@ -203,12 +217,7 @@ fun Shutter(
     val accent = MaterialTheme.colorScheme.primary
     val onAccent = MaterialTheme.colorScheme.onPrimary
     val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by
-        animateFloatAsState(
-            if (pressed) PRESSED_SCALE else 1f,
-            spring(stiffness = Spring.StiffnessMedium),
-        )
+    val scale by pressedScale(interaction)
     // The disc grows in with a little bounce when there is something to do.
     val fill by
         animateFloatAsState(
@@ -329,21 +338,61 @@ fun Pill(
     }
 }
 
+/** How large to draw a control while [interaction] presses it: a little smaller, like a button. */
+@Composable
+private fun pressedScale(interaction: InteractionSource): State<Float> {
+    val pressed by interaction.collectIsPressedAsState()
+    return animateFloatAsState(
+        if (pressed) PRESSED_SCALE else 1f,
+        spring(stiffness = Spring.StiffnessMedium),
+    )
+}
+
 /**
  * The number of counted objects, large and crisp, in the shutter's place and height; read out as
- * that many objects.
+ * that many objects. It shows [revealed] as the count rises, and a tap copies the whole [count] as
+ * plain digits, which paste cleanly into spreadsheets.
  */
 @Composable
-fun CountChip(count: Int, modifier: Modifier = Modifier) {
+fun CountChip(revealed: Int, count: Int, modifier: Modifier = Modifier) {
     val locale = LocalConfiguration.current.locales[0]
     val format = remember(locale) { NumberFormat.getIntegerInstance(locale) }
-    val number = format.format(count)
-    val description = pluralStringResource(R.plurals.counted_objects, count, number)
+    val number = format.format(revealed)
+    val description = pluralStringResource(R.plurals.counted_objects, revealed, number)
+    val copyLabel = stringResource(R.string.copy_count)
+    val copied = stringResource(R.string.copied)
+    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val copy = {
+        scope.launch {
+            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(copyLabel, count.toString())))
+            // From Android 13 on, the system confirms copying itself.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                Toast.makeText(context, copied, Toast.LENGTH_SHORT).show()
+            }
+        }
+        Unit
+    }
+    val interaction = remember { MutableInteractionSource() }
+    val scale by pressedScale(interaction)
     Box(
         modifier
             .height(SHUTTER_SIZE)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .floating()
-            .clearAndSetSemantics { contentDescription = description }
+            .clickable(interactionSource = interaction, indication = null, onClick = copy)
+            .clearAndSetSemantics {
+                contentDescription = description
+                role = Role.Button
+                onClick(copyLabel) {
+                    copy()
+                    true
+                }
+            }
             .padding(horizontal = COUNT_PADDING),
         contentAlignment = Alignment.Center,
     ) {
