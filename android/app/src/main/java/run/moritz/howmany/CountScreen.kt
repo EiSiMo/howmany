@@ -48,12 +48,8 @@ fun CountScreen(viewModel: CountViewModel) {
         remember(points) { derivedStateOf { points?.count { animation.pointScale(it) > 0 } ?: 0 } }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        if (photo == null || crop == null) {
-            EmptyState(sources, hint(state))
-            return@Box
-        }
         // The photo fills the screen behind the system bars and the controls, fitted between
-        // them until the user zooms.
+        // them until the user zooms; until there is one, an empty frame waits there.
         val density = LocalDensity.current
         val direction = LocalLayoutDirection.current
         val insets = WindowInsets.safeDrawing
@@ -67,27 +63,31 @@ fun CountScreen(viewModel: CountViewModel) {
                 )
             }
         val phase = state.phase
-        Photo(
-            photo = photo,
-            crop = crop,
-            countedArea = state.countedArea,
-            margin = margin,
-            exemplarFrame = state.exemplar.takeIf { points == null },
-            points = points.orEmpty(),
-            uncertain = shown.uncertain,
-            exemplar = state.exemplar,
-            heatmap = state.heatmap,
-            counting = phase == CountPhase.Counting,
-            animation = animation,
-            onAdjustCrop = viewModel::adjustCrop,
-            onMarkExemplar =
-                viewModel::markExemplar.takeIf {
-                    phase == CountPhase.Marking || phase == CountPhase.Ready
-                },
-            onTap = viewModel::toggle.takeIf { phase == CountPhase.Counted },
-            zoomOnDoubleTap = phase == CountPhase.Marking || phase == CountPhase.Ready,
-            modifier = Modifier.fillMaxSize(),
-        )
+        if (photo == null || crop == null) {
+            EmptyFrame(margin, Modifier.fillMaxSize())
+        } else {
+            Photo(
+                photo = photo,
+                crop = crop,
+                countedArea = state.countedArea,
+                margin = margin,
+                exemplarFrame = state.exemplar.takeIf { points == null },
+                points = points.orEmpty(),
+                uncertain = shown.uncertain,
+                exemplar = state.exemplar,
+                heatmap = state.heatmap,
+                counting = phase == CountPhase.Counting,
+                animation = animation,
+                onAdjustCrop = viewModel::adjustCrop,
+                onMarkExemplar =
+                    viewModel::markExemplar.takeIf {
+                        phase == CountPhase.Marking || phase == CountPhase.Ready
+                    },
+                onTap = viewModel::toggle.takeIf { phase == CountPhase.Counted },
+                zoomOnDoubleTap = phase == CountPhase.Marking || phase == CountPhase.Ready,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         // Scrims keep the status bar and the controls readable on bright photos.
         Box(
             Modifier.fillMaxWidth()

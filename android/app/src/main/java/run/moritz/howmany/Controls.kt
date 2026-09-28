@@ -95,13 +95,13 @@ private val PILL_TEXT = Color.White.copy(alpha = 0.92f)
 private val COUNT_PADDING = 28.dp
 
 // The controls float in the thumb zone: a hint above the shutter, which sits this high.
-val CONTROLS_BOTTOM = 20.dp
-val HINT_GAP = 12.dp
+private val CONTROLS_BOTTOM = 20.dp
+private val HINT_GAP = 12.dp
 /** How much of the screen's bottom the controls take. */
 val CONTROLS_HEIGHT = CONTROLS_BOTTOM + SHUTTER_SIZE + HINT_GAP + PILL_HEIGHT + HINT_GAP
-val HINT_PADDING = 24.dp
+private val HINT_PADDING = 24.dp
 // The side buttons sit at the screen's edges, leaving the widest count room between them.
-val SIDE_BUTTON_EDGE = 24.dp
+private val SIDE_BUTTON_EDGE = 24.dp
 // The shutter and the count grow in from and shrink to this part of their size.
 private const val SWAP_SCALE = 0.8f
 
@@ -140,7 +140,6 @@ fun Controls(
         Spacer(Modifier.height(HINT_GAP))
         // The side buttons stay put while the shutter turns into the wider count.
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            // The gallery sits at the edge, where the empty state has it too.
             Row(
                 Modifier.align(Alignment.CenterStart).padding(start = SIDE_BUTTON_EDGE),
                 horizontalArrangement = Arrangement.spacedBy(SIDE_BUTTON_GAP),
@@ -173,7 +172,7 @@ fun Controls(
                         painterResource(R.drawable.ic_mark),
                         stringResource(R.string.count),
                         onCount,
-                        enabled = phase != CountPhase.Marking,
+                        enabled = phase != CountPhase.Empty && phase != CountPhase.Marking,
                         busy = phase == CountPhase.Counting,
                     )
                 }
@@ -183,7 +182,7 @@ fun Controls(
                 stringResource(R.string.clear),
                 onClear,
                 Modifier.align(Alignment.CenterEnd).padding(end = SIDE_BUTTON_EDGE),
-                enabled = phase != CountPhase.Marking,
+                enabled = phase != CountPhase.Empty && phase != CountPhase.Marking,
             )
         }
     }
