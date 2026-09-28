@@ -90,9 +90,9 @@ internal class ShimmerShader {
             const half3 GLOW_COLOR = half3(0.85, 0.92, 1.0);
             const float CONTOUR_GLOW = 0.12;
             const float RING_CONTOUR_GLOW = 0.6;
-            const float GLOW_ALPHA = 0.35;
+            const float GLOW_ALPHA = 0.455;
             // How much the ring brightens everything it passes.
-            const float RING_BRIGHTNESS = 0.02;
+            const float RING_BRIGHTNESS = 0.026;
 
             // How far p lies outside the exemplar, from its nearest edge; zero inside.
             float distanceToExemplar(float2 p) {
