@@ -27,8 +27,8 @@ internal class ShimmerShader {
 
     /**
      * The render effect in view coordinates at [seconds] into the scan: the ring of light spreads
-     * from [exemplar] to [reach] away from it every [period] seconds, and everything shows by
-     * [fade], from 0 for not at all to 1 for fully.
+     * from [exemplar] to [reach] away from it every [period] seconds, contours glow from [contours]
+     * on, and everything shows by [fade], from 0 for not at all to 1 for fully.
      */
     fun effect(
         exemplar: Rect,
@@ -37,6 +37,7 @@ internal class ShimmerShader {
         seconds: Float,
         period: Float,
         fade: Float,
+        contours: ContourThresholds,
         density: Density,
     ): RenderEffect {
         shader.setFloatUniform(
@@ -54,6 +55,7 @@ internal class ShimmerShader {
         shader.setFloatUniform("amplitude", with(density) { AMPLITUDE.toPx() })
         shader.setFloatUniform("blob", with(density) { BLOB.toPx() })
         shader.setFloatUniform("spacing", with(density) { CONTOUR_STEP.toPx() })
+        shader.setFloatUniform("contours", contours.from, contours.to)
         return AndroidRenderEffect.createRuntimeShaderEffect(shader, "content")
             .asComposeRenderEffect()
     }
@@ -71,14 +73,13 @@ internal class ShimmerShader {
             uniform float amplitude;
             uniform float blob;
             uniform float spacing;
+            // Brightness changes around a pixel from which on it counts as a contour, and fully.
+            uniform float2 contours;
 
             // How fast the noise drifts, in blobs per second.
             const float DRIFT = 0.3;
             // Where the second noise, for the other axis, is sampled apart from the first, in blobs.
             const float NOISE_APART = 17.0;
-            // Brightness changes around a pixel from which on it counts as a contour, and fully.
-            const float CONTOUR_FROM = 0.08;
-            const float CONTOUR_TO = 0.35;
             // The ring of light starts this far inside the exemplar and travels this far per
             // period, in reaches, so it clears the farthest corner before the next one sets off.
             const float RING_START = 0.5;
@@ -131,7 +132,7 @@ internal class ShimmerShader {
                 // Contours: how sharply the brightness changes around s.
                 float gx = luma(s + float2(spacing, 0)) - luma(s - float2(spacing, 0));
                 float gy = luma(s + float2(0, spacing)) - luma(s - float2(0, spacing));
-                float contour = smoothstep(CONTOUR_FROM, CONTOUR_TO, length(float2(gx, gy)));
+                float contour = smoothstep(contours.x, contours.y, length(float2(gx, gy)));
 
                 // The ring spreads from inside the exemplar to past the farthest corner.
                 float d = fromExemplar / reach - (fract(time / period) * RING_TRAVEL - RING_START);

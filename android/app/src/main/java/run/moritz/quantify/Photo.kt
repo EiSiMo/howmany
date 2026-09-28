@@ -102,6 +102,15 @@ fun Photo(
             animate(0f, 1f) { fraction, _ -> viewport = from.zoomedOut(fraction) }
         }
     }
+    // Contours shimmer at the scale counting zooms out to.
+    LaunchedEffect(counting) {
+        val size = viewSize
+        if (counting && size != null) {
+            val fitted =
+                Viewport.fit(size, Size(photo.width.toFloat(), photo.height.toFloat()), margin)
+            animation.measureContours(photo, crop, fitted.scale / density.density)
+        }
+    }
 
     Box(
         modifier
