@@ -65,7 +65,7 @@ fun CountScreen(viewModel: CountViewModel) {
             }
         val phase = state.phase
         if (photo == null || crop == null) {
-            EmptyFrame(margin, Modifier.fillMaxSize())
+            EmptyFrame(margin, sources.pickPhoto, Modifier.fillMaxSize())
         } else {
             Photo(
                 photo = photo,
