@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="empty_title">你想数什么？</string>
+    <string name="empty_text">拍一张或选一张照片</string>
+    <string name="take_photo">拍照</string>
+    <string name="pick_photo">选择照片</string>
+    <string name="clear">重来</string>
+    <string name="export">分享或保存</string>
+    <string name="save_to_gallery">保存到相册</string>
+    <string name="saved">已保存到相册</string>
+    <string name="count">计数</string>
+    <string name="go">开始</string>
+    <string name="counting">正在计数…</string>
+    <string name="mark_exemplar">拖动框选一个物体</string>
+    <string name="adjust_crop">拖动边缘，只数照片的一部分</string>
+    <string name="correct">点按以删除或添加点</string>
+    <string name="error_photo_unreadable">无法打开这张照片</string>
+    <string name="error_no_camera">未找到相机应用</string>
+    <string name="error_count_failed">计数失败，请重试</string>
+    <string name="error_export_failed">导出失败</string>
+    <string name="copy_count">复制数量</string>
+    <string name="copied">已复制</string>
+    <plurals name="counted_objects">
+        <item quantity="other">%s 个物体</item>
+    </plurals>
+    <string name="about">关于</string>
+    <string name="back">返回</string>
+    <string name="tagline">数出照片中的物体</string>
+    <string name="version">版本 %s</string>
+    <string name="private_title">只留在你的手机上</string>
+    <string name="private_text">照片在你的手机上分析。此应用无法访问互联网。</string>
+    <string name="tips_title">获得更好的结果</string>
+    <string name="tip_light">在光线充足处，平行于物体拍摄。</string>
+    <string name="tip_crop">将照片裁剪到要计数的区域。</string>
+    <string name="tip_correct">点掉错误的点，点按补上遗漏的点。</string>
+    <string name="credits_title">基于</string>
+    <string name="credit_geco2">负责计数，作者 Pelhan、Lukežič 和 Kristan</string>
+    <string name="credit_sam2">GeCo2 所基于的图像编码器，来自 Meta</string>
+    <string name="credit_onnxruntime">在你的手机上运行模型，来自 Microsoft</string>
+    <string name="credit_space_grotesk">数字所用的字体，作者 Florian Karsten</string>
+    <string name="contribute_title">参与</string>
+    <string name="source_code">源代码</string>
+    <string name="source_code_text">GitHub 上的自由软件</string>
+    <string name="report_problem">报告问题</string>
+    <string name="report_problem_text">遇到崩溃或想要新功能？提交 issue</string>
+    <string name="contact">联系</string>
+    <string name="licenses_title">开源许可</string>
+    <plurals name="licenses_count">
+        <item quantity="other">应用内含 %d 个作品</item>
+    </plurals>
+    <string name="footer">how many? 是采用 MIT 许可的自由软件。</string>
+    <string name="error_no_app">未找到可打开的应用</string>
+</resources>

@@ -12,7 +12,8 @@ class TranslationsTest {
     private val resources = File("src/main/res")
 
     /** Texts that rightly read the same as in English, by language. */
-    private val sameAsDefault = mapOf("de" to setOf("version"))
+    private val sameAsDefault =
+        mapOf("de" to setOf("version"), "fr" to setOf("version", "go", "contact"))
 
     @Test
     fun everyLanguageTranslatesEveryText() {

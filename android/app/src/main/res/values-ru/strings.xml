@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="empty_title">Что хочешь посчитать?</string>
+    <string name="empty_text">Сделай или выбери фото</string>
+    <string name="take_photo">Сделать фото</string>
+    <string name="pick_photo">Выбрать фото</string>
+    <string name="clear">Заново</string>
+    <string name="export">Поделиться или сохранить</string>
+    <string name="save_to_gallery">Сохранить в галерею</string>
+    <string name="saved">Сохранено в галерею</string>
+    <string name="count">Посчитать</string>
+    <string name="go">ПУСК</string>
+    <string name="counting">Считаю…</string>
+    <string name="mark_exemplar">Обведи рамкой один объект</string>
+    <string name="adjust_crop">Потяни за края, чтобы посчитать только часть фото</string>
+    <string name="correct">Нажми, чтобы убрать или добавить точку</string>
+    <string name="error_photo_unreadable">Не удалось открыть это фото</string>
+    <string name="error_no_camera">Приложение камеры не найдено</string>
+    <string name="error_count_failed">Не удалось посчитать, попробуй ещё раз</string>
+    <string name="error_export_failed">Не удалось экспортировать</string>
+    <string name="copy_count">Копировать число</string>
+    <string name="copied">Скопировано</string>
+    <plurals name="counted_objects">
+        <item quantity="one">%s объект</item>
+        <item quantity="few">%s объекта</item>
+        <item quantity="many">%s объектов</item>
+        <item quantity="other">%s объекта</item>
+    </plurals>
+    <string name="about">О приложении</string>
+    <string name="back">Назад</string>
+    <string name="tagline">Считает объекты на фото</string>
+    <string name="version">Версия %s</string>
+    <string name="private_title">Остаётся на твоём телефоне</string>
+    <string name="private_text">Фото обрабатываются на твоём телефоне. У приложения нет доступа к интернету.</string>
+    <string name="tips_title">Для лучшего результата</string>
+    <string name="tip_light">Снимать при хорошем свете, параллельно объектам.</string>
+    <string name="tip_crop">Обрезать фото до области, которую нужно посчитать.</string>
+    <string name="tip_correct">Лишние точки убирать нажатием, пропущенные — добавлять.</string>
+    <string name="credits_title">Сделано на основе</string>
+    <string name="credit_geco2">Считает объекты, авторы: Pelhan, Lukežič и Kristan</string>
+    <string name="credit_sam2">Кодировщик изображений, на котором основан GeCo2, от Meta</string>
+    <string name="credit_onnxruntime">Запускает модель на твоём телефоне, от Microsoft</string>
+    <string name="credit_space_grotesk">Шрифт числа, автор: Florian Karsten</string>
+    <string name="contribute_title">Участвовать</string>
+    <string name="source_code">Исходный код</string>
+    <string name="source_code_text">Свободное ПО на GitHub</string>
+    <string name="report_problem">Сообщить о проблеме</string>
+    <string name="report_problem_text">Сбой или идея? Создай issue</string>
+    <string name="contact">Контакты</string>
+    <string name="licenses_title">Лицензии открытого ПО</string>
+    <plurals name="licenses_count">
+        <item quantity="one">%d произведение в составе приложения</item>
+        <item quantity="few">%d произведения в составе приложения</item>
+        <item quantity="many">%d произведений в составе приложения</item>
+        <item quantity="other">%d произведения в составе приложения</item>
+    </plurals>
+    <string name="footer">how many? — свободное ПО под лицензией MIT.</string>
+    <string name="error_no_app">Не найдено приложение, чтобы открыть это</string>
+</resources>

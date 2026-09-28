@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="empty_title">O que você quer contar?</string>
+    <string name="empty_text">Tire ou escolha uma foto</string>
+    <string name="take_photo">Tirar foto</string>
+    <string name="pick_photo">Escolher foto</string>
+    <string name="clear">De novo</string>
+    <string name="export">Compartilhar ou salvar</string>
+    <string name="save_to_gallery">Salvar na galeria</string>
+    <string name="saved">Salvo na galeria</string>
+    <string name="count">Contar</string>
+    <string name="go">VAI</string>
+    <string name="counting">Contando…</string>
+    <string name="mark_exemplar">Arraste um quadro em volta de um objeto</string>
+    <string name="adjust_crop">Arraste as bordas para contar só uma parte</string>
+    <string name="correct">Toque para remover ou adicionar um ponto</string>
+    <string name="error_photo_unreadable">Não foi possível abrir esta foto</string>
+    <string name="error_no_camera">Nenhum app de câmera encontrado</string>
+    <string name="error_count_failed">Falha ao contar, tente de novo</string>
+    <string name="error_export_failed">Falha ao exportar</string>
+    <string name="copy_count">Copiar contagem</string>
+    <string name="copied">Copiado</string>
+    <plurals name="counted_objects">
+        <item quantity="one">%s objeto</item>
+        <item quantity="many">%s objetos</item>
+        <item quantity="other">%s objetos</item>
+    </plurals>
+    <string name="about">Sobre</string>
+    <string name="back">Voltar</string>
+    <string name="tagline">Conta objetos em fotos</string>
+    <string name="version">Versão %s</string>
+    <string name="private_title">Fica no seu celular</string>
+    <string name="private_text">As fotos são analisadas no seu celular. O app não tem acesso à internet.</string>
+    <string name="tips_title">Para melhores resultados</string>
+    <string name="tip_light">Fotografar com boa luz, paralelo aos objetos.</string>
+    <string name="tip_crop">Recortar a foto na área a ser contada.</string>
+    <string name="tip_correct">Tocar nos pontos errados para tirá-los, tocar para adicionar os que faltam.</string>
+    <string name="credits_title">Feito com</string>
+    <string name="credit_geco2">Conta os objetos, de Pelhan, Lukežič e Kristan</string>
+    <string name="credit_sam2">O codificador de imagens em que o GeCo2 se baseia, da Meta</string>
+    <string name="credit_onnxruntime">Executa o modelo no seu celular, da Microsoft</string>
+    <string name="credit_space_grotesk">A fonte da contagem, de Florian Karsten</string>
+    <string name="contribute_title">Participe</string>
+    <string name="source_code">Código-fonte</string>
+    <string name="source_code_text">Software livre no GitHub</string>
+    <string name="report_problem">Relatar um problema</string>
+    <string name="report_problem_text">Um erro ou uma ideia? Abra uma issue</string>
+    <string name="contact">Contato</string>
+    <string name="licenses_title">Licenças de código aberto</string>
+    <plurals name="licenses_count">
+        <item quantity="one">%d obra incluída no app</item>
+        <item quantity="many">%d obras incluídas no app</item>
+        <item quantity="other">%d obras incluídas no app</item>
+    </plurals>
+    <string name="footer">how many? é software livre sob a licença MIT.</string>
+    <string name="error_no_app">Nenhum app encontrado para abrir isto</string>
+</resources>
