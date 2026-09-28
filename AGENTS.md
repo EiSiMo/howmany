@@ -21,7 +21,7 @@ A fully open source, fully local Android app that counts objects in a photo, suc
 
 ## Stack & Commands
 ### App (`android/`)
-Kotlin, Jetpack Compose, ONNX Runtime Android, built with Gradle (Kotlin DSL, version catalog in `gradle/libs.versions.toml`); no Android Studio needed. Formatting with Spotless (ktfmt, kotlinlang style). The app bundles the GeCo2 model exported by `model/export.py` (`model/data/geco2-int8.onnx`, not committed): export it before building. `counting/` is the counting module (`ObjectCounter`, mirroring `model/counter.py`); the rest is UI.
+Kotlin, Jetpack Compose, ONNX Runtime Android, built with Gradle (Kotlin DSL, version catalog in `gradle/libs.versions.toml`); no Android Studio needed. Formatting with Spotless (ktfmt, kotlinlang style). The app bundles the GeCo2 model exported by `model/export.py` (`model/data/geco2-int8.onnx`, not committed): export it before building. `counting/` is the counting module (`ObjectCounter`, mirroring `model/counter.py`); the rest is UI. The about page lists the licenses of all bundled works: AboutLibraries collects the Gradle dependencies; works bundled otherwise (model, font) need an entry in `android/config/libraries/` and `android/config/licenses/`.
 
 Run from `android/` (JDK 21, Android SDK in `local.properties`, phone with USB debugging attached):
 - Build and install: `./gradlew installDebug`
