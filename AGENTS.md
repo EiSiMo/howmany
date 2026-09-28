@@ -64,4 +64,3 @@ Run from `model/`:
 - Few dependencies, each justified. Commit lockfiles.
 - Secrets only in `.env` at project root (gitignored). Once there are any, keep `.env.example` with keys, no values.
 - License: MIT.
-- README has only "What it does", "Usage", "License". Docs describe the goal, not the current state.
