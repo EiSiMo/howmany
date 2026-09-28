@@ -11,9 +11,6 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.IntentCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CancellationException
@@ -26,16 +23,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Always dark and edge to edge, like a camera: the photo is the hero, and the system's
-        // accent color ties the controls to the counted points.
+        // Edge to edge, like a camera, with light system bars over the always dark app.
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         setContent {
-            MaterialTheme(colorScheme = dynamicDarkColorScheme(LocalContext.current)) {
-                CountScreen(viewModel)
-            }
+            HowManyTheme { CountScreen(viewModel) }
         }
         // On recreation, the intent is the one already opened.
         if (savedInstanceState == null) open(intent)

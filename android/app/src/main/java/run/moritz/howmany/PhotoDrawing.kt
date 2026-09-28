@@ -153,6 +153,7 @@ class PointNumbers(private val textMeasurer: TextMeasurer, locale: Locale) {
                 TextStyle(
                     color = Color.White,
                     fontSize = POINT_NUMBER_SIZE,
+                    fontFamily = DisplayFont,
                     fontWeight = FontWeight.Bold,
                     shadow = Shadow(Color.Black, blurRadius = POINT_NUMBER_SHADOW_BLUR),
                 ),
