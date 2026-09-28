@@ -58,7 +58,7 @@ container_image = geco2.container_image.add_local_python_source(
 ).add_local_file(GECO2_PROTOTYPE, remote_prototype)
 
 
-def _dense_network(model: Any) -> Any:
+def _dense_network(model: Any, roi_align: Any = None, fixed_size: bool = False) -> Any:
     """Wrap GeCo2 up to its dense outputs, leaving out SAM2 box refinement and post-processing.
 
     Inputs: a normalized (1, 3, H, W) image and (1, K, 4) exemplar boxes in its pixels. The image
@@ -66,11 +66,17 @@ def _dense_network(model: Any) -> Any:
     Positional encodings are those of the 1024 x 1024 input, cropped to H x W, so every pixel is
     encoded as before. Outputs: objectness (1, H/2, W/2) and box offsets (1, H/2, W/2, 4), the
     distances in input pixels from each cell to the left, top, right and bottom box edges.
-    Mirrors GeCo2's CNT.forward for a batch of one.
+    Mirrors GeCo2's CNT.forward for a batch of one. Exemplars are pooled with torchvision's
+    roi_align unless an equivalent replacement is given, for runtimes without RoiAlign. With
+    fixed_size, level shapes stay Python numbers, for exporters that take one input size only.
     """
     import torch
     from torch.nn import functional as F
-    from torchvision.ops import roi_align  # type: ignore[import-not-found]
+
+    if roi_align is None:
+        from torchvision import ops  # type: ignore[import-not-found]
+
+        roi_align = ops.roi_align
 
     trunk = model.backbone.trunk
     sine = model.backbone.neck.position_encoding
@@ -115,7 +121,11 @@ def _dense_network(model: Any) -> Any:
         columns, rows = cells(level)
         x = (columns - 0.5) / columns[:, -1:]
         y = (rows - 0.5) / rows[-1:]
-        setattr(adapter, f"spatial_shapes{suffix}", torch._shape_as_tensor(level)[2:][None])
+        if fixed_size:
+            shape = torch.tensor([level.shape[2:]])
+        else:
+            shape = torch._shape_as_tensor(level)[2:][None]
+        setattr(adapter, f"spatial_shapes{suffix}", shape)
         setattr(adapter, f"reference_points{suffix}", torch.stack([x, y], -1).reshape(1, -1, 1, 2))
 
     class DenseGeCo2(torch.nn.Module):
@@ -179,7 +189,7 @@ def _check_inputs(image_bytes: bytes, exemplars: list[list[float]]) -> tuple[Any
     multiple of 32, and the exemplars in input pixels."""
     import torch
     from PIL import Image
-    from torchvision import transforms as T  # type: ignore[import-not-found]
+    from torchvision import transforms as T
     from utils.data import resize_and_pad  # type: ignore[import-not-found]
 
     pixels = T.ToTensor()(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
