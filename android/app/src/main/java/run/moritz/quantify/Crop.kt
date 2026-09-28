@@ -31,24 +31,25 @@ fun cropHandleAt(crop: Rect, position: Offset, reach: Float): CropHandle? {
 
 /**
  * The crop with the edges of [handle] moved by [delta], all in image pixels. It stays inside
- * [photo], at least [minSize] wide and high, and around [keep], if given.
+ * [within] (the photo, or the counted area), at least [minSize] wide and high, and around [keep],
+ * if given.
  */
 fun Box.dragged(
     handle: CropHandle,
     delta: Offset,
-    photo: Box,
+    within: Box,
     keep: Box? = null,
     minSize: Float = 0f,
 ): Box {
     fun Float.limited(lowest: Float, highest: Float) = coerceAtLeast(lowest).coerceAtMost(highest)
     return Box(
         if (!handle.left) left
-        else (left + delta.x).limited(photo.left, min(right - minSize, keep?.left ?: right)),
+        else (left + delta.x).limited(within.left, min(right - minSize, keep?.left ?: right)),
         if (!handle.top) top
-        else (top + delta.y).limited(photo.top, min(bottom - minSize, keep?.top ?: bottom)),
+        else (top + delta.y).limited(within.top, min(bottom - minSize, keep?.top ?: bottom)),
         if (!handle.right) right
-        else (right + delta.x).limited(max(left + minSize, keep?.right ?: left), photo.right),
+        else (right + delta.x).limited(max(left + minSize, keep?.right ?: left), within.right),
         if (!handle.bottom) bottom
-        else (bottom + delta.y).limited(max(top + minSize, keep?.bottom ?: top), photo.bottom),
+        else (bottom + delta.y).limited(max(top + minSize, keep?.bottom ?: top), within.bottom),
     )
 }

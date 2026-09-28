@@ -77,6 +77,7 @@ fun CountScreen(viewModel: CountViewModel) {
         Photo(
             photo = photo,
             crop = crop,
+            countedArea = state.countedArea,
             margin = margin,
             exemplarFrame = state.exemplar.takeIf { points == null },
             points = points.orEmpty(),
@@ -85,7 +86,7 @@ fun CountScreen(viewModel: CountViewModel) {
             heatmap = state.heatmap,
             counting = phase == CountPhase.Counting,
             animation = animation,
-            onAdjustCrop = viewModel::adjustCrop.takeIf { phase != CountPhase.Counting },
+            onAdjustCrop = viewModel::adjustCrop,
             onMarkExemplar =
                 viewModel::markExemplar.takeIf {
                     phase == CountPhase.Marking || phase == CountPhase.Ready

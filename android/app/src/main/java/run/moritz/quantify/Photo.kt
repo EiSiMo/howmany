@@ -56,13 +56,14 @@ private const val CROPPED_ALPHA = 0.6f
  * photo and scans from the edge of [exemplar]; when the count arrives, it reveals the points and
  * their [heatmap] from there, as [animation] goes. Two fingers zoom and pan. One finger drags the
  * crop's edges while [onAdjustCrop] is given; elsewhere it drags a box around one object while
- * [onMarkExemplar] is given, and pans otherwise. Taps go to [onTap], with a hit radius in image
- * pixels.
+ * [onMarkExemplar] is given, and pans otherwise, keeping the crop inside the [countedArea], if
+ * given, or the photo. Taps go to [onTap], with a hit radius in image pixels.
  */
 @Composable
 fun Photo(
     photo: Bitmap,
     crop: ImageBox,
+    countedArea: ImageBox?,
     margin: Margin,
     exemplarFrame: ImageBox?,
     points: List<Point>,
@@ -81,6 +82,7 @@ fun Photo(
     var viewport by remember(photo) { mutableStateOf<Viewport?>(null) }
     var drag by remember(photo) { mutableStateOf<PhotoDrag?>(null) }
     val currentCrop by rememberUpdatedState(crop)
+    val cropLimit by rememberUpdatedState(countedArea ?: bounds)
     val currentExemplarFrame by rememberUpdatedState(exemplarFrame)
     val adjustCrop by rememberUpdatedState(onAdjustCrop)
     val markExemplar by rememberUpdatedState(onMarkExemplar)
@@ -144,7 +146,7 @@ fun Photo(
                                             kind.from.dragged(
                                                 kind.handle,
                                                 (position - start) / current.scale,
-                                                bounds,
+                                                cropLimit,
                                                 keep = currentExemplarFrame,
                                                 minSize = MIN_CROP_SIZE.toPx() / current.scale,
                                             )
