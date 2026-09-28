@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -136,7 +136,7 @@ class CountingAnimation {
         heatmapRect: Rect?,
         glowColor: Color,
     ) {
-        clipRect(crop.left, crop.top, crop.right, crop.bottom) {
+        clipPath(cropOutline(crop)) {
             scanning?.let { seconds ->
                 drawRect(
                     Color.Black.copy(alpha = DIM_ALPHA * fadeIn(seconds)),

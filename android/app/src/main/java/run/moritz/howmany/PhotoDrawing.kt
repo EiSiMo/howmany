@@ -27,7 +27,8 @@ import java.util.Locale
 import kotlin.math.min
 import run.moritz.howmany.counting.Box as ImageBox
 
-// The crop is a thin white frame with accent handles.
+// The crop is a thin rounded white frame with accent handles.
+private val CROP_RADIUS = 12.dp
 private val CROP_OUTLINE = 1.dp
 private val CROP_OUTLINE_COLOR = Color.White.copy(alpha = 0.8f)
 private val HANDLE_LENGTH = 20.dp
@@ -63,17 +64,28 @@ val SIDE_HANDLES: List<(Rect) -> Offset> =
         Rect::bottomRight,
     )
 
-/** A thin frame around the crop, with a bracket at each corner and a bar in each edge's middle. */
+/** The crop's outline in view pixels: a rounded rect, as Material shapes medium components. */
+fun DrawScope.cropOutline(crop: Rect): Path =
+    Path().apply { addRoundRect(RoundRect(crop, CornerRadius(cropRadius(crop)))) }
+
+/** How round the crop's corners are; a small crop keeps room for its handles between them. */
+private fun DrawScope.cropRadius(crop: Rect) =
+    min(CROP_RADIUS.toPx(), min(crop.width, crop.height) / 3)
+
+/**
+ * A thin rounded frame around the crop, with a rounded bracket at each corner and a bar in each
+ * edge's middle.
+ */
 fun DrawScope.drawCropHandles(crop: Rect, color: Color) {
-    drawRect(CROP_OUTLINE_COLOR, crop.topLeft, crop.size, style = Stroke(CROP_OUTLINE.toPx()))
+    drawPath(cropOutline(crop), CROP_OUTLINE_COLOR, style = Stroke(CROP_OUTLINE.toPx()))
     val length = min(HANDLE_LENGTH.toPx(), min(crop.width, crop.height) / 3)
     val stroke = HANDLE_STROKE.toPx()
+    drawPath(
+        cornerBrackets(crop, cropRadius(crop), length),
+        color,
+        style = Stroke(stroke, cap = StrokeCap.Round),
+    )
     fun line(from: Offset, to: Offset) = drawLine(color, from, to, stroke, StrokeCap.Round)
-    for (corner in listOf(crop.topLeft, crop.topRight, crop.bottomLeft, crop.bottomRight)) {
-        val inward = crop.center - corner
-        line(corner, corner + Offset(if (inward.x > 0) length else -length, 0f))
-        line(corner, corner + Offset(0f, if (inward.y > 0) length else -length))
-    }
     val half = length / 2
     for (middle in listOf(crop.topCenter, crop.bottomCenter)) {
         line(middle - Offset(half, 0f), middle + Offset(half, 0f))
@@ -83,11 +95,11 @@ fun DrawScope.drawCropHandles(crop: Rect, color: Color) {
     }
 }
 
-/** A thin rounded frame with bolder rounded corners, like a camera's focus frame. */
-fun DrawScope.drawExemplarFrame(rect: Rect) {
-    val scale = min(1f, min(rect.width, rect.height) / EXEMPLAR_FULL_SIZE.toPx())
-    val radius = EXEMPLAR_RADIUS.toPx() * scale
-    val length = EXEMPLAR_CORNER_LENGTH.toPx() * scale
+/**
+ * A bracket at each corner of [rect]: [length] along both edges, rounded with [radius] like the
+ * corner of a rounded rect.
+ */
+private fun cornerBrackets(rect: Rect, radius: Float, length: Float): Path {
     val corners = Path()
     fun corner(x: Float, y: Float, dx: Float, dy: Float, startAngle: Float) {
         // dx and dy point from the corner into the rect; the arc sweeps from the vertical to the
@@ -109,6 +121,14 @@ fun DrawScope.drawExemplarFrame(rect: Rect) {
     corner(rect.right, rect.top, -1f, 1f, 0f)
     corner(rect.right, rect.bottom, -1f, -1f, 0f)
     corner(rect.left, rect.bottom, 1f, -1f, 180f)
+    return corners
+}
+
+/** A thin rounded frame with bolder rounded corners, like a camera's focus frame. */
+fun DrawScope.drawExemplarFrame(rect: Rect) {
+    val scale = min(1f, min(rect.width, rect.height) / EXEMPLAR_FULL_SIZE.toPx())
+    val radius = EXEMPLAR_RADIUS.toPx() * scale
+    val corners = cornerBrackets(rect, radius, EXEMPLAR_CORNER_LENGTH.toPx() * scale)
     val frame = Path().apply { addRoundRect(RoundRect(rect, CornerRadius(radius))) }
     val outline = EXEMPLAR_OUTLINE.toPx() * scale
     val cornerStroke = EXEMPLAR_CORNER_STROKE.toPx() * scale

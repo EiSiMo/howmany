@@ -23,7 +23,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -222,13 +222,7 @@ fun Photo(
                 dstSize = IntSize(photoRect.width.roundToInt(), photoRect.height.roundToInt()),
             )
             val cropRect = crop.inView(current)
-            clipRect(
-                cropRect.left,
-                cropRect.top,
-                cropRect.right,
-                cropRect.bottom,
-                ClipOp.Difference,
-            ) {
+            clipPath(cropOutline(cropRect), ClipOp.Difference) {
                 drawRect(Color.Black.copy(alpha = CROPPED_ALPHA), photoRect.topLeft, photoRect.size)
             }
             if (exemplar != null) {
