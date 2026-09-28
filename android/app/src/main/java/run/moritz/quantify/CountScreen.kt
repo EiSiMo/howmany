@@ -89,6 +89,7 @@ fun CountScreen(viewModel: CountViewModel) {
                     phase == CountPhase.Marking || phase == CountPhase.Ready
                 },
             onTap = viewModel::toggle.takeIf { phase == CountPhase.Counted },
+            zoomOnDoubleTap = phase == CountPhase.Marking || phase == CountPhase.Ready,
             modifier = Modifier.fillMaxSize(),
         )
         // Scrims keep the status bar and the controls readable on bright photos.

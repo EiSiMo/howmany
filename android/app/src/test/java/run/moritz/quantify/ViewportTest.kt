@@ -80,6 +80,43 @@ class ViewportTest {
         assertOffset(Offset(0f, 125f), zoomed.zoomedOut(1f).toView(Offset(0f, 0f)))
     }
 
+    @Test
+    fun `a double tap zooms in three times around the tapped point`() {
+        val zoomed = fitted.doubleTapped(Offset(250f, 250f))
+
+        assertEquals(1.5f, zoomed.scale, 1e-6f)
+        assertOffset(Offset(500f, 250f), zoomed.toImage(Offset(250f, 250f)))
+    }
+
+    @Test
+    fun `a double tap near the photo's edge zooms in without showing past it`() {
+        val zoomed = fitted.doubleTapped(Offset(10f, 130f))
+
+        // Horizontally the tapped point stays; vertically the photo's top edge stops at the view's.
+        assertOffset(Offset(-20f, 0f), zoomed.toView(Offset(0f, 0f)))
+    }
+
+    @Test
+    fun `a double tap while zoomed in fits the whole photo again`() {
+        val pinched = fitted.transformed(Offset(100f, 250f), zoom = 1.2f, pan = Offset.Zero)
+
+        val fittedAgain = pinched.doubleTapped(Offset(400f, 100f))
+
+        assertEquals(fitted.scale, fittedAgain.scale, 1e-6f)
+        assertOffset(fitted.toView(Offset.Zero), fittedAgain.toView(Offset.Zero))
+    }
+
+    @Test
+    fun `the way to a double tap's zoom keeps the tapped point under the finger`() {
+        val target = fitted.doubleTapped(Offset(250f, 250f))
+
+        val halfway = fitted.toward(target, 0.5f)
+
+        assertEquals(1f, halfway.scale, 1e-6f)
+        assertOffset(Offset(500f, 250f), halfway.toImage(Offset(250f, 250f)))
+        assertOffset(target.toView(Offset.Zero), fitted.toward(target, 1f).toView(Offset.Zero))
+    }
+
     private fun assertOffset(expected: Offset, actual: Offset) {
         assertEquals(expected.x, actual.x, 1e-3f)
         assertEquals(expected.y, actual.y, 1e-3f)

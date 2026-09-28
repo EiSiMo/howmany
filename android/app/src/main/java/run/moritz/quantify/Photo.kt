@@ -13,6 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -34,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.toSize
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import run.moritz.quantify.counting.Box as ImageBox
 import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
@@ -54,7 +57,7 @@ private const val CROPPED_ALPHA = 0.6f
  * their [heatmap] from there, as [animation] goes. Two fingers zoom and pan. One finger drags the
  * crop's edges while [onAdjustCrop] is given; elsewhere it drags a box around one object while
  * [onMarkExemplar] is given, and pans otherwise. Taps go to [onTap], with a hit radius in image
- * pixels.
+ * pixels. While [zoomOnDoubleTap], a double tap zooms in around it, or out to the whole photo.
  */
 @Composable
 fun Photo(
@@ -71,6 +74,7 @@ fun Photo(
     onAdjustCrop: ((ImageBox) -> Unit)?,
     onMarkExemplar: ((ImageBox) -> Unit)?,
     onTap: ((at: Point, hitRadius: Float) -> Unit)?,
+    zoomOnDoubleTap: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val image = remember(photo) { photo.asImageBitmap() }
@@ -86,6 +90,9 @@ fun Photo(
     val handleColor = MaterialTheme.colorScheme.primary
     val numbers = rememberPointNumbers()
     val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    // Moving the photo by hand or counting stops a double tap's zoom on its way.
+    var zooming by remember { mutableStateOf<Job?>(null) }
     var viewSize by remember { mutableStateOf<Size?>(null) }
     LaunchedEffect(photo, viewSize, margin) {
         viewport = viewSize?.let {
@@ -96,6 +103,7 @@ fun Photo(
     LaunchedEffect(counting) {
         val from = viewport
         if (counting && from != null) {
+            zooming?.cancel()
             animate(0f, 1f) { fraction, _ -> viewport = from.zoomedOut(fraction) }
         }
     }
@@ -104,7 +112,7 @@ fun Photo(
         modifier
             .clipToBounds()
             .onSizeChanged { viewSize = it.toSize() }
-            .pointerInput(photo) {
+            .pointerInput(photo, zoomOnDoubleTap) {
                 detectPhotoGestures(
                     onTap = { position ->
                         val current = viewport
@@ -113,6 +121,20 @@ fun Photo(
                             tap?.invoke(Point(at.x, at.y), HIT_RADIUS.toPx() / current.scale)
                         }
                     },
+                    onDoubleTap =
+                        if (!zoomOnDoubleTap) null
+                        else
+                            { position ->
+                                viewport?.let { from ->
+                                    val to = from.doubleTapped(position)
+                                    zooming?.cancel()
+                                    zooming = scope.launch {
+                                        animate(0f, 1f) { fraction, _ ->
+                                            viewport = from.toward(to, fraction)
+                                        }
+                                    }
+                                }
+                            },
                     onDrag = onDrag@{ start, position, delta ->
                             val current = viewport ?: return@onDrag
                             val kind =
@@ -141,6 +163,7 @@ fun Photo(
                                     }
                                     is PhotoDrag.Exemplar -> kind.copy(end = position)
                                     PhotoDrag.Pan -> {
+                                        zooming?.cancel()
                                         viewport = current.transformed(Offset.Zero, 1f, delta)
                                         kind
                                     }
@@ -156,6 +179,7 @@ fun Photo(
                     },
                     onDragCancel = { drag = null },
                     onTransform = { centroid, zoom, pan ->
+                        zooming?.cancel()
                         viewport = viewport?.transformed(centroid, zoom, pan)
                     },
                 )

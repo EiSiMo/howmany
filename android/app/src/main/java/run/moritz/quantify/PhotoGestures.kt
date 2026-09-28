@@ -7,12 +7,17 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.unit.dp
 import kotlin.math.max
 import kotlin.math.min
 import run.moritz.quantify.counting.Box as ImageBox
 
+// A second tap counts toward a double tap this far from the first, as in Android's views.
+private val DOUBLE_TAP_SLOP = 100.dp
 // An exemplar needs to be more than this many image pixels wide and high.
 private const val MIN_EXEMPLAR_SIZE = 1f
 
@@ -65,21 +70,69 @@ private fun spanned(a: Offset, b: Offset) =
     Rect(min(a.x, b.x), min(a.y, b.y), max(a.x, b.x), max(a.y, b.y))
 
 /**
+ * Whether a second tap starting at [second], [elapsedMillis] after a tap at [first] ended, makes a
+ * double tap: it comes within the time [window] and no farther than [slop] away.
+ */
+fun isDoubleTap(
+    first: Offset,
+    second: Offset,
+    elapsedMillis: Long,
+    window: LongRange,
+    slop: Float,
+) = elapsedMillis in window && (second - first).getDistance() <= slop
+
+/**
  * One finger taps or drags (from `start`, now at `position`, moved by `delta` since the last call);
- * two fingers zoom and pan. A second finger cancels a drag.
+ * two fingers zoom and pan. A second finger cancels a drag. While [onDoubleTap] is given, a tap
+ * waits for a second one to make a double tap, and only goes to [onTap] if none comes.
  */
 suspend fun PointerInputScope.detectPhotoGestures(
     onTap: (Offset) -> Unit,
+    onDoubleTap: ((Offset) -> Unit)?,
     onDrag: (start: Offset, position: Offset, delta: Offset) -> Unit,
     onDragEnd: () -> Unit,
     onDragCancel: () -> Unit,
     onTransform: (centroid: Offset, zoom: Float, pan: Offset) -> Unit,
 ) = awaitEachGesture {
-    val down = awaitFirstDown()
+    val window = viewConfiguration.doubleTapMinTimeMillis..viewConfiguration.doubleTapTimeoutMillis
+    val slop = DOUBLE_TAP_SLOP.toPx()
+    var down = awaitFirstDown()
+    while (true) {
+        val tapEnd =
+            awaitTap(down, onDrag, onDragEnd, onDragCancel, onTransform) ?: return@awaitEachGesture
+        if (onDoubleTap == null) return@awaitEachGesture onTap(down.position)
+        val next =
+            withTimeoutOrNull(window.last) { awaitFirstDown() }
+                ?: return@awaitEachGesture onTap(down.position)
+        if (isDoubleTap(down.position, next.position, next.uptimeMillis - tapEnd, window, slop)) {
+            if (awaitTap(next, onDrag, onDragEnd, onDragCancel, onTransform) != null) {
+                onDoubleTap(next.position)
+            }
+            return@awaitEachGesture
+        }
+        // Not a double tap: the first was a single tap, and the next one starts over.
+        onTap(down.position)
+        down = next
+    }
+}
+
+/**
+ * Follows the pointers from [down] until all are up, dragging or transforming as they go. Returns
+ * when the last one went up (in uptime milliseconds) if it was a tap, null otherwise.
+ */
+private suspend fun AwaitPointerEventScope.awaitTap(
+    down: PointerInputChange,
+    onDrag: (start: Offset, position: Offset, delta: Offset) -> Unit,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
+    onTransform: (centroid: Offset, zoom: Float, pan: Offset) -> Unit,
+): Long? {
     var dragging = false
     var transforming = false
+    var upMillis: Long
     do {
         val event = awaitPointerEvent()
+        upMillis = event.changes.maxOf { it.uptimeMillis }
         val pressed = event.changes.filter { it.pressed }
         if (pressed.size >= 2) {
             if (dragging && !transforming) onDragCancel()
@@ -98,9 +151,12 @@ suspend fun PointerInputScope.detectPhotoGestures(
             }
         }
     } while (event.changes.any { it.pressed })
-    when {
-        transforming -> {}
-        dragging -> onDragEnd()
-        else -> onTap(down.position)
+    return when {
+        transforming -> null
+        dragging -> {
+            onDragEnd()
+            null
+        }
+        else -> upMillis
     }
 }
