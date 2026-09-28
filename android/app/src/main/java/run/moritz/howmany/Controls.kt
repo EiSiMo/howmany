@@ -117,6 +117,13 @@ val CONTROLS_HEIGHT = CONTROLS_BOTTOM + SHUTTER_SIZE + HINT_GAP + PILL_HEIGHT + 
 private val HINT_PADDING = 24.dp
 // The side buttons sit at the screen's edges; the shutter fills the room between them.
 private val SIDE_BUTTON_EDGE = 16.dp
+/** The touch target of an icon button at the screen's top, above the photo. */
+val TOP_BUTTON_SIZE = 48.dp
+/**
+ * How far an icon button at the top keeps from the screen's edge, so its icon lines up with the
+ * photo's.
+ */
+val TOP_BUTTON_EDGE = 12.dp
 // How much of the shutter's outline the spinner covers while counting.
 private const val SPINNER_LENGTH = 0.2f
 private const val SPINNER_PERIOD_MILLIS = 1600

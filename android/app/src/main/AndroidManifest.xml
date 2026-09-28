@@ -29,6 +29,10 @@
                 <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".AboutActivity"
+            android:exported="false"
+            android:label="@string/about" />
         <!-- Lets the camera app write the photo it takes into the app's cache, and others read exports. -->
         <provider
             android:name="androidx.core.content.FileProvider"

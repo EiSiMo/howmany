@@ -1,5 +1,9 @@
 package run.moritz.howmany
 
+import android.graphics.Color
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -42,3 +46,10 @@ fun HowManyTheme(content: @Composable () -> Unit) {
         content = content,
     )
 }
+
+/** Edge to edge, like a camera, with light system bars over the always dark app. */
+fun ComponentActivity.enableDarkEdgeToEdge() =
+    enableEdgeToEdge(
+        statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+    )

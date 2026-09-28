@@ -45,8 +45,8 @@ private val EXEMPLAR_HALO_COLOR = Color.Black.copy(alpha = 0.3f)
 // stays visible while correcting.
 private val POINT_RADIUS = 10.dp
 private val POINT_OUTLINE = 1.5.dp
-private val POINT_OUTLINE_COLOR = Color.White.copy(alpha = 0.8f)
-private const val POINT_ALPHA = 0.45f
+val POINT_OUTLINE_COLOR = Color.White.copy(alpha = 0.8f)
+const val POINT_ALPHA = 0.45f
 private val POINT_NUMBER_SIZE = 9.sp
 private const val POINT_NUMBER_SHADOW_BLUR = 3f
 // Material has no warning color; yellow stands out from the theme's points on any photo.

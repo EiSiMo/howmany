@@ -24,4 +24,32 @@
         <item quantity="one">%s object</item>
         <item quantity="other">%s objects</item>
     </plurals>
+    <string name="about">About</string>
+    <string name="back">Back</string>
+    <string name="tagline">Counts objects in a photo</string>
+    <string name="version">Version %s</string>
+    <string name="private_title">Stays on your phone</string>
+    <string name="private_text">Photos are counted on your phone only. The app has no internet access.</string>
+    <string name="tips_title">Counting well</string>
+    <string name="tip_exemplar">Drag the box tightly around a typical object.</string>
+    <string name="tip_crop">With lots of objects, count part of the photo or get closer.</string>
+    <string name="tip_correct">Tap to remove wrong points and add missed ones.</string>
+    <string name="credits_title">Built on</string>
+    <string name="credit_geco2">Counts the objects, by Pelhan et al.</string>
+    <string name="credit_sam2">The image encoder GeCo2 builds on, by Meta</string>
+    <string name="credit_onnxruntime">Runs the model on your phone, by Microsoft</string>
+    <string name="credit_space_grotesk">The typeface of the count, by Florian Karsten</string>
+    <string name="contribute_title">Get involved</string>
+    <string name="source_code">Source code</string>
+    <string name="source_code_text">Free software on GitHub</string>
+    <string name="report_problem">Report a problem</string>
+    <string name="report_problem_text">A wrong count or a crash? Open an issue</string>
+    <string name="contact">Contact</string>
+    <string name="licenses_title">Open source licenses</string>
+    <plurals name="licenses_count">
+        <item quantity="one">%d work the app bundles</item>
+        <item quantity="other">%d works the app bundles</item>
+    </plurals>
+    <string name="footer">how many? is free software under the MIT license.</string>
+    <string name="error_no_app">No app found to open this</string>
 </resources>
