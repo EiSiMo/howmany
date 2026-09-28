@@ -7,17 +7,14 @@ how many? is a fully open source Android app that counts objects in a photo, suc
 Take or pick a photo, drag a box around one of the objects you want to count, and tap Count. how many? marks every object that looks like it. Drag the edges to count only part of the photo, and tap to remove a wrong point or add a missed one.
 
 ### Building
-You need JDK 21, the Android SDK, [uv](https://docs.astral.sh/uv/) and a [Modal](https://modal.com) account for the one-time model export. With a phone attached via USB debugging:
+You need JDK 21 and the Android SDK. The build downloads the counting model. With a phone attached via USB debugging:
 
 ```sh
-cd model
-uv run modal setup              # once
-uv run modal run export.py      # exports the counting model to model/data/
-cd ../android
+cd android
 ./gradlew installRelease
 ```
 
-`model/` also holds the benchmark that measures how far the counts are off: `uv run benchmark.py`.
+`model/` exports the counting model (`uv run modal run export.py`, needs [uv](https://docs.astral.sh/uv/) and a [Modal](https://modal.com) account) and holds the benchmark that measures how far the counts are off: `uv run benchmark.py`.
 
 ## License
 MIT, see [LICENSE](LICENSE). The counting model is [GeCo2](https://github.com/jerpelhan/GECO2) (MIT), built on [SAM 2](https://github.com/facebookresearch/sam2) (Apache 2.0).

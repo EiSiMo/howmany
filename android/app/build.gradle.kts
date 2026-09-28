@@ -1,11 +1,18 @@
+import java.net.URI
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.aboutlibraries)
 }
 
-// The GeCo2 model the app counts with, as exported by model/export.py.
+// The GeCo2 model the app counts with, as exported by model/export.py and published as a release
+// asset, so building needs no export. A local export in model/data takes precedence; after a new
+// export, publish it as the next model-v<N> release and update the URL and checksum.
 val modelAsset = "geco2-int8.onnx"
+val publishedModelUrl = "https://github.com/EiSiMo/howmany/releases/download/model-v1/$modelAsset"
+val publishedModelSha256 = "d4ca4eb15fd01c58ef993c100eee41883ceb6c766c4b71d472238d4174f9a3ec"
 
 android {
     namespace = "run.moritz.howmany"
@@ -59,7 +66,40 @@ tasks.withType<Test>().configureEach {
 // the model and the font, are defined in config/.
 aboutLibraries { collect { configPath = file("../config") } }
 
-/** Copies files from model/data (not committed) into generated assets. */
+/** Downloads a file and fails unless it has the expected SHA-256 checksum. */
+abstract class DownloadFile : DefaultTask() {
+    @get:Input abstract val url: Property<String>
+
+    @get:Input abstract val sha256: Property<String>
+
+    @get:OutputFile abstract val file: RegularFileProperty
+
+    @TaskAction
+    fun download() {
+        val target = file.get().asFile
+        val partial = target.resolveSibling("${target.name}.part")
+        URI(url.get()).toURL().openStream().use { input ->
+            partial.outputStream().use { input.copyTo(it) }
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+        partial.inputStream().use { input ->
+            val buffer = ByteArray(1 shl 20)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        check(actual == sha256.get()) {
+            partial.delete()
+            "${url.get()} has SHA-256 $actual, expected ${sha256.get()}"
+        }
+        check(partial.renameTo(target)) { "Could not move $partial to $target" }
+    }
+}
+
+/** Copies files, like the model and sample images, into generated assets. */
 abstract class CopyModelFiles : DefaultTask() {
     @get:InputFiles abstract val files: ConfigurableFileCollection
 
@@ -71,18 +111,23 @@ abstract class CopyModelFiles : DefaultTask() {
         output.deleteRecursively()
         output.mkdirs()
         files.forEach { file ->
-            check(file.exists()) {
-                "$file missing, export the model with model/export.py"
-            }
+            check(file.exists()) { "$file missing" }
             file.copyTo(output.resolve(file.name))
         }
     }
 }
 
 val modelData = rootDir.resolve("../model/data")
+val downloadModel by
+    tasks.registering(DownloadFile::class) {
+        url = publishedModelUrl
+        sha256 = publishedModelSha256
+        file = layout.buildDirectory.file("downloads/$modelAsset")
+    }
+val localModel = modelData.resolve(modelAsset)
 val copyModel by
     tasks.registering(CopyModelFiles::class) {
-        files.from(modelData.resolve(modelAsset))
+        files.from(if (localModel.exists()) localModel else downloadModel)
     }
 // FSC-147 test images the benchmark also counts, for comparing app and benchmark results.
 val copySample by
