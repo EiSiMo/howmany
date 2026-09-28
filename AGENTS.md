@@ -56,6 +56,7 @@ Run from `model/`:
 
 ## Conventions
 - Code, identifiers, comments, strings and commit messages in English. User-facing text lives in localization resources, never hardcoded.
+- Every language the app knows translates every string (`TranslationsTest`, run by the pre-commit hook). A string that rightly reads the same as in English goes into its `sameAsDefault`.
 - Fail loudly: handle errors or propagate them with context, never swallow them.
 - Logging via the ecosystem's standard logging library, with levels. No print debugging. Never log secrets.
 - A CLI's report (like `run.py`'s summary or `photos.py status`) is its output: print it to stdout. Logging is for diagnostics.

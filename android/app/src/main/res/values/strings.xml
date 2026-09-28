@@ -10,6 +10,7 @@
     <string name="save_to_gallery">Save to gallery</string>
     <string name="saved">Saved to gallery</string>
     <string name="count">Count</string>
+    <!-- The button that starts counting: one very short word. -->
     <string name="go">GO</string>
     <string name="counting">Counting…</string>
     <string name="mark_exemplar">Drag a box around one object</string>

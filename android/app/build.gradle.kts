@@ -36,6 +36,9 @@ android {
         }
     }
 
+    // Lets people pick the app's language in the system settings, among those it translates.
+    androidResources { generateLocaleConfig = true }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -43,6 +46,14 @@ android {
 }
 
 kotlin { jvmToolchain(21) }
+
+// Shows why a test failed even in quiet builds, like the pre-commit hook's.
+tasks.withType<Test>().configureEach {
+    testLogging.quiet {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
 
 // The open source licenses the app shows. Works it bundles outside of Gradle's dependencies, like
 // the model and the font, are defined in config/.

@@ -3,6 +3,7 @@ package run.moritz.howmany
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.icu.text.NumberFormat
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -56,6 +57,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -498,6 +500,7 @@ private fun IconBadge(icon: Painter) {
 /** A tip's [number], drawn like a counted point on the photo. */
 @Composable
 private fun TipPoint(number: Int) {
+    val locale = LocalConfiguration.current.locales[0]
     Box(
         Modifier.size(TIP_POINT_SIZE)
             .clip(CircleShape)
@@ -506,7 +509,7 @@ private fun TipPoint(number: Int) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            number.toString(),
+            NumberFormat.getIntegerInstance(locale).format(number),
             style = MaterialTheme.typography.titleMedium,
             fontFamily = DisplayFont,
             fontWeight = FontWeight.Bold,
