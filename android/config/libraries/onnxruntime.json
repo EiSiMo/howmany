@@ -1,0 +1,14 @@
+{
+  "uniqueId": "com.microsoft.onnxruntime:onnxruntime-android",
+  "name": "ONNX Runtime",
+  "description": "Runs the counting model on the phone.",
+  "website": "https://onnxruntime.ai",
+  "developers": [
+    {
+      "name": "Microsoft"
+    }
+  ],
+  "licenses": [
+    "onnxruntime"
+  ]
+}

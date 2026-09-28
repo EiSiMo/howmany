@@ -1,0 +1,18 @@
+{
+  "uniqueId": "howmany.bundled:sam2",
+  "name": "SAM 2",
+  "description": "Segment Anything Model 2, whose image encoder GeCo2 builds on.",
+  "website": "https://github.com/facebookresearch/sam2",
+  "developers": [
+    {
+      "name": "Meta Platforms"
+    }
+  ],
+  "scm": {
+    "url": "https://github.com/facebookresearch/sam2"
+  },
+  "licenses": [
+    "sam2"
+  ],
+  "tag": "bundled"
+}

@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.aboutlibraries)
 }
 
 // The GeCo2 model the app counts with, as exported by model/export.py.
@@ -42,6 +43,10 @@ android {
 }
 
 kotlin { jvmToolchain(21) }
+
+// The open source licenses the app shows. Works it bundles outside of Gradle's dependencies, like
+// the model and the font, are defined in config/.
+aboutLibraries { collect { configPath = file("../config") } }
 
 /** Copies files from model/data (not committed) into generated assets. */
 abstract class CopyModelFiles : DefaultTask() {
@@ -100,6 +105,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel)
     implementation(libs.coroutines.android)
     implementation(libs.onnxruntime.android)
+    implementation(libs.aboutlibraries.core)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.runner)

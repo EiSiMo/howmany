@@ -1,0 +1,18 @@
+{
+  "uniqueId": "howmany.bundled:geco2",
+  "name": "GeCo2",
+  "description": "Few-shot object counting model, which counts in the app.",
+  "website": "https://github.com/jerpelhan/GECO2",
+  "developers": [
+    {
+      "name": "Pelhan et al."
+    }
+  ],
+  "scm": {
+    "url": "https://github.com/jerpelhan/GECO2"
+  },
+  "licenses": [
+    "geco2"
+  ],
+  "tag": "bundled"
+}

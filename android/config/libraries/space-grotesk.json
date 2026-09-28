@@ -1,0 +1,18 @@
+{
+  "uniqueId": "howmany.bundled:space-grotesk",
+  "name": "Space Grotesk",
+  "description": "Typeface of the count and the title.",
+  "website": "https://github.com/floriankarsten/space-grotesk",
+  "developers": [
+    {
+      "name": "The Space Grotesk Project Authors"
+    }
+  ],
+  "scm": {
+    "url": "https://github.com/floriankarsten/space-grotesk"
+  },
+  "licenses": [
+    "space-grotesk"
+  ],
+  "tag": "bundled"
+}
