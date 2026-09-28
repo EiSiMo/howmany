@@ -8,8 +8,7 @@ import run.moritz.quantify.counting.Point
 class ControlsTest {
     private val marking = CountState(crop = Box(0f, 0f, 1000f, 1000f))
     private val ready = marking.copy(exemplar = Box(10f, 10f, 50f, 50f))
-    private val detected = listOf(Point(100f, 100f))
-    private val counted = ready.copy(points = detected, detected = detected)
+    private val counted = ready.copy(points = listOf(Point(100f, 100f)))
 
     @Test
     fun `hints at what to do next`() {
@@ -18,7 +17,6 @@ class ControlsTest {
         assertEquals(R.string.adjust_crop, hint(ready))
         assertEquals(R.string.counting, hint(ready.copy(counting = true)))
         assertEquals(R.string.correct, hint(counted))
-        assertEquals(R.string.donate, hint(counted.copy(points = emptyList())))
     }
 
     @Test

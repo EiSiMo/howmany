@@ -52,11 +52,6 @@ data class CountState(
     val uncertain: Set<Point> = emptySet(),
     /** Where the model saw objects when counting; null until counted. */
     val heatmap: Heatmap? = null,
-    /**
-     * The points the model counted inside the crop as the count arrived, before any correction;
-     * null until counted.
-     */
-    val detected: List<Point>? = null,
     val counting: Boolean = false,
     /** What went wrong last, until the user moves on; null if nothing did. */
     val error: CountError? = null,
@@ -64,10 +59,6 @@ data class CountState(
     /** The counted points inside the crop. */
     val counted: List<Point>?
         get() = points?.filter { crop == null || it in crop }
-
-    /** Whether the user has added or removed points, by tapping or cropping, since counting. */
-    val corrected: Boolean
-        get() = counted != detected
 
     /** Where the user is on the way from picking a photo to a count. */
     val phase: CountPhase
@@ -94,7 +85,6 @@ data class CountState(
         val points = result.detections.map { it.box.center }
         return copy(
             points = points,
-            detected = points.filter { crop == null || it in crop },
             uncertain = result.detections.filter { it.uncertain }.map { it.box.center }.toSet(),
             heatmap = result.heatmap,
             counting = false,

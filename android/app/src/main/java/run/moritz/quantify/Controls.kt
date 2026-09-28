@@ -91,8 +91,6 @@ private val SIDE_BUTTON_GAP = 12.dp
 private val PILL_HEIGHT = 36.dp
 private val PILL_PADDING_HORIZONTAL = 16.dp
 private val PILL_PADDING_VERTICAL = 8.dp
-private val PILL_ICON_SIZE = 18.dp
-private val PILL_ICON_GAP = 8.dp
 private val PILL_TEXT = Color.White.copy(alpha = 0.92f)
 private val COUNT_PADDING = 28.dp
 
@@ -137,16 +135,7 @@ fun Controls(
             modifier = Modifier.padding(horizontal = HINT_PADDING),
             label = "hint",
         ) { hint ->
-            if (hint == R.string.donate) {
-                // Donating corrections as training data is not built yet.
-                Pill(
-                    stringResource(hint),
-                    icon = painterResource(R.drawable.ic_donate),
-                    onClick = {},
-                )
-            } else {
-                Pill(stringResource(hint))
-            }
+            Pill(stringResource(hint))
         }
         Spacer(Modifier.height(HINT_GAP))
         // The side buttons stay put while the shutter turns into the wider count.
@@ -209,7 +198,7 @@ fun hint(state: CountState): Int =
             CountPhase.Marking -> R.string.mark_exemplar
             CountPhase.Ready -> R.string.adjust_crop
             CountPhase.Counting -> R.string.counting
-            CountPhase.Counted -> if (state.corrected) R.string.donate else R.string.correct
+            CountPhase.Counted -> R.string.correct
         }
 
 /**
@@ -314,32 +303,14 @@ fun RoundButton(
 
 /** A short floating text, tappable when [onClick] is given, with an accent [icon] in front. */
 @Composable
-fun Pill(
-    text: String,
-    modifier: Modifier = Modifier,
-    icon: Painter? = null,
-    onClick: (() -> Unit)? = null,
-) {
+fun Pill(text: String, modifier: Modifier = Modifier) {
     Row(
         modifier
             .heightIn(min = PILL_HEIGHT)
             .floating()
-            .then(
-                if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick)
-                else Modifier
-            )
             .padding(horizontal = PILL_PADDING_HORIZONTAL, vertical = PILL_PADDING_VERTICAL),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(PILL_ICON_GAP),
     ) {
-        if (icon != null) {
-            Icon(
-                icon,
-                null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(PILL_ICON_SIZE),
-            )
-        }
         Text(
             text,
             style = MaterialTheme.typography.labelLarge,

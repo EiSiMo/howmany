@@ -8,7 +8,6 @@
     <string name="count">Zählen</string>
     <string name="counting">Zähle…</string>
     <string name="mark_exemplar">Zieh einen Rahmen um ein Objekt</string>
-    <string name="donate">Korrektur spenden</string>
     <string name="adjust_crop">Zieh die Ränder, um nur einen Ausschnitt zu zählen</string>
     <string name="correct">Tippe, um einen Punkt zu entfernen oder hinzuzufügen</string>
     <string name="error_photo_unreadable">Dieses Foto lässt sich nicht öffnen</string>
