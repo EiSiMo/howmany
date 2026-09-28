@@ -43,8 +43,6 @@ import run.moritz.howmany.counting.Point
 
 // Taps within the hit radius of a point hit it, at any zoom.
 private val HIT_RADIUS = 24.dp
-// Material has no warning color; yellow stands out from the theme's points on any photo.
-private val UNCERTAIN_COLOR = Color(0xFFFFD600)
 // The crop's edges can be grabbed this far from them, and it never gets smaller than a finger.
 val HANDLE_REACH = 24.dp
 // Android excludes at most 200dp of back gesture per screen edge; the three side handles' boxes

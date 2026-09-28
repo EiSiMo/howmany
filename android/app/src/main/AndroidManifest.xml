@@ -29,7 +29,7 @@
                 <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
-        <!-- Lets the camera app write the photo it takes into the app's cache. -->
+        <!-- Lets the camera app write the photo it takes into the app's cache, and others read exports. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.photos"

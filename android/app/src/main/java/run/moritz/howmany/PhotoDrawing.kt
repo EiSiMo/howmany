@@ -49,6 +49,8 @@ private val POINT_OUTLINE_COLOR = Color.White.copy(alpha = 0.8f)
 private const val POINT_ALPHA = 0.45f
 private val POINT_NUMBER_SIZE = 9.sp
 private const val POINT_NUMBER_SHADOW_BLUR = 3f
+// Material has no warning color; yellow stands out from the theme's points on any photo.
+val UNCERTAIN_COLOR = Color(0xFFFFD600)
 
 // The handles on the crop's left and right edges, where the back gesture would steal the drag.
 val SIDE_HANDLES: List<(Rect) -> Offset> =

@@ -37,6 +37,7 @@ private val SCRIM_BOTTOM = Color.Black.copy(alpha = 0.6f)
 fun CountScreen(viewModel: CountViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val sources = rememberPhotoSources(viewModel::pickPhoto, viewModel::noCamera)
+    val export = rememberExport(viewModel::exportFailed)
     val photo = state.photo
     val crop = state.crop
     val animation = rememberCountingAnimation(state)
@@ -108,6 +109,7 @@ fun CountScreen(viewModel: CountViewModel) {
             revealed = { revealed },
             sources = sources,
             onCount = viewModel::count,
+            onExport = { export(state) },
             onClear = {
                 animation.hide(state)
                 viewModel.clear()

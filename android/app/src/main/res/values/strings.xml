@@ -5,7 +5,10 @@
     <string name="empty_text">Take or pick a photo</string>
     <string name="take_photo">Take photo</string>
     <string name="pick_photo">Pick photo</string>
-    <string name="clear">Clear</string>
+    <string name="clear">Start over</string>
+    <string name="export">Share or save</string>
+    <string name="save_to_gallery">Save to gallery</string>
+    <string name="saved">Saved to gallery</string>
     <string name="count">Count</string>
     <string name="counting">Counting…</string>
     <string name="mark_exemplar">Drag a box around one object</string>
@@ -14,6 +17,7 @@
     <string name="error_photo_unreadable">Couldn’t open this photo</string>
     <string name="error_no_camera">No camera app found</string>
     <string name="error_count_failed">Counting failed, try again</string>
+    <string name="error_export_failed">Couldn’t export the count</string>
     <string name="copy_count">Copy count</string>
     <string name="copied">Copied</string>
     <plurals name="counted_objects">

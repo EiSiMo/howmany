@@ -86,13 +86,13 @@ private const val SHUTTER_SMALLEST_DISC = 0.6f
 private const val SHUTTER_FILL_BOUNCE = 0.55f
 private val SHUTTER_TRACK = Color.White.copy(alpha = 0.15f)
 private val SIDE_BUTTON_SIZE = 56.dp
-private val SIDE_BUTTON_GAP = 12.dp
+private val SIDE_BUTTON_GAP = 8.dp
 /** The smallest height of a [Pill], which the controls reserve for the hint. */
 private val PILL_HEIGHT = 36.dp
 private val PILL_PADDING_HORIZONTAL = 16.dp
 private val PILL_PADDING_VERTICAL = 8.dp
 private val PILL_TEXT = Color.White.copy(alpha = 0.92f)
-private val COUNT_PADDING = 28.dp
+private val COUNT_PADDING = 20.dp
 
 // The controls float in the thumb zone: a hint above the shutter, which sits this high.
 private val CONTROLS_BOTTOM = 20.dp
@@ -101,7 +101,7 @@ private val HINT_GAP = 12.dp
 val CONTROLS_HEIGHT = CONTROLS_BOTTOM + SHUTTER_SIZE + HINT_GAP + PILL_HEIGHT + HINT_GAP
 private val HINT_PADDING = 24.dp
 // The side buttons sit at the screen's edges, leaving the widest count room between them.
-private val SIDE_BUTTON_EDGE = 24.dp
+private val SIDE_BUTTON_EDGE = 16.dp
 // The shutter and the count grow in from and shrink to this part of their size.
 private const val SWAP_SCALE = 0.8f
 
@@ -111,8 +111,9 @@ private fun Modifier.floating(shape: Shape = CircleShape) =
 
 /**
  * The hint at what to do next, or at what went wrong, above the shutter to count, which turns into
- * the count once there is one, between the buttons to take or pick another photo and to clear the
- * exemplar. The count shows [revealed] as it rises towards [count], which a tap copies.
+ * the count once there is one. On its left are the buttons to export the count and to start over
+ * with the photo, on its right those to pick or take another photo. The count shows [revealed] as
+ * it rises towards [count], which a tap copies.
  */
 @Composable
 fun Controls(
@@ -121,6 +122,7 @@ fun Controls(
     revealed: () -> Int,
     sources: PhotoSources,
     onCount: () -> Unit,
+    onExport: () -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -145,14 +147,16 @@ fun Controls(
                 horizontalArrangement = Arrangement.spacedBy(SIDE_BUTTON_GAP),
             ) {
                 RoundButton(
-                    painterResource(R.drawable.ic_pick_photo),
-                    stringResource(R.string.pick_photo),
-                    sources.pickPhoto,
+                    painterResource(R.drawable.ic_export),
+                    stringResource(R.string.export),
+                    onExport,
+                    enabled = phase == CountPhase.Counted,
                 )
                 RoundButton(
-                    painterResource(R.drawable.ic_take_photo),
-                    stringResource(R.string.take_photo),
-                    sources.takePhoto,
+                    painterResource(R.drawable.ic_clear),
+                    stringResource(R.string.clear),
+                    onClear,
+                    enabled = phase != CountPhase.Empty && phase != CountPhase.Marking,
                 )
             }
             AnimatedContent(
@@ -177,13 +181,21 @@ fun Controls(
                     )
                 }
             }
-            RoundButton(
-                painterResource(R.drawable.ic_clear),
-                stringResource(R.string.clear),
-                onClear,
+            Row(
                 Modifier.align(Alignment.CenterEnd).padding(end = SIDE_BUTTON_EDGE),
-                enabled = phase != CountPhase.Empty && phase != CountPhase.Marking,
-            )
+                horizontalArrangement = Arrangement.spacedBy(SIDE_BUTTON_GAP),
+            ) {
+                RoundButton(
+                    painterResource(R.drawable.ic_pick_photo),
+                    stringResource(R.string.pick_photo),
+                    sources.pickPhoto,
+                )
+                RoundButton(
+                    painterResource(R.drawable.ic_take_photo),
+                    stringResource(R.string.take_photo),
+                    sources.takePhoto,
+                )
+            }
         }
     }
 }

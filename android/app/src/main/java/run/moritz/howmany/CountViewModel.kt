@@ -130,6 +130,8 @@ enum class CountError(@StringRes val message: Int) {
     NoCamera(R.string.error_no_camera),
     /** Counting failed; the user may try again. */
     CountFailed(R.string.error_count_failed),
+    /** The count cannot be exported or saved. */
+    ExportFailed(R.string.error_export_failed),
 }
 
 class CountViewModel(application: Application) : AndroidViewModel(application) {
@@ -168,6 +170,9 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Tells the user that no camera app can take a photo, keeping everything else. */
     fun noCamera() = _state.update { it.copy(error = CountError.NoCamera) }
+
+    /** Tells the user that the count cannot be exported, keeping everything else. */
+    fun exportFailed() = _state.update { it.copy(error = CountError.ExportFailed) }
 
     /** Marks one object as the exemplar of what to count; only before counting. */
     fun markExemplar(box: Box) = _state.update {

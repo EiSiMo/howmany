@@ -4,6 +4,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -13,6 +15,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.IntentCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+
+private const val TAG = "MainActivity"
 
 class MainActivity : ComponentActivity() {
     private val viewModel: CountViewModel by viewModels()
@@ -40,8 +47,15 @@ class MainActivity : ComponentActivity() {
         open(intent)
     }
 
-    /** Starts over with the image [intent] shares with or opens in the app, if any. */
+    /**
+     * Saves the last export to the gallery if [intent] asks to; otherwise starts over with the
+     * image it shares with or opens in the app, if any.
+     */
     private fun open(intent: Intent) {
+        if (intent.action == ACTION_SAVE_EXPORT) {
+            save()
+            return
+        }
         val image =
             sharedImage(
                 intent.action,
@@ -51,6 +65,21 @@ class MainActivity : ComponentActivity() {
             )
         // The intent grants reading the image while this activity lives, long enough to decode it.
         if (image != null) viewModel.pickPhoto(image)
+    }
+
+    private fun save() {
+        lifecycleScope.launch {
+            try {
+                saveExport(this@MainActivity)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Cannot save the export", e)
+                viewModel.exportFailed()
+                return@launch
+            }
+            Toast.makeText(this@MainActivity, R.string.saved, Toast.LENGTH_SHORT).show()
+        }
     }
 }
 
