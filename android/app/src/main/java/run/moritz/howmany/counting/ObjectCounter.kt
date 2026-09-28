@@ -6,6 +6,7 @@ import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
+import androidx.core.graphics.scale
 import java.io.File
 import java.nio.FloatBuffer
 import kotlin.math.ceil
@@ -169,7 +170,7 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
             val width = (image.width * scale).toInt()
             val height = (image.height * scale).toInt()
             val colors = IntArray(width * height)
-            Bitmap.createScaledBitmap(image, width, height, true).useDerivedFrom(image) {
+            image.scale(width, height).useDerivedFrom(image) {
                 it.getPixels(colors, 0, width, 0, 0, width, height)
             }
             val plane = input.width * input.height

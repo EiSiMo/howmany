@@ -44,7 +44,14 @@ android {
     }
 
     // Lets people pick the app's language in the system settings, among those it translates.
-    androidResources { generateLocaleConfig = true }
+    // Keeps only those languages of the libraries, so the app never mixes in a language it lacks.
+    androidResources {
+        generateLocaleConfig = true
+        localeFilters += listOf("en", "de", "es", "fr", "pt", "ru", "b+zh+Hans")
+    }
+
+    // Only 64-bit ARM on purpose, see abiFilters.
+    lint { disable += "ChromeOsAbiSupport" }
 
     buildFeatures {
         compose = true
