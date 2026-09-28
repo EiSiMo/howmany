@@ -94,7 +94,6 @@ private const val PRESSED_SCALE = 0.9f
 private val SHUTTER_SIZE = 80.dp
 private val SHUTTER_RING = 3.dp
 private val SHUTTER_GAP = 5.dp
-private val SHUTTER_ICON_SIZE = 32.dp
 // While busy, the disc shrinks to this part of its size and the spinner's track shows faintly.
 private const val SHUTTER_BUSY_FILL = 0.6f
 private const val SHUTTER_SMALLEST_DISC = 0.6f
@@ -199,7 +198,7 @@ fun Controls(
                     CountChip(revealed(), count ?: 0, Modifier.fillMaxWidth())
                 } else {
                     Shutter(
-                        painterResource(R.drawable.ic_mark),
+                        stringResource(R.string.go),
                         stringResource(R.string.count),
                         onCount,
                         Modifier.fillMaxWidth(),
@@ -236,12 +235,12 @@ fun hint(state: CountState): Int =
 
 /**
  * The primary action, like a camera's shutter stretched into a pill: a white ring around an accent
- * pill with [icon]. Without [enabled] only a dim ring is left; while [busy] a spinner runs around
+ * pill with [label]. Without [enabled] only a dim ring is left; while [busy] a spinner runs around
  * it.
  */
 @Composable
 fun Shutter(
-    icon: Painter,
+    label: String,
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -258,7 +257,7 @@ fun Shutter(
             if (enabled && !busy) 1f else if (busy) SHUTTER_BUSY_FILL else 0f,
             spring(dampingRatio = SHUTTER_FILL_BOUNCE, stiffness = Spring.StiffnessMediumLow),
         )
-    val iconColor by
+    val labelColor by
         animateColorAsState(
             if (enabled && !busy) onAccent else Color.White.copy(alpha = DISABLED_ALPHA)
         )
@@ -295,11 +294,12 @@ fun Shutter(
             drawPill(lerp(accent.copy(alpha = 0f), accent, fill), inset = inner + shrink)
         }
         if (busy) PillSpinner(accent, Modifier.matchParentSize())
-        Icon(
-            icon,
-            contentDescription,
-            tint = iconColor,
-            modifier = Modifier.size(SHUTTER_ICON_SIZE),
+        Text(
+            label,
+            Modifier.clearAndSetSemantics { this.contentDescription = contentDescription },
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = labelColor,
         )
     }
 }

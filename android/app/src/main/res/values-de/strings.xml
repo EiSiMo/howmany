@@ -9,6 +9,7 @@
     <string name="save_to_gallery">In Galerie speichern</string>
     <string name="saved">In Galerie gespeichert</string>
     <string name="count">Zählen</string>
+    <string name="go">LOS</string>
     <string name="counting">Zähle…</string>
     <string name="mark_exemplar">Zieh einen Rahmen um ein Objekt</string>
     <string name="adjust_crop">Zieh die Ränder, um nur einen Ausschnitt zu zählen</string>
