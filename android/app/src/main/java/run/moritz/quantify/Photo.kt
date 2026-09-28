@@ -43,7 +43,10 @@ private val HIT_RADIUS = 24.dp
 // Material has no warning color; yellow stands out from the theme's points on any photo.
 private val UNCERTAIN_COLOR = Color(0xFFFFD600)
 // The crop's edges can be grabbed this far from them, and it never gets smaller than a finger.
-private val HANDLE_REACH = 24.dp
+val HANDLE_REACH = 24.dp
+// Android excludes at most 200dp of back gesture per screen edge; the three side handles' boxes
+// get as tall as fits.
+private val SIDE_HANDLE_EXCLUSION_HEIGHT = 66.dp
 private val MIN_CROP_SIZE = 48.dp
 private const val CROPPED_ALPHA = 0.6f
 
@@ -231,9 +234,10 @@ fun Photo(
                     Modifier.offset {
                             val current = viewport ?: return@offset IntOffset.Zero
                             val at = handle(crop.inView(current))
-                            (at - Offset(HANDLE_REACH.toPx(), HANDLE_REACH.toPx())).round()
+                            val halfHeight = SIDE_HANDLE_EXCLUSION_HEIGHT.toPx() / 2
+                            (at - Offset(HANDLE_REACH.toPx(), halfHeight)).round()
                         }
-                        .size(HANDLE_REACH * 2)
+                        .size(width = HANDLE_REACH * 2, height = SIDE_HANDLE_EXCLUSION_HEIGHT)
                         .systemGestureExclusion()
                 )
             }
