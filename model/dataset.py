@@ -1,4 +1,4 @@
-"""Benchmark samples: images with a known object count, fetched on demand."""
+"""Benchmark samples: FSC-147 images with a known object count, fetched on demand."""
 
 import csv
 import json
@@ -7,7 +7,6 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,9 +19,9 @@ FSC147_BASE_URL = (
 )
 FSC147_IMAGE_DIR = "images_384_VarV2"
 
-BENCHMARK_DIR = Path(__file__).parent
-MANIFEST_PATH = BENCHMARK_DIR / "manifest.csv"
-DATA_DIR = BENCHMARK_DIR / "data"
+MODEL_DIR = Path(__file__).parent
+MANIFEST_PATH = MODEL_DIR / "manifest.csv"
+DATA_DIR = MODEL_DIR / "data"
 IMAGE_DIR = DATA_DIR / "images"
 
 MANIFEST_FIELDS = ("image", "category", "count", "exemplars")
@@ -84,7 +83,7 @@ def download(url: str, target: Path) -> None:
 
 
 def configure_logging() -> None:
-    """Log INFO and above to stderr, for the benchmark's scripts and remote functions."""
+    """Log INFO and above to stderr, for the scripts here and their remote functions."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 
@@ -118,21 +117,3 @@ def ensure_annotations(data_dir: Path = DATA_DIR) -> None:
     for name in ANNOTATION_FILES:
         if not (data_dir / name).exists():
             download(f"{FSC147_BASE_URL}/{name}", data_dir / name)
-
-
-def ensure_split(split: str, image_dir: Path, data_dir: Path = DATA_DIR) -> None:
-    """Make sure every image of an FSC-147 split is available locally, downloading in parallel."""
-    ensure_annotations(data_dir)
-    names = json.loads((data_dir / SPLITS_FILE).read_text())[split]
-    missing = [name for name in names if not (image_dir / name).exists()]
-    logger.info("%d of %d %s images missing", len(missing), len(names), split)
-    with ThreadPoolExecutor(max_workers=16) as pool:
-        # list() re-raises the first download error instead of dropping it.
-        list(
-            pool.map(
-                lambda name: download(
-                    f"{FSC147_BASE_URL}/{FSC147_IMAGE_DIR}/{name}", image_dir / name
-                ),
-                missing,
-            )
-        )

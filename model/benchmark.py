@@ -1,11 +1,10 @@
-"""Run a counting prototype against the benchmark and report how far off it is.
+"""Count the benchmark's images with the counter and report how far off it is.
 
-A prototype is a Python file that defines
-`quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int`. Exemplars are a few
-instances of the object to count, as a user would mark them; text names the object, as
-a user would type it. Prototypes use whichever prompt they support.
+The benchmark is a fixed random sample of 100 FSC-147 test images (manifest.csv), or with --photos
+our own completely labelled phone photos. Each image comes with exemplar boxes around instances of
+the object to count; by default the counter gets one, as the user marks one in the app.
 
-Usage: uv run run.py prototypes/prototype-0.py [--exemplars 0|1|2|3] [--photos]
+Usage: uv run benchmark.py [--exemplars 1|2|3] [--photos]
 """
 
 import argparse
@@ -14,31 +13,36 @@ import dataclasses
 import json
 import logging
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from dataset import BENCHMARK_DIR, EXEMPLARS, Sample, configure_logging, load_samples
+import counter
+from dataset import EXEMPLARS, MODEL_DIR, Box, Sample, configure_logging, load_samples
 from metrics import Result, Summary, summarize
 from photos import PhotoStore
-from prototype import Quantify, load_prototype
 
 logger = logging.getLogger(__name__)
 
-RESULTS_DIR = BENCHMARK_DIR / "results"
+RESULTS_DIR = MODEL_DIR / "results"
+# The app lets the user mark one exemplar.
+DEFAULT_EXEMPLARS = 1
+
+# count(image_path, exemplars) -> the number of objects, as counter.count.
+Count = Callable[[Path, Sequence[Box]], int]
 
 
-def evaluate(quantify: Quantify, samples: Sequence[Sample]) -> list[Result]:
+def evaluate(count: Count, samples: Sequence[Sample]) -> list[Result]:
     results = []
     for index, sample in enumerate(samples, start=1):
         start = time.perf_counter()
         try:
-            predicted = quantify(sample.image_path, sample.exemplars, sample.category)
+            predicted = count(sample.image_path, sample.exemplars)
         except Exception as error:
-            raise RuntimeError(f"quantify failed on {sample.image_path.name}") from error
+            raise RuntimeError(f"Counting failed on {sample.image_path.name}") from error
         seconds = time.perf_counter() - start
         if not isinstance(predicted, int):
             raise TypeError(
-                f"quantify returned {type(predicted).__name__} for "
+                f"Counting returned {type(predicted).__name__} for "
                 f"{sample.image_path.name}, expected int"
             )
         logger.info(
@@ -55,14 +59,9 @@ def evaluate(quantify: Quantify, samples: Sequence[Sample]) -> list[Result]:
     return results
 
 
-def result_name(prototype: Path, exemplars: int, photos: bool) -> str:
-    """Name of a run's result files: the prototype, suffixed for photos and fewer exemplars."""
-    name = prototype.stem
-    if photos:
-        name += "-photos"
-    if exemplars != EXEMPLARS:
-        name += f"-{exemplars}-exemplar"
-    return name
+def result_name(exemplars: int, photos: bool) -> str:
+    """Name of a run's result files: the images counted and the exemplars per image."""
+    return f"{'photos' if photos else 'fsc147'}-{exemplars}-exemplar"
 
 
 def write_results(name: str, results: Sequence[Result], summary: Summary) -> None:
@@ -82,7 +81,7 @@ def write_results(name: str, results: Sequence[Result], summary: Summary) -> Non
 def format_summary(name: str, summary: Summary) -> str:
     return "\n".join(
         (
-            f"Prototype:            {name}",
+            f"Run:                  {name}",
             f"Samples:              {summary.samples}",
             f"MAE:                  {summary.mae:.2f}",
             f"RMSE:                 {summary.rmse:.2f}",
@@ -97,31 +96,28 @@ def format_summary(name: str, summary: Summary) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("prototype", type=Path, help="path to a prototype file")
     parser.add_argument(
         "--exemplars",
         type=int,
-        choices=range(EXEMPLARS + 1),
-        default=EXEMPLARS,
-        help=f"exemplar boxes per image, 0 for text only; fewer than {EXEMPLARS} adds an "
-        "-N-exemplar suffix",
+        choices=range(1, EXEMPLARS + 1),
+        default=DEFAULT_EXEMPLARS,
+        help=f"exemplar boxes per image (default: {DEFAULT_EXEMPLARS}, as in the app)",
     )
     parser.add_argument(
         "--photos",
         action="store_true",
-        help="run on our own completely labelled photos instead of FSC-147; adds a -photos suffix",
+        help="count our own completely labelled photos instead of FSC-147",
     )
     args = parser.parse_args()
 
-    name = result_name(args.prototype, args.exemplars, args.photos)
-    quantify = load_prototype(args.prototype)
+    name = result_name(args.exemplars, args.photos)
     if args.photos:
         samples = PhotoStore().samples(exemplars=args.exemplars)
         if not samples:
             raise SystemExit("No completely labelled photos yet, label them with `uv run label.py`")
     else:
         samples = load_samples(exemplars=args.exemplars)
-    results = evaluate(quantify, samples)
+    results = evaluate(counter.count, samples)
     summary = summarize(results)
     write_results(name, results, summary)
     print(format_summary(name, summary))

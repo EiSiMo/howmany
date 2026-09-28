@@ -1,30 +1,48 @@
-"""Export GeCo2 (prototype 3) to ONNX for on-device inference, as prototype 4 and the app run it.
+"""Export GeCo2 to ONNX for on-device inference, as counter.py and the app run it.
+
+GeCo2 (Pelhan et al., AAAI 2026, MIT license, https://github.com/jerpelhan/GECO2) matches the
+exemplars against a SAM2 Hiera-B+ feature map at several scales and predicts one box per object.
+We use the authors' weights trained on FSC-147's train split, which is disjoint from the
+benchmark's test images.
 
 The export covers GeCo2's dense network, up to its objectness map and box offsets; picking boxes
-from them is left to the caller. It runs on Modal in prototype 3's container image, checks the
-network against GeCo2 and the export against the network on a benchmark image, and writes
-data/geco2-fp32.onnx and its dynamically quantized data/geco2-int8.onnx.
+from them is left to the caller. GeCo2 needs its own environment, so the export runs on Modal. It
+checks the network against GeCo2 and the export against the network on a benchmark image, and
+writes data/geco2-fp32.onnx and its dynamically quantized data/geco2-int8.onnx, which the app
+bundles.
 
-Usage: uv run modal run export_geco2.py
+Usage: uv run modal run export.py
 """
 
 import io
 import itertools
 import logging
+import os
+import sys
 import tempfile
+import types
 from collections.abc import Sequence
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
 
 import modal
 
-from dataset import BENCHMARK_DIR, DATA_DIR, IMAGE_DIR, configure_logging
-from prototype import load_module
+from dataset import DATA_DIR, IMAGE_DIR, configure_logging
 
 logger = logging.getLogger(__name__)
 
-GECO2_PROTOTYPE = BENCHMARK_DIR / "prototypes" / "prototype-3.py"
-REMOTE_DIR = PurePosixPath("/root")
+GECO2_DIR = "/geco2"
+GECO2_COMMIT = "b7086c1db5d9bf2a1718b77eb76715c5f5b963cb"
+ASSETS_URL = (
+    "https://huggingface.co/datasets/jerpelhan/geco2-assets/resolve/"
+    "ed3c8ff3753e731fd7074862c0ea49d908785335"
+)
+SAM2_URL = "https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_base_plus.pt"
+TORCH_HUB_CHECKPOINTS = "/root/.cache/torch/hub/checkpoints"
+PRETRAINED_MODULES = ("backbone.", "sam_mask.")
+# GeCo2 was trained on 1024 x 1024 inputs: the image scaled so exemplars are at most ~80 px,
+# top-left, padded with black.
+INPUT_SIZE = 1024
 # The exported network takes GeCo2's input with the padding cut off, down to the next multiple of
 # 32 (the backbone's coarsest stride, where its feature pyramid levels must line up).
 SIZE_MULTIPLE = 32
@@ -46,16 +64,97 @@ CONTENT_OFFSET_TOLERANCE = 0.2
 EXPORT_CHECK_SIZES = ((768, 1024), (1024, 448), (224, 1024))
 OUTPUTS = ("objectness", "offsets")
 
-# GeCo2's environment, model and input size are prototype 3's; its file is added to the
-# container so this module imports there too.
-geco2 = load_module(GECO2_PROTOTYPE)
-INPUT_SIZE: int = geco2.INPUT_SIZE
+app = modal.App("quantify-export")
+# GeCo2's environment, plus dataset.py, which this module imports.
+container_image = (
+    modal.Image.debian_slim(python_version="3.10")
+    .apt_install("git", "curl")
+    .pip_install(
+        "torch==2.7.1",
+        "torchvision==0.22.1",
+        index_url="https://download.pytorch.org/whl/cu126",
+    )
+    .pip_install(
+        "numpy<2",
+        "hydra-core==1.3.2",
+        "scikit-image==0.25.2",
+        "pycocotools==2.0.8",
+        "einops==0.8.1",
+        "opencv-python-headless==4.11.0.86",
+        "pillow==10.4.0",
+        "tqdm==4.67.1",
+        "onnx==1.18.0",
+        "onnxruntime==1.22.0",
+    )
+    .run_commands(
+        f"git clone https://github.com/jerpelhan/GECO2 {GECO2_DIR}",
+        f"git -C {GECO2_DIR} checkout {GECO2_COMMIT}",
+        f"cp -r {GECO2_DIR}/Deformable-DETR/models/ops {GECO2_DIR}/models/ops",
+        f"curl -fL -o {GECO2_DIR}/GECO2FSCD.pth {ASSETS_URL}/weights/GECO2FSCD.pth",
+        f"mkdir -p {TORCH_HUB_CHECKPOINTS}",
+        f"curl -fL -o {TORCH_HUB_CHECKPOINTS}/sam2_hiera_base_plus.pt {SAM2_URL}",
+        # Fail at build time, not in a container crash loop, if a dependency is missing.
+        f"cd {GECO2_DIR} && python -c 'import sys, types; "
+        'sys.modules["MultiScaleDeformableAttention"] = types.ModuleType("MSDA"); '
+        "import models.counter_infer, utils.data'",
+    )
+    .add_local_python_source("dataset")
+)
 
-app = modal.App("quantify-export-geco2")
-remote_prototype = str(REMOTE_DIR / GECO2_PROTOTYPE.relative_to(BENCHMARK_DIR))
-container_image = geco2.container_image.add_local_python_source(
-    "dataset", "prototype"
-).add_local_file(GECO2_PROTOTYPE, remote_prototype)
+
+def _ms_deform_attn_forward(
+    value: Any,
+    spatial_shapes: Any,
+    level_start_index: Any,
+    sampling_locations: Any,
+    attention_weights: Any,
+    im2col_step: int,
+) -> Any:
+    """Deformable attention in pure PyTorch, for GeCo2's single-level use.
+
+    Deformable DETR's reference implementation reads the level sizes as Python ints, which an ONNX
+    export freezes; this one keeps them as tensors, so the exported input size stays dynamic.
+    """
+    from torch.nn import functional as F
+
+    batch, _, heads, channels = value.shape
+    _, queries, _, levels, points, _ = sampling_locations.shape
+    if levels != 1:
+        raise ValueError(f"Expected one feature level, got {levels}")
+    height, width = spatial_shapes[0, 0], spatial_shapes[0, 1]
+    value = value.flatten(2).transpose(1, 2).reshape(batch * heads, channels, height, width)
+    grid = (2 * sampling_locations[:, :, :, 0] - 1).transpose(1, 2).flatten(0, 1)
+    sampled = F.grid_sample(value, grid, mode="bilinear", padding_mode="zeros", align_corners=False)
+    weights = attention_weights.transpose(1, 2).reshape(batch * heads, 1, queries, points)
+    output = (sampled * weights).sum(-1).view(batch, heads * channels, queries)
+    return output.transpose(1, 2).contiguous()
+
+
+def _load_model() -> Any:
+    """Build GeCo2 with the authors' FSC-147 weights; only works inside the container image."""
+    import torch
+
+    # GeCo2's modules only exist inside the container image, hence the type: ignores below.
+    os.chdir(GECO2_DIR)
+    sys.path.insert(0, GECO2_DIR)
+    # The prebuilt CUDA kernel for deformable attention does not match current torch builds;
+    # the pure PyTorch reference computes the same thing and is what a mobile export needs.
+    kernel = types.ModuleType("MultiScaleDeformableAttention")
+    kernel.ms_deform_attn_forward = _ms_deform_attn_forward  # type: ignore[attr-defined]
+    sys.modules[kernel.__name__] = kernel
+    from models.counter_infer import build_model  # type: ignore[import-not-found]
+    from utils.arg_parser import get_argparser  # type: ignore[import-not-found]
+
+    model = build_model(get_argparser().parse_args([])).eval()
+    checkpoint = torch.load("GECO2FSCD.pth", map_location="cpu", weights_only=True)
+    state = {key.removeprefix("module."): value for key, value in checkpoint["model"].items()}
+    result = model.load_state_dict(state, strict=False)
+    # The checkpoint also holds training-only heads, and the backbone and mask decoder load
+    # their pretrained SAM2 weights themselves; any other missing weight is a real error.
+    missing = [key for key in result.missing_keys if not key.startswith(PRETRAINED_MODULES)]
+    if missing:
+        raise RuntimeError(f"GeCo2 checkpoint lacks weights: {missing[:5]}")
+    return model
 
 
 def _dense_network(model: Any) -> Any:
@@ -118,7 +217,8 @@ def _dense_network(model: Any) -> Any:
         setattr(adapter, f"spatial_shapes{suffix}", torch._shape_as_tensor(level)[2:][None])
         setattr(adapter, f"reference_points{suffix}", torch.stack([x, y], -1).reshape(1, -1, 1, 2))
 
-    class DenseGeCo2(torch.nn.Module):
+    # torch is only installed in the container, so mypy sees it as Any.
+    class DenseGeCo2(torch.nn.Module):  # type: ignore[misc]
         def __init__(self) -> None:
             super().__init__()
             self.model = model
@@ -340,7 +440,7 @@ def export_onnx(image_bytes: bytes, exemplars: list[list[float]]) -> dict[str, b
     and exemplar counts. Returns the models' bytes by precision, "fp32" and "int8".
     """
     configure_logging()
-    model = geco2.load_model("cpu")
+    model = _load_model()
     padded, content, boxes = _check_inputs(image_bytes, exemplars)
     network = _dense_network(model)
     # One exemplar (a tap) and all of them.

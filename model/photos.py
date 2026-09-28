@@ -25,11 +25,11 @@ from typing import Any
 
 from PIL import Image, ImageOps
 
-from dataset import BENCHMARK_DIR, DATA_DIR, EXEMPLARS, Box, Sample, configure_logging, to_box
+from dataset import DATA_DIR, EXEMPLARS, MODEL_DIR, Box, Sample, configure_logging, to_box
 
 logger = logging.getLogger(__name__)
 
-LABEL_DIR = BENCHMARK_DIR / "photos"
+LABEL_DIR = MODEL_DIR / "photos"
 IMAGE_DIR = DATA_DIR / "photos"
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
 EXIF_ORIENTATION = 0x0112

@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// The GeCo2 model the app counts with, as exported by the benchmark.
+// The GeCo2 model the app counts with, as exported by model/export.py.
 val modelAsset = "geco2-int8.onnx"
 
 android {
@@ -43,8 +43,8 @@ android {
 
 kotlin { jvmToolchain(21) }
 
-/** Copies files exported by the benchmark (not committed) into generated assets. */
-abstract class CopyBenchmarkFiles : DefaultTask() {
+/** Copies files from model/data (not committed) into generated assets. */
+abstract class CopyModelFiles : DefaultTask() {
     @get:InputFiles abstract val files: ConfigurableFileCollection
 
     @get:OutputDirectory abstract val outputDir: DirectoryProperty
@@ -56,24 +56,24 @@ abstract class CopyBenchmarkFiles : DefaultTask() {
         output.mkdirs()
         files.forEach { file ->
             check(file.exists()) {
-                "$file missing, export it with benchmark/export_geco2.py"
+                "$file missing, export the model with model/export.py"
             }
             file.copyTo(output.resolve(file.name))
         }
     }
 }
 
-val benchmarkData = rootDir.resolve("../benchmark/data")
+val modelData = rootDir.resolve("../model/data")
 val copyModel by
-    tasks.registering(CopyBenchmarkFiles::class) {
-        files.from(benchmarkData.resolve(modelAsset))
+    tasks.registering(CopyModelFiles::class) {
+        files.from(modelData.resolve(modelAsset))
     }
 // FSC-147 test images the benchmark also counts, for comparing app and benchmark results.
 val copySample by
-    tasks.registering(CopyBenchmarkFiles::class) {
+    tasks.registering(CopyModelFiles::class) {
         files.from(
-            benchmarkData.resolve("images/2147.jpg"),
-            benchmarkData.resolve("images/5574.jpg"),
+            modelData.resolve("images/2147.jpg"),
+            modelData.resolve("images/5574.jpg"),
         )
     }
 
@@ -81,12 +81,12 @@ androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(
             copyModel,
-            CopyBenchmarkFiles::outputDir,
+            CopyModelFiles::outputDir,
         )
         variant.androidTest
             ?.sources
             ?.assets
-            ?.addGeneratedSourceDirectory(copySample, CopyBenchmarkFiles::outputDir)
+            ?.addGeneratedSourceDirectory(copySample, CopyModelFiles::outputDir)
     }
 }
 

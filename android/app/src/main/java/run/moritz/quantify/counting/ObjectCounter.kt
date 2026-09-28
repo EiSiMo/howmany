@@ -23,8 +23,8 @@ private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
 class CountResult(val detections: List<Detection>, val heatmap: Heatmap)
 
 /**
- * Finds every object in an image that looks like the given exemplars, with GeCo2 (the benchmark's
- * prototype 4) running on the CPU.
+ * Finds every object in an image that looks like the given exemplars, with GeCo2 running on the
+ * CPU. Mirrors the Python reference counter in model/counter.py.
  */
 class ObjectCounter private constructor(model: File) : AutoCloseable {
     private val environment = OrtEnvironment.getEnvironment()

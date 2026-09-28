@@ -1,0 +1,101 @@
+image,category,true_count,predicted_count,error,seconds
+6242.jpg,apples,73,88,15,5.8337
+6735.jpg,markers,73,18,-55,6.1093
+2147.jpg,apples,37,34,-3,1.3453
+4920.jpg,strawberries,20,32,12,1.4231
+7339.jpg,markers,104,106,2,3.4816
+7131.jpg,keyboard keys,123,131,8,3.2942
+6283.jpg,apples,21,19,-2,1.5053
+5458.jpg,green peas,25,20,-5,2.6593
+7095.jpg,sauce bottles,50,39,-11,1.4420
+5848.jpg,strawberries,21,18,-3,1.4630
+4290.jpg,green peas,25,24,-1,5.4885
+7263.jpg,stamps,43,43,0,3.3352
+319.jpg,strawberries,12,11,-1,1.7367
+4969.jpg,tree logs,109,105,-4,5.2816
+320.jpg,strawberries,16,15,-1,1.4538
+2615.jpg,deers,9,7,-2,1.7455
+4900.jpg,strawberries,14,13,-1,1.2552
+7488.jpg,carrom board pieces,19,18,-1,2.9085
+3276.jpg,finger foods,18,17,-1,1.4502
+5511.jpg,green peas,18,18,0,4.4159
+290.jpg,strawberries,13,13,0,1.4256
+2241.jpg,apples,25,24,-1,1.4486
+5791.jpg,cashew nuts,35,42,7,1.4611
+7067.jpg,sticky notes,53,47,-6,2.9007
+7645.jpg,sauce bottles,14,16,2,1.2561
+2910.jpg,stamps,14,14,0,1.3857
+5839.jpg,strawberries,45,46,1,1.5276
+6839.jpg,watches,58,70,12,3.4587
+5572.jpg,marbles,9,9,0,1.6078
+4085.jpg,marbles,86,89,3,4.6045
+7598.jpg,sheep,31,31,0,4.1790
+6892.jpg,stamps,54,54,0,1.7483
+7412.jpg,sheep,36,31,-5,5.1044
+4923.jpg,strawberries,31,32,1,2.5393
+2209.jpg,apples,11,11,0,1.8884
+7581.jpg,comic books,30,30,0,2.2179
+2.jpg,sea shells,8,8,0,2.3185
+2612.jpg,deers,28,16,-12,4.3495
+6270.jpg,apples,92,91,-1,3.8081
+1061.jpg,sheep,22,19,-3,1.7384
+7173.jpg,eggs,48,48,0,2.8331
+5797.jpg,cashew nuts,58,69,11,2.8747
+4885.jpg,strawberries,11,13,2,2.2199
+5593.jpg,marbles,23,23,0,1.8548
+2210.jpg,apples,41,40,-1,1.7521
+3694.jpg,candy pieces,34,35,1,1.4707
+7693.jpg,apples,81,72,-9,4.0017
+4298.jpg,green peas,44,54,10,1.4881
+4874.jpg,strawberries,68,70,2,2.2135
+325.jpg,strawberries,33,26,-7,1.5548
+7542.jpg,sauce bottles,43,47,4,2.1456
+6922.jpg,comic books,70,70,0,2.2924
+2286.jpg,apples,14,11,-3,1.5737
+2260.jpg,apples,11,8,-3,2.0208
+5580.jpg,marbles,42,42,0,2.6008
+7284.jpg,sunglasses,40,41,1,1.4512
+7146.jpg,eggs,12,12,0,2.4447
+2928.jpg,stamps,45,26,-19,1.3721
+5387.jpg,finger foods,8,8,0,1.5929
+7592.jpg,keyboard keys,104,104,0,5.0493
+5364.jpg,marbles,23,23,0,2.4116
+298.jpg,strawberries,33,33,0,6.3659
+7573.jpg,carrom board pieces,18,19,1,3.8637
+5796.jpg,cashew nuts,71,68,-3,6.0898
+7529.jpg,keyboard keys,124,121,-3,8.5435
+4083.jpg,marbles,94,72,-22,4.3573
+7567.jpg,sauce bottles,68,73,5,4.4733
+5357.jpg,marbles,12,12,0,7.6633
+6906.jpg,comic books,36,37,1,3.8282
+2287.jpg,apples,195,191,-4,6.6199
+5574.jpg,marbles,90,93,3,8.6810
+910.jpg,comic books,18,18,0,2.4319
+4881.jpg,strawberries,35,36,1,2.7303
+5362.jpg,marbles,18,18,0,6.5678
+3645.jpg,cashew nuts,60,57,-3,2.4591
+3657.jpg,cashew nuts,24,21,-3,1.7195
+3651.jpg,cashew nuts,11,11,0,1.6878
+2047.jpg,sunglasses,30,12,-18,2.5435
+4922.jpg,strawberries,8,8,0,1.8395
+7090.jpg,deers,31,24,-7,2.5193
+2229.jpg,apples,111,53,-58,6.7215
+2282.jpg,apples,47,52,5,4.2811
+309.jpg,strawberries,113,111,-2,3.4068
+3283.jpg,finger foods,37,40,3,4.9481
+2143.jpg,apples,9,9,0,1.8612
+7530.jpg,deers,16,22,6,2.6680
+6255.jpg,apples,49,44,-5,4.1150
+7442.jpg,comic books,120,115,-5,3.3040
+4955.jpg,tree logs,145,136,-9,4.8815
+7417.jpg,stamps,43,48,5,1.7359
+4497.jpg,skis,14,19,5,1.5898
+4283.jpg,green peas,65,72,7,5.5073
+6715.jpg,stamps,36,36,0,1.4197
+996.jpg,watches,18,19,1,1.4958
+4954.jpg,tree logs,29,38,9,1.3924
+6936.jpg,apples,111,106,-5,2.5289
+717.jpg,apples,20,22,2,3.9732
+5846.jpg,strawberries,34,32,-2,1.3240
+2265.jpg,apples,57,56,-1,1.4244
+5591.jpg,marbles,32,32,0,1.6577

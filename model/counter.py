@@ -1,22 +1,14 @@
-"""GeCo2 exported to ONNX, running locally on the CPU with ONNX Runtime as it would on a phone.
+"""Count objects in a photo with GeCo2, as the app does: the Python reference for its counter.
 
-The ONNX model is GeCo2's dense network (see _dense_network in export_geco2.py): it predicts an
-objectness map and box offsets. Picking one box per objectness peak and suppressing duplicates
-happens here in NumPy, as it would in the app. Unlike prototype 3 it skips GeCo2's SAM2 box
-refinement, which only tightens box edges; which objects are found stays the same.
-
-The model is dynamically quantized to int8 weights, the usual first step for phones. Export it
-once (runs on Modal, writes data/geco2-fp32.onnx and data/geco2-int8.onnx):
-
-    uv run modal run export_geco2.py
+The ONNX model is GeCo2's dense network, exported by export.py: it predicts an objectness map and
+box offsets. Picking one box per objectness peak and suppressing duplicates happens here in NumPy,
+as in the app. GeCo2's SAM2 box refinement is left out; it only tightens box edges, which objects
+are found stays the same. The model's weights are dynamically quantized to int8, as in the app.
 """
-
-from __future__ import annotations
 
 from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -24,10 +16,9 @@ import onnxruntime
 from cv2.typing import MatLike
 from numpy.typing import NDArray
 
-if TYPE_CHECKING:
-    from dataset import Box
+from dataset import DATA_DIR, Box
 
-MODEL_PATH = Path(__file__).parent.parent / "data" / "geco2-int8.onnx"
+MODEL_PATH = DATA_DIR / "geco2-int8.onnx"
 # A phone runs inference on its few performance cores; match that instead of using every core.
 THREADS = 4
 # GeCo2 was trained on square images of this many pixels, the scaled image top-left.
@@ -53,7 +44,9 @@ Boxes = NDArray[np.float32]
 @cache
 def _session() -> onnxruntime.InferenceSession:
     if not MODEL_PATH.exists():
-        raise FileNotFoundError(f"{MODEL_PATH} missing, export it with export_geco2.py")
+        raise FileNotFoundError(
+            f"{MODEL_PATH} missing, export it with `uv run modal run export.py`"
+        )
     options = onnxruntime.SessionOptions()
     options.intra_op_num_threads = THREADS
     return onnxruntime.InferenceSession(
@@ -142,5 +135,6 @@ def detect(image_path: Path, exemplars: Sequence[Box]) -> Boxes:
     return detected
 
 
-def quantify(image_path: Path, exemplars: Sequence[Box], text: str) -> int:
+def count(image_path: Path, exemplars: Sequence[Box]) -> int:
+    """The number of objects in the image that look like the exemplars."""
     return len(detect(image_path, exemplars))

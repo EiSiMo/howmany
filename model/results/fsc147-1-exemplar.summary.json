@@ -1,0 +1,10 @@
+{
+  "samples": 100,
+  "mae": 4.59,
+  "rmse": 9.781104232140663,
+  "mean_relative_error": 0.10563655368723386,
+  "exact_rate": 0.27,
+  "within_5_percent_rate": 0.5,
+  "within_10_percent_rate": 0.66,
+  "mean_seconds": 3.010360205329996
+}

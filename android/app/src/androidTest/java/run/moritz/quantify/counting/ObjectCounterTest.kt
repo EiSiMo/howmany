@@ -14,7 +14,7 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ObjectCounterTest {
-    // The benchmark's first exemplar for each image and prototype 4's count with it.
+    // The benchmark's first exemplar for each image and model/counter.py's count with it.
 
     /** Apples scaled down to a 416 x 320 model input: the typical case. */
     @Test
