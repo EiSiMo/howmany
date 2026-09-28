@@ -2,7 +2,10 @@
   "sha256": "add8cc868302ce6a2d6353e24799abe37cffd54d0cd2a209c5633c934c43e209",
   "category": "cars",
   "complete": false,
-  "excluded": false,
-  "exemplars": [],
-  "points": []
+  "excluded": true,
+  "exemplars": [[506.4, 920.1, 549.7, 1009.6], [397.4, 652.2, 448.6, 738.3]],
+  "points": [
+    [528.1, 964.9],
+    [423.0, 695.3]
+  ]
 }

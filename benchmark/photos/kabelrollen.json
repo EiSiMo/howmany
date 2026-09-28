@@ -1,8 +1,16 @@
 {
   "sha256": "71c05882622b789953fbce2aceb045df304cd56862d6eb9abffb4f0c3815ecda",
-  "category": "cable reels",
-  "complete": false,
+  "category": "power strips",
+  "complete": true,
   "excluded": false,
-  "exemplars": [],
-  "points": []
+  "exemplars": [[1251.4, 0.0, 1643.8, 1812.7], [2172.5, 14.7, 2697.1, 1816.8], [3229.7, 0.0, 3994.6, 1776.7]],
+  "points": [
+    [1447.6, 906.4],
+    [2434.8, 915.8],
+    [3612.2, 888.4],
+    [3045.5, 811.6],
+    [1920.2, 787.6],
+    [903.0, 647.4],
+    [338.3, 547.3]
+  ]
 }

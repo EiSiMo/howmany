@@ -1,8 +1,14 @@
 {
   "sha256": "56a6fa758ae0862fe7bfedf17bc8d38cd9753fbf45a442d59f3a3c4cc8a12ec7",
   "category": "drainage pipes",
-  "complete": false,
+  "complete": true,
   "excluded": false,
-  "exemplars": [],
-  "points": []
+  "exemplars": [[947.0, 1368.9, 1392.0, 3013.9], [1317.8, 1255.5, 1845.8, 3184.0], [1937.4, 1334.0, 2936.6, 2987.7]],
+  "points": [
+    [1248.1, 2195.8],
+    [1560.0, 2219.8],
+    [2437.0, 2160.9],
+    [2068.3, 2259.0],
+    [715.7, 2097.6]
+  ]
 }
