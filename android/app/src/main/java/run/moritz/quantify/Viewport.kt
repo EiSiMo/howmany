@@ -8,6 +8,8 @@ import kotlin.math.min
 
 // How far the user can zoom in, relative to the photo fitted into the view.
 private const val MAX_ZOOM = 8f
+// How far a double tap zooms in, relative to the photo fitted into the view.
+private const val DOUBLE_TAP_ZOOM = 3f
 
 /** Room kept free between the photo and each edge of the view, in view pixels. */
 data class Margin(val left: Float, val top: Float, val right: Float, val bottom: Float) {
@@ -38,19 +40,31 @@ private constructor(
     }
 
     /**
+     * Where a double tap at [at] (in view pixels) leads: zoomed in around it, the image point under
+     * it staying there, or back to the whole photo fitted into the view if already zoomed in.
+     */
+    fun doubleTapped(at: Offset): Viewport =
+        if (scale > fitScale) fit(viewSize, imageSize, margin)
+        else transformed(at, DOUBLE_TAP_ZOOM * fitScale / scale, Offset.Zero)
+
+    /**
      * The way from here to the whole photo fitted into the view: this at [fraction] 0, fitted at 1.
      * Every image point moves on a straight line.
      */
-    fun zoomedOut(fraction: Float): Viewport {
-        val fitted = fit(viewSize, imageSize, margin)
-        return Viewport(
+    fun zoomedOut(fraction: Float): Viewport = toward(fit(viewSize, imageSize, margin), fraction)
+
+    /**
+     * The way from here to [target] (of the same photo and view): this at [fraction] 0, [target] at
+     * 1. Every image point moves on a straight line.
+     */
+    fun toward(target: Viewport, fraction: Float) =
+        Viewport(
             viewSize,
             imageSize,
             margin,
-            lerp(scale, fitted.scale, fraction),
-            lerp(offset, fitted.offset, fraction),
+            lerp(scale, target.scale, fraction),
+            lerp(offset, target.offset, fraction),
         )
-    }
 
     fun toView(image: Offset) = image * scale + offset
 
