@@ -38,14 +38,14 @@ Python 3.12+, managed with uv. Everything about the counting model: exporting it
 - `counter.py` counts with the exported model exactly as the app does (`count(image_path, exemplars) -> int`). Keep the two in sync.
 - `benchmark.py` runs the counter on a fixed random sample of 100 FSC-147 test images (`manifest.csv`, images downloaded on demand into `data/`, gitignored, not redistributed), or with `--photos` on our own photos. Exemplars are boxes around instances of the object to count; by default the counter gets one, as the user marks one in the app (`--exemplars 3` for FSC-147's few-shot setting). Results go to `results/<fsc147|photos>-<N>-exemplar.csv` and `.summary.json`, and are committed.
 
-Our own photos are a second benchmark of real phone photos (`photos.py`). Each photo is labelled like FSC-147: a category (English, plural), three exemplar boxes and a point per object, which gives the true count. Labels are `model/photos/<name>.json` (committed); the photos stay local in `model/data/photos/` (originals live in Google Drive). New photos arrive as Google Drive exports `~/Downloads/quantify-training-*.zip`; "new photos in Downloads" means: ingest all of them (idempotent, already ingested photos are skipped by hash), suggest a category for each new photo from its (German) name and content, then show the status. Other photos in `~/Downloads` are unrelated.
+Our own photos are a second benchmark of real phone photos (`photos.py`). Each photo is labelled like FSC-147: a category (English, plural), three exemplar boxes and a point per object, which gives the true count. Labels are `model/photos/<name>.json` (committed); the photos stay local in `model/data/photos/` (originals live in Google Drive). New photos arrive as Google Drive exports `~/Downloads/howmany-training-*.zip`; "new photos in Downloads" means: ingest all of them (idempotent, already ingested photos are skipped by hash), suggest a category for each new photo from its (German) name and content, then show the status. Other photos in `~/Downloads` are unrelated.
 
 Labelling conventions: count the category, not the exemplars' look (a red cap as exemplar means all caps, a green tomato means all tomatoes), as in FSC-147. Exclude a photo only if careful people would disagree on its true count, never because the model struggles with it.
 
 Run from `model/`:
 - Export the model for the app: `uv run modal run export.py`
 - Run the benchmark: `uv run benchmark.py` (`--exemplars 3` for three exemplars, `--photos` for our completely labelled photos)
-- Ingest new photos: `uv run photos.py ingest ~/Downloads/quantify-training-*.zip`
+- Ingest new photos: `uv run photos.py ingest ~/Downloads/howmany-training-*.zip`
 - What is left to label: `uv run photos.py status`
 - Label photos in the browser: `uv run label.py`
 - Rebuild the manifest: `uv run build_manifest.py --size 100 --seed 0 --split test`

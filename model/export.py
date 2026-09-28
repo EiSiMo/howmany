@@ -64,7 +64,7 @@ CONTENT_OFFSET_TOLERANCE = 0.2
 EXPORT_CHECK_SIZES = ((768, 1024), (1024, 448), (224, 1024))
 OUTPUTS = ("objectness", "offsets")
 
-app = modal.App("quantify-export")
+app = modal.App("howmany-export")
 # GeCo2's environment, plus dataset.py, which this module imports.
 container_image = (
     modal.Image.debian_slim(python_version="3.10")

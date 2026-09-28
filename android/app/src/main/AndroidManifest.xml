@@ -9,7 +9,7 @@
     <application
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@style/Theme.Quantify">
+        android:theme="@style/Theme.HowMany">
         <activity
             android:name=".MainActivity"
             android:exported="true"

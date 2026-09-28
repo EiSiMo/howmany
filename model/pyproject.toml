@@ -1,7 +1,7 @@
 [project]
-name = "quantify-model"
+name = "howmany-model"
 version = "0.1.0"
-description = "Export, benchmark and labelled photos for quantify's counting model"
+description = "Export, benchmark and labelled photos for the counting model of how many?"
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.5.3",

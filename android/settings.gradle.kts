@@ -14,6 +14,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "quantify"
+rootProject.name = "howmany"
 
 include(":app")

@@ -7,11 +7,11 @@ plugins {
 val modelAsset = "geco2-int8.onnx"
 
 android {
-    namespace = "run.moritz.quantify"
+    namespace = "run.moritz.howmany"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "run.moritz.quantify"
+        applicationId = "run.moritz.howmany"
         minSdk = 31
         targetSdk = 37
         versionCode = 1

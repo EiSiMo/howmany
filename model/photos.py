@@ -5,7 +5,7 @@ exemplar boxes, and one point per object, which gives the true count. Labels liv
 `photos/<name>.json` and are committed; the photos themselves stay local in `data/photos/`.
 
 Usage:
-    uv run photos.py ingest ~/Downloads/quantify-training-*.zip   # add new photos, idempotent
+    uv run photos.py ingest ~/Downloads/howmany-training-*.zip   # add new photos, idempotent
     uv run photos.py status                                      # what is left to label
 """
 

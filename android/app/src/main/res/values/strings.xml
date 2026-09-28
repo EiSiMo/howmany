@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">Quantify</string>
+    <string name="app_name" translatable="false">how many?</string>
     <string name="empty_title">What do you want to count?</string>
     <string name="empty_text">Take or pick a photo</string>
     <string name="take_photo">Take photo</string>

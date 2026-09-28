@@ -34,8 +34,8 @@ def store(tmp_path: Path) -> PhotoStore:
 def test_ingests_photos_from_zip_with_ascii_names(tmp_path: Path, store: PhotoStore) -> None:
     archive = tmp_path / "export.zip"
     with zipfile.ZipFile(archive, "w") as file:
-        file.write(write_jpeg(tmp_path / "a.jpg", "red"), "quantify-training/Wäscheklammern.jpg")
-        file.write(write_jpeg(tmp_path / "b.jpg", "blue"), "quantify-training/Pflastersteine_.JPG")
+        file.write(write_jpeg(tmp_path / "a.jpg", "red"), "howmany-training/Wäscheklammern.jpg")
+        file.write(write_jpeg(tmp_path / "b.jpg", "blue"), "howmany-training/Pflastersteine_.JPG")
 
     added = store.ingest([archive])
 
