@@ -10,6 +10,7 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.time.measureTimedValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import run.moritz.quantify.counting.Box
+import run.moritz.quantify.counting.CountResult
 import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.ObjectCounter
 import run.moritz.quantify.counting.Point
@@ -30,19 +32,30 @@ private const val MAX_PHOTO_SIZE = 2048
 
 data class CountState(
     val photo: Bitmap? = null,
-    /** The part of the photo to count in; the whole photo unless the user drags its edges. */
+    /**
+     * The part of the photo to count in; the whole photo unless the user drags its edges. Inside
+     * the counted area once counting has started.
+     */
     val crop: Box? = photo?.let { Box(0f, 0f, it.width.toFloat(), it.height.toFloat()) },
+    /**
+     * The part of the photo the model counts in: the crop as counting started; null until then.
+     * There are no points outside it, so the crop can shrink and grow back, but never beyond it.
+     */
+    val countedArea: Box? = null,
     val exemplar: Box? = null,
     /**
-     * One point per counted object, corrected by the user, including points the crop has cut off
-     * since counting; null until counted.
+     * One point per counted object in the counted area, corrected by the user, including points
+     * outside the crop; null until counted.
      */
     val points: List<Point>? = null,
     /** The counted points the model is unsure about, which the user should check. */
     val uncertain: Set<Point> = emptySet(),
     /** Where the model saw objects when counting; null until counted. */
     val heatmap: Heatmap? = null,
-    /** The points the model counted, before any correction; null until counted. */
+    /**
+     * The points the model counted inside the crop as the count arrived, before any correction;
+     * null until counted.
+     */
     val detected: List<Point>? = null,
     val counting: Boolean = false,
     /** What went wrong last, until the user moves on; null if nothing did. */
@@ -67,7 +80,44 @@ data class CountState(
                 exemplar == null -> CountPhase.Marking
                 else -> CountPhase.Ready
             }
+
+    /** Counts only inside [crop] from now on, kept inside the counted area; clears the error. */
+    fun cropped(crop: Box): CountState =
+        if (crop == this.crop) this
+        else copy(crop = countedArea?.let(crop::coercedIn) ?: crop, error = null)
+
+    /** Starts counting in the crop, which becomes the counted area. */
+    fun countingStarted(): CountState = copy(counting = true, countedArea = crop, error = null)
+
+    /** The count has arrived, as [result]; only its points inside the crop count. */
+    fun withCount(result: CountResult): CountState {
+        val points = result.detections.map { it.box.center }
+        return copy(
+            points = points,
+            detected = points.filter { crop == null || it in crop },
+            uncertain = result.detections.filter { it.uncertain }.map { it.box.center }.toSet(),
+            heatmap = result.heatmap,
+            counting = false,
+            error = null,
+        )
+    }
+
+    /** Counting has failed; the crop is free again. */
+    fun countFailed(): CountState =
+        copy(counting = false, countedArea = null, error = CountError.CountFailed)
+
+    /** Forgets the exemplar and the count, keeping the photo and its crop. */
+    fun cleared(): CountState = CountState(photo = photo, crop = crop)
 }
+
+/** This box cut to [limit]. */
+private fun Box.coercedIn(limit: Box) =
+    Box(
+        max(left, limit.left),
+        max(top, limit.top),
+        min(right, limit.right),
+        min(bottom, limit.bottom),
+    )
 
 enum class CountPhase {
     /** No photo yet. */
@@ -142,15 +192,16 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    /** Counts only inside [crop] from now on; after counting, this corrects the count. */
-    fun adjustCrop(crop: Box) = _state.update { state ->
-        if (state.counting || state.crop == crop) state else state.copy(crop = crop, error = null)
-    }
+    /**
+     * Counts only inside [crop] from now on, within the counted area once counting has started;
+     * after counting, this corrects the count.
+     */
+    fun adjustCrop(crop: Box) = _state.update { it.cropped(crop) }
 
-    /** Forgets the exemplar and the count, keeping the photo and its crop. */
+    /** Forgets the exemplar, the count and the counted area, keeping the photo and its crop. */
     fun clear() {
         countJob?.cancel()
-        _state.update { CountState(photo = it.photo, crop = it.crop) }
+        _state.update { it.cleared() }
     }
 
     fun count() {
@@ -158,7 +209,7 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
         val exemplar = _state.value.exemplar ?: return
         val crop = _state.value.crop ?: return
         if (_state.value.counting) return
-        _state.update { it.copy(counting = true, error = null) }
+        _state.update { it.countingStarted() }
         val cancelled = countJob
         countJob = viewModelScope.launch {
             // A cancelled count still occupies the model until it returns; don't run two at once.
@@ -176,26 +227,11 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
                     throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "Cannot count in $crop like $exemplar", e)
-                    _state.update { it.copy(counting = false, error = CountError.CountFailed) }
+                    _state.update { it.countFailed() }
                     return@launch
                 }
-            val detections = result.detections
-            Log.i(TAG, "${detections.size} objects in $duration")
-            val points = detections.map { detection -> detection.box.center }
-            _state.update {
-                it.copy(
-                    points = points,
-                    detected = points,
-                    uncertain =
-                        detections
-                            .filter { detection -> detection.uncertain }
-                            .map { detection -> detection.box.center }
-                            .toSet(),
-                    heatmap = result.heatmap,
-                    counting = false,
-                    error = null,
-                )
-            }
+            Log.i(TAG, "${result.detections.size} objects in $duration")
+            _state.update { it.withCount(result) }
         }
     }
 
