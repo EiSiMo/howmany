@@ -1,7 +1,9 @@
 package run.moritz.quantify
 
+import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.os.Build
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -25,10 +27,14 @@ import androidx.compose.ui.unit.Density
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import kotlin.time.measureTimedValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import run.moritz.quantify.counting.Box
 import run.moritz.quantify.counting.Heatmap
 import run.moritz.quantify.counting.Point
 
+private const val TAG = "CountingAnimation"
 // While counting, the photo shimmers like Google Photos analysing it: it wobbles slightly, except
 // for the exemplar, and a soft ring of light spreads from the exemplar across the crop every
 // SCAN_PERIOD, lighting up the contours it passes. The crop dims over DIM_FADE.
@@ -79,6 +85,8 @@ class CountingAnimation {
     // Filled anew every frame of the reveal.
     private var dim = IntArray(0)
     private var glow = IntArray(0)
+    // Where the photo's contours glow while it is scanned; measured as counting starts.
+    private var contours by mutableStateOf(ContourThresholds.Default)
     // Created on first use, only where the device can run shaders.
     private var shimmer: ShimmerShader? = null
     private var distortion: DistortionShader? = null
@@ -172,6 +180,7 @@ class CountingAnimation {
                 seconds,
                 SCAN_PERIOD,
                 fadeIn(seconds),
+                contours,
                 density,
             )
         }
@@ -197,6 +206,19 @@ class CountingAnimation {
         this.wave = wave
         arrivals = wave?.arrivals()
         arrivalShader = null
+    }
+
+    /**
+     * Lets the contours of [photo] inside [crop] glow equally at any contrast while it is scanned,
+     * shown at [dpPerPixel]; called as counting starts, and kept while it runs.
+     */
+    internal suspend fun measureContours(photo: Bitmap, crop: Box, dpPerPixel: Float) {
+        val (measured, duration) =
+            withContext(Dispatchers.Default) {
+                measureTimedValue { photo.contourThresholds(crop, dpPerPixel) }
+            }
+        Log.d(TAG, "Contours glow from $measured, measured in $duration")
+        contours = measured
     }
 
     /** Scans until cancelled, calling [onSweep] as each sweep sets off. */
