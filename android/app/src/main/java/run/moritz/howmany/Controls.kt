@@ -19,6 +19,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -62,7 +63,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -113,7 +114,7 @@ private fun Modifier.floating(shape: Shape = CircleShape) =
  * The hint at what to do next, or at what went wrong, above the shutter to count, which turns into
  * the count once there is one. On its left are the buttons to export the count and to start over
  * with the photo, on its right those to pick or take another photo. The count shows [revealed] as
- * it rises towards [count], which a tap copies.
+ * it rises towards [count], which a long press copies.
  */
 @Composable
 fun Controls(
@@ -343,8 +344,8 @@ private fun pressedScale(interaction: InteractionSource): State<Float> {
 
 /**
  * The number of counted objects, large and crisp, in the shutter's place and height; read out as
- * that many objects. It shows [revealed] as the count rises, and a tap copies the whole [count] as
- * plain digits, which paste cleanly into spreadsheets.
+ * that many objects. It shows [revealed] as the count rises, and a long press copies the whole
+ * [count] as plain digits, which paste cleanly into spreadsheets.
  */
 @Composable
 fun CountChip(revealed: Int, count: Int, modifier: Modifier = Modifier) {
@@ -377,11 +378,17 @@ fun CountChip(revealed: Int, count: Int, modifier: Modifier = Modifier) {
                 scaleY = scale
             }
             .floating()
-            .clickable(interactionSource = interaction, indication = null, onClick = copy)
+            // A long press gives haptic feedback on its own.
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onLongClick = copy,
+                onClick = {},
+            )
             .clearAndSetSemantics {
                 contentDescription = description
                 role = Role.Button
-                onClick(copyLabel) {
+                onLongClick(copyLabel) {
                     copy()
                     true
                 }
