@@ -109,8 +109,8 @@ fun CountScreen(viewModel: CountViewModel) {
         )
         Controls(
             state = state,
-            counted = points != null,
-            count = { revealed },
+            count = points?.size,
+            revealed = { revealed },
             onPickPhoto = pickPhoto,
             onCount = viewModel::count,
             onClear = {
