@@ -27,7 +27,7 @@ Run from `android/` (JDK 21, Android SDK in `local.properties`, phone with USB d
 - Build and install: `./gradlew installDebug`
 - Build and install the release build (signed with the debug key, for judging performance): `./gradlew installRelease`
 - Unit tests: `./gradlew testDebugUnitTest`
-- Device tests (count a benchmark image on the phone, log timings; `adb logcat -s ObjectCounterTest`): `./gradlew connectedDebugAndroidTest`
+- Device tests (count a benchmark image on the phone and log timings, check the app stays offline; `adb logcat -s ObjectCounterTest`): `./gradlew connectedDebugAndroidTest`
 - Lint: `./gradlew lintDebug`
 - Format: `./gradlew spotlessApply`
 
