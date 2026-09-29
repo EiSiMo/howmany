@@ -25,11 +25,16 @@ private val TITLE_PADDING = 32.dp
 
 /**
  * Where the photo will be, before there is one: the crop's frame inside [margin], filled with a
- * surface that sets it off from the background, and the question what to count. A tap on it calls
- * [onPickPhoto].
+ * surface that sets it off from the background, and the question what to count, unless a photo is
+ * [loading] already. A tap on it calls [onPickPhoto].
  */
 @Composable
-fun EmptyFrame(margin: Margin, onPickPhoto: () -> Unit, modifier: Modifier = Modifier) {
+fun EmptyFrame(
+    margin: Margin,
+    loading: Boolean,
+    onPickPhoto: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val fill = MaterialTheme.colorScheme.surfaceContainer
     val density = LocalDensity.current
     // No ripple: it would flood the whole screen.
@@ -53,22 +58,23 @@ fun EmptyFrame(margin: Margin, onPickPhoto: () -> Unit, modifier: Modifier = Mod
             drawRect(fill, frame.topLeft, frame.size)
             drawCropHandles(frame, FRAME_COLOR)
         }
-        Text(
-            stringResource(R.string.empty_title),
-            style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
-            textAlign = TextAlign.Center,
-            modifier =
-                with(density) {
-                        Modifier.padding(
-                            start = margin.left.toDp(),
-                            top = margin.top.toDp(),
-                            end = margin.right.toDp(),
-                            bottom = margin.bottom.toDp(),
-                        )
-                    }
-                    .padding(horizontal = TITLE_PADDING)
-                    .align(Alignment.Center),
-        )
+        if (!loading)
+            Text(
+                stringResource(R.string.empty_title),
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier =
+                    with(density) {
+                            Modifier.padding(
+                                start = margin.left.toDp(),
+                                top = margin.top.toDp(),
+                                end = margin.right.toDp(),
+                                bottom = margin.bottom.toDp(),
+                            )
+                        }
+                        .padding(horizontal = TITLE_PADDING)
+                        .align(Alignment.Center),
+            )
     }
 }

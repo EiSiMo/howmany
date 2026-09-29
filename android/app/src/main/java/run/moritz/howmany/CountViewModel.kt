@@ -53,6 +53,8 @@ data class CountState(
     /** Where the model saw objects when counting; null until counted. */
     val heatmap: Heatmap? = null,
     val counting: Boolean = false,
+    /** Whether a picked or taken photo is being read, so the empty frame need not ask for one. */
+    val loadingPhoto: Boolean = false,
     /** What went wrong last, until the user moves on; null if nothing did. */
     val error: CountError? = null,
 ) {
@@ -163,6 +165,7 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
     /** Starts over with the photo at [uri], unless it cannot be read; replaces an earlier pick. */
     fun pickPhoto(uri: Uri) {
         photoJob?.cancel()
+        _state.update { it.copy(loadingPhoto = true) }
         photoJob = viewModelScope.launch {
             val photo =
                 try {
@@ -171,7 +174,9 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
                     throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "Cannot read photo $uri", e)
-                    _state.update { it.copy(error = CountError.PhotoUnreadable) }
+                    _state.update {
+                        it.copy(loadingPhoto = false, error = CountError.PhotoUnreadable)
+                    }
                     return@launch
                 }
             countJob?.cancel()
