@@ -98,15 +98,18 @@ no photo ever leaves the device.
 
 ## Install
 
-<p align="center">
-  <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80" alt="Get it on Google Play">
-  <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" height="80" alt="Get it on F-Droid">
-  <a href="https://github.com/EiSiMo/howmany/releases/latest/download/howmany.apk"><img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png" height="80" alt="Get it on GitHub"></a>
-  <br>
-  <sub>Coming soon to Google Play and F-Droid.</sub>
-</p>
-
-Until then, download the APK from GitHub or [build it yourself](#building).
+<table align="center">
+  <tr>
+    <td align="center"><a href="https://github.com/EiSiMo/howmany/releases/latest/download/howmany.apk"><img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png" height="80" alt="Get it on GitHub"></a></td>
+    <td align="center"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" height="80" alt="Get it on F-Droid"></td>
+    <td align="center"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80" alt="Get it on Google Play"></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td align="center"><sub>Coming soon</sub></td>
+    <td align="center"><sub>Coming soon</sub></td>
+  </tr>
+</table>
 
 ## Usage
 
