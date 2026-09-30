@@ -84,7 +84,7 @@
 A stack of pipes, a crowd of people, a tray of pills: take a photo, draw a box around
 one of the things you want to count, and how many? finds and marks every object that
 looks like it. Everything runs on your phone. The app has no internet permission, so
-no photo ever leaves the device.
+no photo ever leaves the device. [Watch the full demo on YouTube](https://youtu.be/FFGIizGc3XY).
 
 <p align="center">
   <a href="#install">Install</a> ·
