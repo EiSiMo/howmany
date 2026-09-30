@@ -54,4 +54,15 @@
     </plurals>
     <string name="footer">how many? is free software under the MIT license.</string>
     <string name="error_no_app">No app found to open this</string>
+    <string name="crash_title">The app closed unexpectedly</string>
+    <string name="crash_text">Help us fix it by sending a report by mail? It holds technical details and the app’s log, no photos.</string>
+    <string name="send_report">Send report</string>
+    <string name="not_now">Not now</string>
+    <string name="share_diagnostics">Share diagnostics</string>
+    <string name="share_diagnostics_text">Send us the app’s log by mail, no photos</string>
+    <string name="report_text">What did you do when the problem happened?\n\n</string>
+    <string name="error_no_mail_app">No mail app found</string>
+    <string name="error_report_failed">Couldn’t create the report</string>
+    <!-- The subject of reports mailed to us; %s is the app version. -->
+    <string name="report_subject" translatable="false">how many? %s report</string>
 </resources>

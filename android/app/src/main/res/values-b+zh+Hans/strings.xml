@@ -50,4 +50,13 @@
     </plurals>
     <string name="footer">how many? 是采用 MIT 许可的自由软件。</string>
     <string name="error_no_app">未找到可打开的应用</string>
+    <string name="crash_title">应用意外关闭</string>
+    <string name="crash_text">通过邮件发送报告，帮助我们修复问题？报告包含技术细节和应用日志，不含照片。</string>
+    <string name="send_report">发送报告</string>
+    <string name="not_now">以后再说</string>
+    <string name="share_diagnostics">分享诊断信息</string>
+    <string name="share_diagnostics_text">通过邮件向我们发送应用日志，不含照片</string>
+    <string name="report_text">问题发生时你在做什么？\n\n</string>
+    <string name="error_no_mail_app">未找到邮件应用</string>
+    <string name="error_report_failed">无法创建报告</string>
 </resources>

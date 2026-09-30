@@ -22,7 +22,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableDarkEdgeToEdge()
         setContent {
-            HowManyTheme { CountScreen(viewModel) }
+            HowManyTheme {
+                CountScreen(viewModel)
+                CrashPrompt()
+            }
         }
         // On recreation, the intent is the one already opened.
         if (savedInstanceState == null) open(intent)
@@ -51,7 +54,10 @@ class MainActivity : ComponentActivity() {
                 intent.data,
             )
         // The intent grants reading the image while this activity lives, long enough to decode it.
-        if (image != null) viewModel.pickPhoto(image)
+        if (image != null) {
+            Log.i(TAG, "Opening the image of ${intent.action}")
+            viewModel.pickPhoto(image)
+        }
     }
 
     private fun save() {

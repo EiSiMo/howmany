@@ -56,4 +56,13 @@
     </plurals>
     <string name="footer">how many? — свободное ПО под лицензией MIT.</string>
     <string name="error_no_app">Не найдено приложение, чтобы открыть это</string>
+    <string name="crash_title">Приложение неожиданно закрылось</string>
+    <string name="crash_text">Поможешь исправить это, отправив отчёт по почте? В нём технические данные и журнал приложения, без фотографий.</string>
+    <string name="send_report">Отправить отчёт</string>
+    <string name="not_now">Не сейчас</string>
+    <string name="share_diagnostics">Поделиться диагностикой</string>
+    <string name="share_diagnostics_text">Отправь нам журнал приложения по почте, без фотографий</string>
+    <string name="report_text">Что происходило, когда возникла проблема?\n\n</string>
+    <string name="error_no_mail_app">Не найдено почтовое приложение</string>
+    <string name="error_report_failed">Не удалось создать отчёт</string>
 </resources>

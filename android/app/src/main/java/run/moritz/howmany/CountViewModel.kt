@@ -155,7 +155,14 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
     // and loading it, seconds on a phone) in the background right away, while the user picks a
     // photo and marks an exemplar. It holds only the model weights until the first count.
     private val objectCounter = Preloaded {
-        val (counter, duration) = measureTimedValue { ObjectCounter.fromAssets(application) }
+        val (counter, duration) =
+            try {
+                measureTimedValue { ObjectCounter.fromAssets(application) }
+            } catch (e: Exception) {
+                // Surfaces only once the user counts, which may be never.
+                Log.e(TAG, "Cannot prepare the counter", e)
+                throw e
+            }
         Log.i(TAG, "Counter ready in $duration")
         counter
     }

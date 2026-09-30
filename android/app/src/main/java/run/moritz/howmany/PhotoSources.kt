@@ -33,9 +33,14 @@ fun rememberPhotoSources(onPhoto: (Uri) -> Unit, onNoCamera: () -> Unit): PhotoS
     val noCamera by rememberUpdatedState(onNoCamera)
     val camera =
         rememberLauncherForActivityResult(TakePicture()) { taken ->
+            Log.i(TAG, if (taken) "Took a photo" else "Took no photo")
             if (taken) photo(takenPhoto(context))
         }
-    val picker = rememberLauncherForActivityResult(PickVisualMedia()) { uri -> uri?.let(photo) }
+    val picker =
+        rememberLauncherForActivityResult(PickVisualMedia()) { uri ->
+            Log.i(TAG, if (uri != null) "Picked a photo" else "Picked no photo")
+            uri?.let(photo)
+        }
     return remember(context) {
         PhotoSources(
             takePhoto = {

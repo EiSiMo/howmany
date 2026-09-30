@@ -54,4 +54,13 @@
     </plurals>
     <string name="footer">how many? est un logiciel libre sous licence MIT.</string>
     <string name="error_no_app">Aucune appli trouvée pour ouvrir ceci</string>
+    <string name="crash_title">L’appli s’est fermée de façon inattendue</string>
+    <string name="crash_text">Aide-nous à corriger ça en envoyant un rapport par e-mail&#160;? Il contient des détails techniques et le journal de l’appli, aucune photo.</string>
+    <string name="send_report">Envoyer le rapport</string>
+    <string name="not_now">Plus tard</string>
+    <string name="share_diagnostics">Partager le diagnostic</string>
+    <string name="share_diagnostics_text">Envoie-nous le journal de l’appli par e-mail, sans photos</string>
+    <string name="report_text">Que faisais-tu quand le problème est survenu&#160;?\n\n</string>
+    <string name="error_no_mail_app">Aucune appli de messagerie trouvée</string>
+    <string name="error_report_failed">Impossible de créer le rapport</string>
 </resources>

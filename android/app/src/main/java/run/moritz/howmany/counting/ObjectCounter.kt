@@ -87,6 +87,8 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
     private fun detectInWhole(image: Bitmap, exemplars: List<Box>): CountResult {
         val scale = inputScale(image.width, image.height, exemplars)
         val input = inputSize(image.width, image.height, scale)
+        // Memory and time grow with the input size, so it tells why counting fails or is slow.
+        Log.i(TAG, "Model sees ${image.width}x${image.height} at ${input.width}x${input.height}")
         val pixels = pixels(image, scale, input)
         val boxes =
             exemplars.flatMap { listOf(it.left, it.top, it.right, it.bottom) }.map { it * scale }

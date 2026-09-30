@@ -47,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,11 +70,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.mikepenz.aboutlibraries.entity.Library
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val TAG = "AboutActivity"
 private const val REPOSITORY = "https://github.com/EiSiMo/howmany"
-private const val CONTACT = "dev@moritz.run"
 
 // The page is a column of grouped rows, like the system's settings: each group's outer corners
 // are round, the corners between its rows only slightly.
@@ -143,6 +144,7 @@ class AboutActivity : ComponentActivity() {
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val libraries by
         produceState<List<Library>?>(null) {
             value = withContext(Dispatchers.IO) { openSourceLibraries(context) }
@@ -194,7 +196,7 @@ fun AboutScreen(onBack: () -> Unit) {
             item {
                 ListRow(
                     stringResource(R.string.source_code),
-                    groupShape(0, 3),
+                    groupShape(0, 4),
                     text = stringResource(R.string.source_code_text),
                     leading = { IconBadge(painterResource(R.drawable.ic_source_code)) },
                     trailing = painterResource(R.drawable.ic_open_link),
@@ -204,7 +206,7 @@ fun AboutScreen(onBack: () -> Unit) {
             item {
                 ListRow(
                     stringResource(R.string.report_problem),
-                    groupShape(1, 3),
+                    groupShape(1, 4),
                     text = stringResource(R.string.report_problem_text),
                     leading = { IconBadge(painterResource(R.drawable.ic_report_problem)) },
                     trailing = painterResource(R.drawable.ic_open_link),
@@ -213,8 +215,18 @@ fun AboutScreen(onBack: () -> Unit) {
             }
             item {
                 ListRow(
+                    stringResource(R.string.share_diagnostics),
+                    groupShape(2, 4),
+                    text = stringResource(R.string.share_diagnostics_text),
+                    leading = { IconBadge(painterResource(R.drawable.ic_diagnostics)) },
+                    trailing = painterResource(R.drawable.ic_open_link),
+                    onClick = { scope.launch { Diagnostics.send(context) } },
+                )
+            }
+            item {
+                ListRow(
                     stringResource(R.string.contact),
-                    groupShape(2, 3),
+                    groupShape(3, 4),
                     text = CONTACT,
                     leading = { IconBadge(painterResource(R.drawable.ic_mail)) },
                     trailing = painterResource(R.drawable.ic_open_link),

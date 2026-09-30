@@ -54,4 +54,13 @@
     </plurals>
     <string name="footer">how many? é software livre sob a licença MIT.</string>
     <string name="error_no_app">Nenhum app encontrado para abrir isto</string>
+    <string name="crash_title">O app fechou inesperadamente</string>
+    <string name="crash_text">Ajude a corrigir isso enviando um relatório por e-mail? Ele contém detalhes técnicos e o registro do app, sem fotos.</string>
+    <string name="send_report">Enviar relatório</string>
+    <string name="not_now">Agora não</string>
+    <string name="share_diagnostics">Compartilhar diagnóstico</string>
+    <string name="share_diagnostics_text">Envie o registro do app por e-mail, sem fotos</string>
+    <string name="report_text">O que você estava fazendo quando o problema aconteceu?\n\n</string>
+    <string name="error_no_mail_app">Nenhum app de e-mail encontrado</string>
+    <string name="error_report_failed">Não foi possível criar o relatório</string>
 </resources>
