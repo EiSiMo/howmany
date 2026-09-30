@@ -21,7 +21,7 @@
 | <img src="assets/screenshots/lemons/take.jpg" alt="A photo of crates of lemons"> | <img src="assets/screenshots/lemons/mark.jpg" alt="A box drawn around one lemon"> | <img src="assets/screenshots/lemons/count.jpg" alt="278 lemons counted"> | <img src="assets/screenshots/lemons/detail.jpg" alt="Zoomed in on the marked lemons"> |
 
 <details>
-<summary>More examples</summary>
+<summary><img src="assets/more-examples.png" width="100%" alt="Show 9 more examples"></summary>
 <br>
 <table>
   <tr>
@@ -140,9 +140,12 @@ benchmark: `uv run benchmark.py`. See [`AGENTS.md`](AGENTS.md) for all commands.
 
 ## Contributing
 
-Contributions are welcome, from bug reports and feature requests to pull requests.
-Photos where how many? counts badly are especially helpful: [open an issue](https://github.com/EiSiMo/howmany/issues)
-and describe what you tried to count.
+Contributions are welcome, from bug reports and feature requests to pull requests:
+[open an issue](https://github.com/EiSiMo/howmany/issues).
+
+how many? counts with [GeCo2](https://github.com/jerpelhan/GECO2) as it is; we don't train
+our own model. So when the app miscounts a photo, that is usually the model's limit, and
+the way it gets better is a better model. When one comes out, we'll bring it into the app.
 
 ## Acknowledgements
 
