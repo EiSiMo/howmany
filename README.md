@@ -18,65 +18,65 @@
 
 | Take a Photo | Mark one Object | Get the Count | Verify Results |
 |:---:|:---:|:---:|:---:|
-| <img src="assets/screenshots/lemons/take.jpg" alt="A photo of crates of lemons"> | <img src="assets/screenshots/lemons/mark.jpg" alt="A box drawn around one lemon"> | <img src="assets/screenshots/lemons/count.jpg" alt="278 lemons counted"> | <img src="assets/screenshots/lemons/detail.jpg" alt="Zoomed in on the marked lemons"> |
+| <img src="assets/screenshots/lemons/take.jpg" width="180" alt="A photo of crates of lemons"> | <img src="assets/screenshots/lemons/mark.jpg" width="180" alt="A box drawn around one lemon"> | <img src="assets/screenshots/lemons/count.jpg" width="180" alt="278 lemons counted"> | <img src="assets/screenshots/lemons/detail.jpg" width="180" alt="Zoomed in on the marked lemons"> |
 
 <details>
 <summary><picture><img src="assets/more-examples.png" width="100%" alt="Show 9 more examples"></picture></summary>
 <br>
 <table>
   <tr>
-    <td><img src="assets/screenshots/coins/take.jpg" alt="A photo of coins"></td>
-    <td><img src="assets/screenshots/coins/mark.jpg" alt="A box drawn around one of the coins"></td>
-    <td><img src="assets/screenshots/coins/count.jpg" alt="124 coins counted"></td>
-    <td><img src="assets/screenshots/coins/detail.jpg" alt="Zoomed in on the marked coins"></td>
+    <td><img src="assets/screenshots/coins/take.jpg" width="180" alt="A photo of coins"></td>
+    <td><img src="assets/screenshots/coins/mark.jpg" width="180" alt="A box drawn around one of the coins"></td>
+    <td><img src="assets/screenshots/coins/count.jpg" width="180" alt="124 coins counted"></td>
+    <td><img src="assets/screenshots/coins/detail.jpg" width="180" alt="Zoomed in on the marked coins"></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshots/tower/take.jpg" alt="A photo of windows"></td>
-    <td><img src="assets/screenshots/tower/mark.jpg" alt="A box drawn around one of the windows"></td>
-    <td><img src="assets/screenshots/tower/count.jpg" alt="1,024 windows counted"></td>
-    <td><img src="assets/screenshots/tower/detail.jpg" alt="Zoomed in on the marked windows"></td>
+    <td><img src="assets/screenshots/tower/take.jpg" width="180" alt="A photo of windows"></td>
+    <td><img src="assets/screenshots/tower/mark.jpg" width="180" alt="A box drawn around one of the windows"></td>
+    <td><img src="assets/screenshots/tower/count.jpg" width="180" alt="1,024 windows counted"></td>
+    <td><img src="assets/screenshots/tower/detail.jpg" width="180" alt="Zoomed in on the marked windows"></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshots/birds/take.jpg" alt="A photo of birds"></td>
-    <td><img src="assets/screenshots/birds/mark.jpg" alt="A box drawn around one of the birds"></td>
-    <td><img src="assets/screenshots/birds/count.jpg" alt="18 birds counted"></td>
-    <td><img src="assets/screenshots/birds/detail.jpg" alt="Zoomed in on the marked birds"></td>
+    <td><img src="assets/screenshots/birds/take.jpg" width="180" alt="A photo of birds"></td>
+    <td><img src="assets/screenshots/birds/mark.jpg" width="180" alt="A box drawn around one of the birds"></td>
+    <td><img src="assets/screenshots/birds/count.jpg" width="180" alt="18 birds counted"></td>
+    <td><img src="assets/screenshots/birds/detail.jpg" width="180" alt="Zoomed in on the marked birds"></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshots/nuts/take.jpg" alt="A photo of nuts"></td>
-    <td><img src="assets/screenshots/nuts/mark.jpg" alt="A box drawn around one of the nuts"></td>
-    <td><img src="assets/screenshots/nuts/count.jpg" alt="28 nuts counted"></td>
-    <td><img src="assets/screenshots/nuts/detail.jpg" alt="Zoomed in on the marked nuts"></td>
+    <td><img src="assets/screenshots/nuts/take.jpg" width="180" alt="A photo of nuts"></td>
+    <td><img src="assets/screenshots/nuts/mark.jpg" width="180" alt="A box drawn around one of the nuts"></td>
+    <td><img src="assets/screenshots/nuts/count.jpg" width="180" alt="28 nuts counted"></td>
+    <td><img src="assets/screenshots/nuts/detail.jpg" width="180" alt="Zoomed in on the marked nuts"></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshots/dvds/take.jpg" alt="A photo of DVDs"></td>
-    <td><img src="assets/screenshots/dvds/mark.jpg" alt="A box drawn around one of the DVDs"></td>
-    <td><img src="assets/screenshots/dvds/count.jpg" alt="236 DVDs counted"></td>
-    <td><img src="assets/screenshots/dvds/detail.jpg" alt="Zoomed in on the marked DVDs"></td>
+    <td><img src="assets/screenshots/dvds/take.jpg" width="180" alt="A photo of DVDs"></td>
+    <td><img src="assets/screenshots/dvds/mark.jpg" width="180" alt="A box drawn around one of the DVDs"></td>
+    <td><img src="assets/screenshots/dvds/count.jpg" width="180" alt="236 DVDs counted"></td>
+    <td><img src="assets/screenshots/dvds/detail.jpg" width="180" alt="Zoomed in on the marked DVDs"></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshots/sidewalk/take.jpg" alt="A photo of paving stones"></td>
-    <td><img src="assets/screenshots/sidewalk/mark.jpg" alt="A box drawn around one of the paving stones"></td>
-    <td><img src="assets/screenshots/sidewalk/count.jpg" alt="686 paving stones counted"></td>
-    <td><img src="assets/screenshots/sidewalk/detail.jpg" alt="Zoomed in on the marked paving stones"></td>
+    <td><img src="assets/screenshots/sidewalk/take.jpg" width="180" alt="A photo of paving stones"></td>
+    <td><img src="assets/screenshots/sidewalk/mark.jpg" width="180" alt="A box drawn around one of the paving stones"></td>
+    <td><img src="assets/screenshots/sidewalk/count.jpg" width="180" alt="686 paving stones counted"></td>
+    <td><img src="assets/screenshots/sidewalk/detail.jpg" width="180" alt="Zoomed in on the marked paving stones"></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshots/planks/take.jpg" alt="A photo of boxes of flooring"></td>
-    <td><img src="assets/screenshots/planks/mark.jpg" alt="A box drawn around one of the boxes of flooring"></td>
-    <td><img src="assets/screenshots/planks/count.jpg" alt="68 boxes of flooring counted"></td>
-    <td><img src="assets/screenshots/planks/detail.jpg" alt="Zoomed in on the marked boxes of flooring"></td>
+    <td><img src="assets/screenshots/planks/take.jpg" width="180" alt="A photo of boxes of flooring"></td>
+    <td><img src="assets/screenshots/planks/mark.jpg" width="180" alt="A box drawn around one of the boxes of flooring"></td>
+    <td><img src="assets/screenshots/planks/count.jpg" width="180" alt="68 boxes of flooring counted"></td>
+    <td><img src="assets/screenshots/planks/detail.jpg" width="180" alt="Zoomed in on the marked boxes of flooring"></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshots/jellyfish/take.jpg" alt="A photo of jellyfish"></td>
-    <td><img src="assets/screenshots/jellyfish/mark.jpg" alt="A box drawn around one of the jellyfish"></td>
-    <td><img src="assets/screenshots/jellyfish/count.jpg" alt="36 jellyfish counted"></td>
-    <td><img src="assets/screenshots/jellyfish/detail.jpg" alt="Zoomed in on the marked jellyfish"></td>
+    <td><img src="assets/screenshots/jellyfish/take.jpg" width="180" alt="A photo of jellyfish"></td>
+    <td><img src="assets/screenshots/jellyfish/mark.jpg" width="180" alt="A box drawn around one of the jellyfish"></td>
+    <td><img src="assets/screenshots/jellyfish/count.jpg" width="180" alt="36 jellyfish counted"></td>
+    <td><img src="assets/screenshots/jellyfish/detail.jpg" width="180" alt="Zoomed in on the marked jellyfish"></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshots/tictac/take.jpg" alt="A photo of Tic Tacs"></td>
-    <td><img src="assets/screenshots/tictac/mark.jpg" alt="A box drawn around one of the Tic Tacs"></td>
-    <td><img src="assets/screenshots/tictac/count.jpg" alt="110 Tic Tacs counted"></td>
-    <td><img src="assets/screenshots/tictac/detail.jpg" alt="Zoomed in on the marked Tic Tacs"></td>
+    <td><img src="assets/screenshots/tictac/take.jpg" width="180" alt="A photo of Tic Tacs"></td>
+    <td><img src="assets/screenshots/tictac/mark.jpg" width="180" alt="A box drawn around one of the Tic Tacs"></td>
+    <td><img src="assets/screenshots/tictac/count.jpg" width="180" alt="110 Tic Tacs counted"></td>
+    <td><img src="assets/screenshots/tictac/detail.jpg" width="180" alt="Zoomed in on the marked Tic Tacs"></td>
   </tr>
 </table>
 </details>
