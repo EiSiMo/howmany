@@ -108,12 +108,13 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
      * Frees the model without waiting: now, or once the detections running on it have finished.
      * Don't detect afterwards.
      */
-    override fun close() =
+    override fun close() {
         synchronized(lock) {
             if (closed) return
             closed = true
             if (running == 0) session.close()
         }
+    }
 
     private fun tensor(values: FloatBuffer, vararg shape: Int) =
         OnnxTensor.createTensor(environment, values, shape.map { it.toLong() }.toLongArray())
