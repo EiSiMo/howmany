@@ -21,7 +21,7 @@
 | <img src="assets/screenshots/lemons/take.jpg" alt="A photo of crates of lemons"> | <img src="assets/screenshots/lemons/mark.jpg" alt="A box drawn around one lemon"> | <img src="assets/screenshots/lemons/count.jpg" alt="278 lemons counted"> | <img src="assets/screenshots/lemons/detail.jpg" alt="Zoomed in on the marked lemons"> |
 
 <details>
-<summary><img src="assets/more-examples.png" width="100%" alt="Show 9 more examples"></summary>
+<summary><picture><img src="assets/more-examples.png" width="100%" alt="Show 9 more examples"></picture></summary>
 <br>
 <table>
   <tr>
