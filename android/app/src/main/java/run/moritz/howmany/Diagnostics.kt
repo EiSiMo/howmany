@@ -7,6 +7,8 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Process
+import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
 import androidx.core.content.FileProvider
@@ -14,6 +16,7 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import java.io.File
 import java.time.Instant
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -26,7 +29,10 @@ private const val PREFERENCES = "diagnostics"
 private const val SEEN_UNTIL = "seenUntil"
 private const val JAVA_CRASH_FILE = "java-crash.txt"
 private const val REPORT_FILE = "reports/how-many-report.txt"
-private const val LOG_LINES = 2000
+// The app's log, kept in a file that starts over, keeping its old part, once this large.
+private const val LOG_FILE = "log.txt"
+private const val OLD_LOG_FILE = "log.old.txt"
+private const val LOG_FILE_BYTES = 512 * 1024
 private const val EXITS_SHOWN = 10
 private const val BYTES_PER_GB = 1e9
 
@@ -47,8 +53,8 @@ internal data class ProcessExit(val timestamp: Long, val reason: Int, val import
  */
 object Diagnostics {
     /**
-     * Records Java crashes for the next start, as Android keeps only native traces; call once as
-     * the app starts.
+     * Keeps the app's log, and records Java crashes, as Android keeps only native traces, for the
+     * next start; call once as the app starts.
      */
     fun install(context: Context) {
         val preferences = preferences(context)
@@ -56,6 +62,7 @@ object Diagnostics {
         if (!preferences.contains(SEEN_UNTIL)) {
             preferences.edit { putLong(SEEN_UNTIL, System.currentTimeMillis()) }
         }
+        keepLog(context)
         val file = File(context.filesDir, JAVA_CRASH_FILE)
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
@@ -135,7 +142,10 @@ object Diagnostics {
         if (crash != null) {
             section("Crash")
             appendLine(describe(crash.info))
-            crash.info.traceInputStream?.use { append(it.reader().readText()) }
+            // A native crash's trace is a binary tombstone; its text is in the log, from DEBUG.
+            if (crash.info.reason == ApplicationExitInfo.REASON_ANR) {
+                crash.info.traceInputStream?.use { append(it.reader().readText()) }
+            }
         }
         val javaCrash = File(context.filesDir, JAVA_CRASH_FILE)
         if (javaCrash.exists()) {
@@ -145,7 +155,7 @@ object Diagnostics {
         section("Recent exits")
         exits(context).take(EXITS_SHOWN).forEach { appendLine(describe(it)) }
         section("Log")
-        append(log())
+        append(log(context))
     }
 
     private fun StringBuilder.section(title: String) = appendLine().appendLine("== $title ==")
@@ -164,36 +174,75 @@ object Diagnostics {
             "(importance ${exit.importance}, pss ${exit.pss} kB, rss ${exit.rss} kB): " +
             "${exit.description}"
 
-    /** The app's own recent log lines, of this process and earlier ones. */
-    private fun log(): String =
-        try {
-            val process =
-                ProcessBuilder("logcat", "-d", "-v", "threadtime", "-t", "$LOG_LINES")
-                    .redirectErrorStream(true)
-                    .start()
-            process.inputStream.bufferedReader().use { it.readText() }.also { process.waitFor() }
-        } catch (e: Exception) {
-            Log.e(TAG, "Cannot read the log", e)
-            "Cannot read the log: $e\n"
+    /**
+     * Copies the app's log into a file, while the app runs. Android hardly lets apps read their
+     * past log, so the log up to a crash is gone unless read all along. The copy ends with the app,
+     * as Android kills its processes together, but only after writing a native crash's trace.
+     */
+    private fun keepLog(context: Context) {
+        val file = File(context.filesDir, LOG_FILE)
+        if (
+            file.length() > LOG_FILE_BYTES && !file.renameTo(File(context.filesDir, OLD_LOG_FILE))
+        ) {
+            Log.w(TAG, "Cannot start a new log")
         }
+        try {
+            // Earlier runs' log is in the file already.
+            val started =
+                System.currentTimeMillis() -
+                    (SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime())
+            val since = "%.3f".format(Locale.ROOT, started / 1e3)
+            // logcat writes its own files in blocks, which a crash cuts off, but standard output
+            // line by line.
+            ProcessBuilder("logcat", "-v", "threadtime", "-T", since)
+                .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.appendTo(file))
+                .start()
+        } catch (e: Exception) {
+            Log.e(TAG, "Cannot keep the log", e)
+        }
+    }
 
-    /** Sends [report] to us with the user's mail app, where they may add what they did. */
+    /** The app's recent log, of this and earlier runs, oldest first. */
+    private fun log(context: Context): String =
+        listOf(OLD_LOG_FILE, LOG_FILE)
+            .map { File(context.filesDir, it) }
+            .filter { it.exists() }
+            .joinToString("") { it.readText() }
+            .ifEmpty { "No log kept\n" }
+
+    /**
+     * Sends [report] to us with the user's mail app, where they may add what they did; lets them
+     * choose if they have several. Only mail apps, not everything that takes a text file.
+     */
     private fun mail(context: Context, report: File): Intent {
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.photos", report)
-        return Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_EMAIL, arrayOf(CONTACT))
-            putExtra(
-                Intent.EXTRA_SUBJECT,
-                context.getString(R.string.report_subject, BuildConfig.VERSION_NAME),
-            )
-            putExtra(Intent.EXTRA_TEXT, context.getString(R.string.report_text))
-            putExtra(Intent.EXTRA_STREAM, uri)
-            clipData = ClipData.newRawUri(null, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            // Only mail apps, not everything that takes a text file.
-            selector = Intent(Intent.ACTION_SENDTO, "mailto:".toUri())
-        }
+        // Mail apps take attachments only with SEND, but declare themselves only with SENDTO, and
+        // Android no longer lets a SENDTO selector pick the app for a SEND.
+        val intents =
+            context.packageManager
+                .queryIntentActivities(Intent(Intent.ACTION_SENDTO, "mailto:".toUri()), 0)
+                .map { it.activityInfo.packageName }
+                .distinct()
+                .map { mailApp ->
+                    Intent(Intent.ACTION_SEND).apply {
+                        setPackage(mailApp)
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_EMAIL, arrayOf(CONTACT))
+                        putExtra(
+                            Intent.EXTRA_SUBJECT,
+                            context.getString(R.string.report_subject, BuildConfig.VERSION_NAME),
+                        )
+                        putExtra(Intent.EXTRA_TEXT, context.getString(R.string.report_text))
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        clipData = ClipData.newRawUri(null, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                }
+        if (intents.isEmpty()) throw ActivityNotFoundException("No mail app")
+        return intents.singleOrNull()
+            ?: Intent.createChooser(intents.first(), null)
+                .putExtra(Intent.EXTRA_INITIAL_INTENTS, intents.drop(1).toTypedArray())
     }
 }
 

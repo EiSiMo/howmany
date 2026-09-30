@@ -18,7 +18,13 @@ class DiagnosticsReportTest {
         val marker = "marker ${UUID.randomUUID()}"
         Log.i("DiagnosticsReportTest", marker)
 
-        val report = Diagnostics.report(context, crash = null)
+        // The log reaches its file a moment later.
+        val deadline = System.currentTimeMillis() + 5000
+        var report = Diagnostics.report(context, crash = null)
+        while (marker !in report && System.currentTimeMillis() < deadline) {
+            Thread.sleep(100)
+            report = Diagnostics.report(context, crash = null)
+        }
 
         assertTrue(report, report.startsWith("how many? ${BuildConfig.VERSION_NAME}"))
         assertTrue(report, marker in report)
