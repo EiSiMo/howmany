@@ -7,3 +7,4 @@ __pycache__/
 model/data
 NOTES.md
 .claude/worktrees/
+model/results/photos-*

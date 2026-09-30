@@ -18,7 +18,68 @@
 
 | Take a Photo | Mark one Object | Get the Count | Verify Results |
 |:---:|:---:|:---:|:---:|
-| <img src="assets/screenshot-take.jpg" alt="A photo of crates of lemons"> | <img src="assets/screenshot-mark.jpg" alt="A box drawn around one lemon"> | <img src="assets/screenshot-count.jpg" alt="Every lemon marked, 278 counted"> | <img src="assets/screenshot-detail.jpg" alt="Zoomed in on the marked lemons"> |
+| <img src="assets/screenshots/lemons/take.jpg" alt="A photo of crates of lemons"> | <img src="assets/screenshots/lemons/mark.jpg" alt="A box drawn around one lemon"> | <img src="assets/screenshots/lemons/count.jpg" alt="278 lemons counted"> | <img src="assets/screenshots/lemons/detail.jpg" alt="Zoomed in on the marked lemons"> |
+
+<details>
+<summary>More examples</summary>
+<br>
+<table>
+  <tr>
+    <td><img src="assets/screenshots/coins/take.jpg" alt="A photo of coins"></td>
+    <td><img src="assets/screenshots/coins/mark.jpg" alt="A box drawn around one of the coins"></td>
+    <td><img src="assets/screenshots/coins/count.jpg" alt="124 coins counted"></td>
+    <td><img src="assets/screenshots/coins/detail.jpg" alt="Zoomed in on the marked coins"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/screenshots/tower/take.jpg" alt="A photo of windows"></td>
+    <td><img src="assets/screenshots/tower/mark.jpg" alt="A box drawn around one of the windows"></td>
+    <td><img src="assets/screenshots/tower/count.jpg" alt="1,024 windows counted"></td>
+    <td><img src="assets/screenshots/tower/detail.jpg" alt="Zoomed in on the marked windows"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/screenshots/birds/take.jpg" alt="A photo of birds"></td>
+    <td><img src="assets/screenshots/birds/mark.jpg" alt="A box drawn around one of the birds"></td>
+    <td><img src="assets/screenshots/birds/count.jpg" alt="18 birds counted"></td>
+    <td><img src="assets/screenshots/birds/detail.jpg" alt="Zoomed in on the marked birds"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/screenshots/nuts/take.jpg" alt="A photo of nuts"></td>
+    <td><img src="assets/screenshots/nuts/mark.jpg" alt="A box drawn around one of the nuts"></td>
+    <td><img src="assets/screenshots/nuts/count.jpg" alt="28 nuts counted"></td>
+    <td><img src="assets/screenshots/nuts/detail.jpg" alt="Zoomed in on the marked nuts"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/screenshots/dvds/take.jpg" alt="A photo of DVDs"></td>
+    <td><img src="assets/screenshots/dvds/mark.jpg" alt="A box drawn around one of the DVDs"></td>
+    <td><img src="assets/screenshots/dvds/count.jpg" alt="236 DVDs counted"></td>
+    <td><img src="assets/screenshots/dvds/detail.jpg" alt="Zoomed in on the marked DVDs"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/screenshots/sidewalk/take.jpg" alt="A photo of paving stones"></td>
+    <td><img src="assets/screenshots/sidewalk/mark.jpg" alt="A box drawn around one of the paving stones"></td>
+    <td><img src="assets/screenshots/sidewalk/count.jpg" alt="686 paving stones counted"></td>
+    <td><img src="assets/screenshots/sidewalk/detail.jpg" alt="Zoomed in on the marked paving stones"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/screenshots/planks/take.jpg" alt="A photo of boxes of flooring"></td>
+    <td><img src="assets/screenshots/planks/mark.jpg" alt="A box drawn around one of the boxes of flooring"></td>
+    <td><img src="assets/screenshots/planks/count.jpg" alt="68 boxes of flooring counted"></td>
+    <td><img src="assets/screenshots/planks/detail.jpg" alt="Zoomed in on the marked boxes of flooring"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/screenshots/jellyfish/take.jpg" alt="A photo of jellyfish"></td>
+    <td><img src="assets/screenshots/jellyfish/mark.jpg" alt="A box drawn around one of the jellyfish"></td>
+    <td><img src="assets/screenshots/jellyfish/count.jpg" alt="36 jellyfish counted"></td>
+    <td><img src="assets/screenshots/jellyfish/detail.jpg" alt="Zoomed in on the marked jellyfish"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/screenshots/tictac/take.jpg" alt="A photo of Tic Tacs"></td>
+    <td><img src="assets/screenshots/tictac/mark.jpg" alt="A box drawn around one of the Tic Tacs"></td>
+    <td><img src="assets/screenshots/tictac/count.jpg" alt="110 Tic Tacs counted"></td>
+    <td><img src="assets/screenshots/tictac/detail.jpg" alt="Zoomed in on the marked Tic Tacs"></td>
+  </tr>
+</table>
+</details>
 
 A stack of pipes, a crowd of people, a tray of pills: take a photo, draw a box around
 one of the things you want to count, and how many? finds and marks every object that
@@ -59,17 +120,9 @@ not too small in the photo.
 
 ## Accuracy
 
-We measure how far the counts are off on two benchmarks, with one marked object as in
-the app: 100 images from the [FSC-147](https://github.com/cvlab-stonybrook/LearningToCountEverything)
-test set, and 85 of our own phone photos.
-
-| Benchmark | Exact | Within 10% | Mean relative error |
-|---|---:|---:|---:|
-| FSC-147 | 27% | 66% | 11% |
-| Our photos | 32% | 59% | 28% |
-
-The full results are in [`model/results/`](model/results). That's why the last step is
-checking the result: a few taps usually fix the count.
+On 100 test images from [FSC-147](https://github.com/cvlab-stonybrook/LearningToCountEverything),
+with one marked object as in the app, two out of three counts are within 10% of the true
+count. That's why the last step is checking the result: a few taps usually fix the count.
 
 ## Building
 
