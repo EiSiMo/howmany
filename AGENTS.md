@@ -57,6 +57,11 @@ Run from `model/`:
 - Type check: `uv run mypy`
 - Pre-commit hooks (once per clone, from repo root): `uv run --project model pre-commit install`
 
+### Store listing (`fastlane/`)
+`fastlane/metadata/android/` is the store listing in fastlane's layout, which F-Droid reads from the repo (and `fastlane supply` could upload to Play). `fastlane/graphics/build.sh` builds its graphics, the phone screenshots and the feature graphic, from app screenshots in `fastlane/graphics/` (status bar cut off, resized to 1206x2622): frameit puts them in an iPhone frame with captions from `title.strings`, ImageMagick turns them into what Play takes (9:16, no alpha). Needs fastlane (`gem install --user-install fastlane`, frames via `fastlane frameit download_frames`), ImageMagick and uv.
+
+- Build the store graphics: `fastlane/graphics/build.sh`
+
 ## Conventions
 - Code, identifiers, comments, strings and commit messages in English. User-facing text lives in localization resources, never hardcoded.
 - Every language the app knows translates every string (`TranslationsTest`, run by the pre-commit hook). A string that rightly reads the same as in English goes into its `sameAsDefault`.

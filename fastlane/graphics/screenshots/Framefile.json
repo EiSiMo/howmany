@@ -1,0 +1,17 @@
+{
+  "default": {
+    "background": "./background.png",
+    "padding": 70,
+    "title_below_image": false,
+    "show_complete_frame": true,
+    "title": { "font": "./fonts/SpaceGrotesk-Bold.ttf", "color": "#F2F2F5" }
+  },
+  "data": [
+    { "filter": "01" },
+    { "filter": "02" },
+    { "filter": "03" },
+    { "filter": "04" },
+    { "filter": "05" },
+    { "filter": "06" }
+  ]
+}
