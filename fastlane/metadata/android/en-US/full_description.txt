@@ -1,0 +1,21 @@
+How many pipes are in that stack? How many coins on the table, windows on the building, fish in the tank? Take a photo, mark one object, and how many? counts all the others.
+
+How it works
+1. Take a photo or pick one from your gallery.
+2. Drag a box around one of the objects you want to count.
+3. Tap GO. how many? finds and marks every object that looks like it.
+4. Check the result: tap a point to remove a wrong one, or tap an object to add one that was missed. Drag the edges to count only part of the photo.
+
+Count anything
+how many? isn't trained on a fixed list of things. You show it what to count, so it works on pipes, boards, screws, nuts, pills, coins, eggs, fruit, bottles, books, birds, windows, tiles and much more, even with hundreds or a thousand objects in one photo.
+
+Private by design
+Counting runs entirely on your phone. The app has no internet permission, so your photos never leave the device. No account, no ads, no tracking.
+
+Free and open source
+how many? is free software under the MIT license. It counts with GeCo2, a few-shot counting model by Jer Pelhan, Alan Lukežič and Matej Kristan, run on the phone with ONNX Runtime.
+
+Good to know
+Counting takes a few seconds and works best when the objects are clearly visible, not too small and photographed in good light. The count is a starting point: a few taps usually fix it. how many? needs a 64-bit ARM phone with Android 12 or newer.
+
+Source code, questions and feature requests: https://github.com/EiSiMo/howmany
