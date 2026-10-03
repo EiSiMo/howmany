@@ -45,13 +45,12 @@ android {
 
     signingConfigs {
         // The app signing key signs what users install, from GitHub, F-Droid and Play alike; Play
-        // holds a copy. The upload key only signs what is uploaded to Play.
-        for (key in listOf("signing", "upload")) {
-            val keystore = secret("${key.uppercase()}_KEYSTORE") ?: continue
-            create(key) {
+        // holds a copy and takes uploads signed with it too.
+        secret("SIGNING_KEYSTORE")?.let { keystore ->
+            create("signing") {
                 storeFile = file(keystore)
-                storePassword = secret("${key.uppercase()}_PASSWORD")
-                keyAlias = key
+                storePassword = secret("SIGNING_PASSWORD")
+                keyAlias = "signing"
                 keyPassword = storePassword
             }
         }
@@ -66,12 +65,6 @@ android {
                 "proguard-rules.pro",
             )
             signingConfig = signingConfigs.findByName("signing")
-        }
-        // The release for uploading to Play, which signs it with the app signing key.
-        create("play") {
-            initWith(getByName("release"))
-            signingConfig = signingConfigs.findByName("upload")
-            matchingFallbacks += "release"
         }
     }
 
