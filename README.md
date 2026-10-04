@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin">
   <img src="https://img.shields.io/badge/Android-12%2B-3DDC84?logo=android&logoColor=white" alt="Android 12+">
-  <img src="https://img.shields.io/badge/version-0.1.0-blue" alt="Version 0.1.0">
+  <img src="https://img.shields.io/badge/version-0.1.1-blue" alt="Version 0.1.1">
   <img src="https://img.shields.io/badge/internet%20permission-none-success" alt="No internet permission">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
 </p>
