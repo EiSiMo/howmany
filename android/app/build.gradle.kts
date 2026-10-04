@@ -75,6 +75,13 @@ android {
         localeFilters += listOf("en", "de", "es", "fr", "pt", "ru", "b+zh+Hans")
     }
 
+    // Leaves out the list of dependencies encrypted for Google, which F-Droid rejects, from the APK
+    // and the bundle alike.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     // Only 64-bit ARM on purpose, see abiFilters.
     lint { disable += "ChromeOsAbiSupport" }
 
