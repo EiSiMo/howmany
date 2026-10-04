@@ -11,7 +11,8 @@
     <string name="count">Посчитать</string>
     <string name="go">ПУСК</string>
     <string name="counting">Считаю…</string>
-    <string name="mark_exemplar">Обведи рамкой один объект</string>
+    <string name="mark_first_exemplar">Обведи рамкой один объект</string>
+    <string name="mark_more_exemplars">Обведи ещё рамки или нажми, чтобы убрать их</string>
     <string name="adjust_crop">Потяни за края, чтобы посчитать только часть фото</string>
     <string name="correct">Нажми, чтобы убрать или добавить точку</string>
     <string name="error_photo_unreadable">Не удалось открыть это фото</string>
@@ -35,6 +36,7 @@
     <string name="tips_title">Для лучшего результата</string>
     <string name="tip_light">Снимать при хорошем свете, параллельно объектам.</string>
     <string name="tip_crop">Обрезать фото до области, которую нужно посчитать.</string>
+    <string name="tip_exemplars">Отметь до трёх объектов — так счёт точнее.</string>
     <string name="tip_correct">Лишние точки убирать нажатием, пропущенные — добавлять.</string>
     <string name="credits_title">Сделано на основе</string>
     <string name="credit_geco2">Считает объекты, авторы: Pelhan, Lukežič и Kristan</string>

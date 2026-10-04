@@ -11,7 +11,8 @@
     <string name="count">Zählen</string>
     <string name="go">LOS</string>
     <string name="counting">Zähle…</string>
-    <string name="mark_exemplar">Zieh einen Rahmen um ein Objekt</string>
+    <string name="mark_first_exemplar">Zieh einen Rahmen um ein Objekt</string>
+    <string name="mark_more_exemplars">Zieh weitere Rahmen oder tippe, um sie zu entfernen</string>
     <string name="adjust_crop">Zieh die Ränder, um nur einen Ausschnitt zu zählen</string>
     <string name="correct">Tippe, um einen Punkt zu entfernen oder hinzuzufügen</string>
     <string name="error_photo_unreadable">Dieses Foto lässt sich nicht öffnen</string>
@@ -33,6 +34,7 @@
     <string name="tips_title">Für bessere Ergebnisse</string>
     <string name="tip_light">Bei gutem Licht parallel zu den Objekten fotografieren.</string>
     <string name="tip_crop">Foto auf den Bereich zuschneiden, der gezählt werden soll.</string>
+    <string name="tip_exemplars">Markiere bis zu drei Objekte – das macht das Zählen genauer.</string>
     <string name="tip_correct">Falsche Punkte wegtippen, fehlende hinzufügen.</string>
     <string name="credits_title">Gebaut mit</string>
     <string name="credit_geco2">Zählt die Objekte, von Pelhan, Lukežič und Kristan</string>

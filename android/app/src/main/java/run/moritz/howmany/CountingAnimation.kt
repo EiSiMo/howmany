@@ -161,11 +161,12 @@ class CountingAnimation {
     }
 
     /**
-     * The render effect on the photo, in view coordinates: the scan's shimmer around [exemplar], or
-     * the reveal's front bending it; null while neither runs or the device cannot run shaders.
+     * The render effect on the photo, in view coordinates: the scan's shimmer around the
+     * [exemplars], or the reveal's front bending it; null while neither runs or the device cannot
+     * run shaders.
      */
     internal fun distortion(
-        exemplar: Rect,
+        exemplars: List<Rect>,
         crop: Rect,
         heatmapRect: Rect?,
         density: Density,
@@ -174,9 +175,9 @@ class CountingAnimation {
         scanning?.let { seconds ->
             val shimmer = shimmer ?: ShimmerShader().also { shimmer = it }
             return shimmer.effect(
-                exemplar,
+                exemplars,
                 crop,
-                reach(exemplar, crop),
+                reach(exemplars, crop),
                 seconds,
                 SCAN_PERIOD,
                 fadeIn(seconds),
@@ -187,10 +188,10 @@ class CountingAnimation {
         val distortion = distortion ?: DistortionShader().also { distortion = it }
         val revealing = revealing
         if (revealing == null || revealing >= REVEAL) return null
-        val reach = reach(exemplar, crop)
+        val reach = reach(exemplars, crop)
         val arrival = arrivalShader(heatmapRect) ?: return null
         return distortion.effect(
-            exemplar,
+            exemplars,
             crop,
             front(revealing) * reach,
             fadeLate(revealing / REVEAL),
@@ -310,11 +311,12 @@ fun rememberCountingAnimation(state: CountState): CountingAnimation {
     val animation = remember { CountingAnimation() }
     val shown = animation.shown(state)
     val heatmap = shown.heatmap
-    val exemplar = shown.exemplar
+    val exemplars = shown.exemplars
     val crop = shown.crop
     val wave =
-        remember(heatmap, exemplar, crop) {
-            if (heatmap != null && exemplar != null && crop != null) Wave(heatmap, exemplar, crop)
+        remember(heatmap, exemplars, crop) {
+            if (heatmap != null && exemplars.isNotEmpty() && crop != null)
+                Wave(heatmap, exemplars, crop)
             else null
         }
     SideEffect { animation.useWave(wave) }
@@ -352,12 +354,14 @@ private suspend fun everyFrame(
     } while (seconds < until)
 }
 
-/** The distance from the edge of [exemplar] to the farthest corner of [crop], in view pixels. */
-private fun reach(exemplar: Rect, crop: Rect): Float {
-    val from = Box(exemplar.left, exemplar.top, exemplar.right, exemplar.bottom)
+/**
+ * The distance from the nearest of [exemplars] to the farthest corner of [crop], in view pixels.
+ */
+private fun reach(exemplars: List<Rect>, crop: Rect): Float {
+    val boxes = exemplars.map { Box(it.left, it.top, it.right, it.bottom) }
     return Box(crop.left, crop.top, crop.right, crop.bottom)
         .corners
-        .maxOf(from::distanceTo)
+        .maxOf { corner -> boxes.minOf { it.distanceTo(corner) } }
         .coerceAtLeast(1f)
 }
 

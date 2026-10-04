@@ -24,7 +24,7 @@ from photos import PhotoStore
 logger = logging.getLogger(__name__)
 
 RESULTS_DIR = MODEL_DIR / "results"
-# The app lets the user mark one exemplar.
+# The app lets the user mark one to three exemplars.
 DEFAULT_EXEMPLARS = 1
 
 # count(image_path, exemplars) -> the number of objects, as counter.count.

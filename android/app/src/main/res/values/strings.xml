@@ -13,9 +13,12 @@
     <!-- The button that starts counting: one very short word. -->
     <string name="go">GO</string>
     <string name="counting">Counting…</string>
-    <string name="mark_exemplar">Drag a box around one object</string>
+    <string name="mark_first_exemplar">Drag a box around one object</string>
+    <string name="mark_more_exemplars">Drag more boxes or tap to remove them</string>
     <string name="adjust_crop">Drag the edges to count only part of the photo</string>
     <string name="correct">Tap to remove or add a point</string>
+    <!-- The marked exemplars out of the maximum; %1$d of %2$d, both digits. -->
+    <string name="exemplar_counter" translatable="false">%1$d/%2$d</string>
     <string name="error_photo_unreadable">Couldn’t open this photo</string>
     <string name="error_no_camera">No camera app found</string>
     <string name="error_count_failed">Counting failed, try again</string>
@@ -35,6 +38,7 @@
     <string name="tips_title">For better results</string>
     <string name="tip_light">Shoot in good light, parallel to the objects.</string>
     <string name="tip_crop">Crop the photo to the area to count.</string>
+    <string name="tip_exemplars">Mark up to three objects — it makes counting more accurate.</string>
     <string name="tip_correct">Tap away wrong points, tap to add missed ones.</string>
     <string name="credits_title">Built on</string>
     <string name="credit_geco2">Counts the objects, by Pelhan, Lukežič and Kristan</string>

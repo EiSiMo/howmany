@@ -16,7 +16,7 @@ class CountStateTest {
     @Test
     fun `goes from marking to counted`() {
         val marking = CountState(crop = Box(0f, 0f, 1000f, 1000f))
-        val ready = marking.copy(exemplar = Box(100f, 100f, 150f, 150f))
+        val ready = marking.copy(exemplars = listOf(Box(100f, 100f, 150f, 150f)))
         assertEquals(CountPhase.Empty, CountState().phase)
         assertEquals(CountPhase.Marking, marking.phase)
         assertEquals(CountPhase.Ready, ready.phase)
@@ -26,7 +26,7 @@ class CountStateTest {
 
     private val area = Box(100f, 100f, 900f, 900f)
     private val counting =
-        CountState(crop = area, exemplar = Box(450f, 450f, 550f, 550f)).countingStarted()
+        CountState(crop = area, exemplars = listOf(Box(450f, 450f, 550f, 550f))).countingStarted()
 
     private fun result(vararg points: Point) =
         CountResult(
@@ -91,5 +91,18 @@ class CountStateTest {
         val twice = once.cleared()
         assertEquals(null, twice.crop)
         assertFalse(twice.canStartOver)
+    }
+
+    @Test
+    fun `keeps every exemplar in the region and clears them all at once`() {
+        val two =
+            CountState(
+                crop = area,
+                exemplars = listOf(Box(100f, 100f, 150f, 150f), Box(300f, 300f, 340f, 360f)),
+            )
+
+        assertEquals(Box(100f, 100f, 340f, 360f), two.exemplarRegion)
+        assertEquals(55f, two.exemplarHeight!!, 0.001f)
+        assertEquals(emptyList<Box>(), two.cleared().exemplars)
     }
 }

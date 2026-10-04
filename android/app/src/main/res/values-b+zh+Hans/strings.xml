@@ -11,7 +11,8 @@
     <string name="count">计数</string>
     <string name="go">开始</string>
     <string name="counting">正在计数…</string>
-    <string name="mark_exemplar">拖动框选一个物体</string>
+    <string name="mark_first_exemplar">拖动框选一个物体</string>
+    <string name="mark_more_exemplars">拖动更多框，或点按将其删除</string>
     <string name="adjust_crop">拖动边缘，只数照片的一部分</string>
     <string name="correct">点按以删除或添加点</string>
     <string name="error_photo_unreadable">无法打开这张照片</string>
@@ -32,6 +33,7 @@
     <string name="tips_title">获得更好的结果</string>
     <string name="tip_light">在光线充足处，平行于物体拍摄。</string>
     <string name="tip_crop">将照片裁剪到要计数的区域。</string>
+    <string name="tip_exemplars">最多标注三个物体，计数会更准。</string>
     <string name="tip_correct">点掉错误的点，点按补上遗漏的点。</string>
     <string name="credits_title">基于</string>
     <string name="credit_geco2">负责计数，作者 Pelhan、Lukežič 和 Kristan</string>

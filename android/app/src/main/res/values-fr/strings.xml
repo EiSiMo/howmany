@@ -11,7 +11,8 @@
     <string name="count">Compter</string>
     <string name="go">GO</string>
     <string name="counting">Comptage…</string>
-    <string name="mark_exemplar">Trace un cadre autour d’un objet</string>
+    <string name="mark_first_exemplar">Trace un cadre autour d’un objet</string>
+    <string name="mark_more_exemplars">Trace d’autres cadres ou touche pour les retirer</string>
     <string name="adjust_crop">Tire les bords pour ne compter qu’une partie</string>
     <string name="correct">Touche pour retirer ou ajouter un point</string>
     <string name="error_photo_unreadable">Impossible d’ouvrir cette photo</string>
@@ -34,6 +35,7 @@
     <string name="tips_title">Pour de meilleurs résultats</string>
     <string name="tip_light">Photographier sous une bonne lumière, parallèlement aux objets.</string>
     <string name="tip_crop">Recadrer la photo sur la zone à compter.</string>
+    <string name="tip_exemplars">Marque jusqu’à trois objets — le comptage gagne en précision.</string>
     <string name="tip_correct">Toucher les points erronés pour les retirer, toucher pour ajouter les oubliés.</string>
     <string name="credits_title">Basé sur</string>
     <string name="credit_geco2">Compte les objets, par Pelhan, Lukežič et Kristan</string>

@@ -25,10 +25,13 @@ import run.moritz.howmany.counting.CountResult
 import run.moritz.howmany.counting.Heatmap
 import run.moritz.howmany.counting.ObjectCounter
 import run.moritz.howmany.counting.Point
+import run.moritz.howmany.counting.region
 
 private const val TAG = "CountViewModel"
 // The model never sees more than 1024 pixels per side; this leaves headroom for display.
 private const val MAX_PHOTO_SIZE = 2048
+// How many exemplars the user may mark; the model and the benchmark accept up to three.
+const val MAX_EXEMPLARS = 3
 
 data class CountState(
     val photo: Bitmap? = null,
@@ -42,7 +45,8 @@ data class CountState(
      * There are no points outside it, so the crop can shrink and grow back, but never beyond it.
      */
     val countedArea: Box? = null,
-    val exemplar: Box? = null,
+    /** Up to [MAX_EXEMPLARS] objects the user marked as examples of what to count. */
+    val exemplars: List<Box> = emptyList(),
     /**
      * One point per counted object in the counted area, corrected by the user, including points
      * outside the crop; null until counted.
@@ -70,9 +74,20 @@ data class CountState(
                 crop == null -> CountPhase.Empty
                 points != null -> CountPhase.Counted
                 counting -> CountPhase.Counting
-                exemplar == null -> CountPhase.Marking
+                exemplars.isEmpty() -> CountPhase.Marking
                 else -> CountPhase.Ready
             }
+
+    /** The smallest box containing every exemplar, or null if there is none. */
+    val exemplarRegion: Box?
+        get() = exemplars.region()
+
+    /** The average height of the exemplars, for ordering corrected points; null if none. */
+    val exemplarHeight: Float?
+        get() =
+            exemplars
+                .takeIf { it.isNotEmpty() }
+                ?.let { it.sumOf { box -> box.height.toDouble() }.toFloat() / it.size }
 
     /** Counts only inside [crop] from now on, kept inside the counted area; clears the error. */
     fun cropped(crop: Box): CountState =
@@ -100,14 +115,15 @@ data class CountState(
 
     /** Whether starting over changes anything: there is an exemplar, or the crop is not whole. */
     val canStartOver: Boolean
-        get() = exemplar != null || crop != photo?.whole()
+        get() = exemplars.isNotEmpty() || crop != photo?.whole()
 
     /**
-     * Starts over one step: forgets the exemplar and the count, keeping the photo and its crop, or
+     * Starts over one step: forgets the exemplars and the count, keeping the photo and its crop, or
      * with neither of them, crops the whole photo again.
      */
     fun cleared(): CountState =
-        if (exemplar != null) CountState(photo = photo, crop = crop) else CountState(photo = photo)
+        if (exemplars.isNotEmpty()) CountState(photo = photo, crop = crop)
+        else CountState(photo = photo)
 }
 
 /** All of this photo, in its pixels. */
@@ -197,9 +213,14 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
     /** Tells the user that the count cannot be exported, keeping everything else. */
     fun exportFailed() = _state.update { it.copy(error = CountError.ExportFailed) }
 
-    /** Marks one object as the exemplar of what to count; only before counting. */
+    /** Marks [box] as one more exemplar of what to count; only before counting and up to three. */
     fun markExemplar(box: Box) = _state.update {
-        if (it.points == null) it.copy(exemplar = box, error = null) else it
+        if (it.points == null) it.copy(exemplars = it.exemplars.marked(box), error = null) else it
+    }
+
+    /** Removes the exemplar the user tapped at [at]; only before counting. */
+    fun removeExemplar(at: Point) = _state.update {
+        if (it.points == null) it.copy(exemplars = it.exemplars.removedAt(at), error = null) else it
     }
 
     /**
@@ -208,9 +229,9 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun toggle(at: Point, hitRadius: Float) = _state.update { state ->
         val points = state.points ?: return@update state
-        val exemplar = state.exemplar ?: return@update state
+        val objectHeight = state.exemplarHeight ?: return@update state
         state.copy(
-            points = points.toggled(at, hitRadius, exemplar.height, state.crop),
+            points = points.toggled(at, hitRadius, objectHeight, state.crop),
             error = null,
         )
     }
@@ -222,7 +243,7 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
     fun adjustCrop(crop: Box) = _state.update { it.cropped(crop) }
 
     /**
-     * Forgets the exemplar, the count and the counted area, keeping the photo and its crop; with
+     * Forgets the exemplars, the count and the counted area, keeping the photo and its crop; with
      * nothing of them left, crops the whole photo again.
      */
     fun clear() {
@@ -232,7 +253,8 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
 
     fun count() {
         val photo = _state.value.photo ?: return
-        val exemplar = _state.value.exemplar ?: return
+        val exemplars = _state.value.exemplars
+        if (exemplars.isEmpty()) return
         val crop = _state.value.crop ?: return
         if (_state.value.counting) return
         _state.update { it.countingStarted() }
@@ -240,19 +262,19 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
         countJob = viewModelScope.launch {
             // A cancelled count still occupies the model until it returns; don't run two at once.
             cancelled?.join()
-            Log.i(TAG, "Counting in $crop like $exemplar")
+            Log.i(TAG, "Counting in $crop like $exemplars")
             val (result, duration) =
                 try {
                     // Waits for the counter if it is still being prepared; a preparation error
                     // fails here.
                     val counter = objectCounter.get()
                     withContext(Dispatchers.Default) {
-                        measureTimedValue { counter.detect(photo, listOf(exemplar), crop) }
+                        measureTimedValue { counter.detect(photo, exemplars, crop) }
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.e(TAG, "Cannot count in $crop like $exemplar", e)
+                    Log.e(TAG, "Cannot count in $crop like $exemplars", e)
                     _state.update { it.countFailed() }
                     return@launch
                 }

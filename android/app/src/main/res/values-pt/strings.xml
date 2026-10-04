@@ -11,7 +11,8 @@
     <string name="count">Contar</string>
     <string name="go">VAI</string>
     <string name="counting">Contando…</string>
-    <string name="mark_exemplar">Arraste um quadro em volta de um objeto</string>
+    <string name="mark_first_exemplar">Arraste um quadro em volta de um objeto</string>
+    <string name="mark_more_exemplars">Arraste mais quadros ou toque para removê-los</string>
     <string name="adjust_crop">Arraste as bordas para contar só uma parte</string>
     <string name="correct">Toque para remover ou adicionar um ponto</string>
     <string name="error_photo_unreadable">Não foi possível abrir esta foto</string>
@@ -34,6 +35,7 @@
     <string name="tips_title">Para melhores resultados</string>
     <string name="tip_light">Fotografar com boa luz, paralelo aos objetos.</string>
     <string name="tip_crop">Recortar a foto na área a ser contada.</string>
+    <string name="tip_exemplars">Marque até três objetos — fica mais preciso contar.</string>
     <string name="tip_correct">Tocar nos pontos errados para tirá-los, tocar para adicionar os que faltam.</string>
     <string name="credits_title">Feito com</string>
     <string name="credit_geco2">Conta os objetos, de Pelhan, Lukežič e Kristan</string>

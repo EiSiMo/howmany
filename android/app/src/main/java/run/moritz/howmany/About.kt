@@ -110,7 +110,8 @@ private val FOOTER_PADDING = 32.dp
 // The page fades out under the status bar and the back button, over this part of the scrim.
 private const val SCRIM_SOLID = 0.6f
 
-private val TIPS = listOf(R.string.tip_light, R.string.tip_crop, R.string.tip_correct)
+private val TIPS =
+    listOf(R.string.tip_light, R.string.tip_crop, R.string.tip_exemplars, R.string.tip_correct)
 
 /** A work the app builds on, with what it does for the app. */
 private class Credit(val name: String, @StringRes val text: Int, val url: String)

@@ -39,7 +39,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -107,6 +109,11 @@ private val PILL_PADDING_HORIZONTAL = 16.dp
 private val PILL_PADDING_VERTICAL = 8.dp
 private val PILL_TEXT = Color.White.copy(alpha = 0.92f)
 private val COUNT_PADDING = 20.dp
+// The exemplar counter in the pill: its own little field, set off from the instruction text.
+private val COUNTER_GAP = 10.dp
+private val COUNTER_BACKGROUND = Color.White.copy(alpha = 0.14f)
+private val COUNTER_PADDING_HORIZONTAL = 8.dp
+private val COUNTER_PADDING_VERTICAL = 2.dp
 
 // The controls float in the thumb zone: a hint above the shutter, which sits this high.
 private val CONTROLS_BOTTOM = 20.dp
@@ -161,7 +168,7 @@ fun Controls(
             modifier = Modifier.padding(horizontal = HINT_PADDING),
             label = "hint",
         ) { hint ->
-            Pill(stringResource(hint))
+            Pill(stringResource(hint.text), count = hint.count)
         }
         Spacer(Modifier.height(HINT_GAP))
         // The shutter and the count fill the room between the side buttons, with the same gaps
@@ -221,17 +228,28 @@ fun Controls(
     }
 }
 
+/** What the hint pill shows: [text], and how many exemplars are marked, if that matters. */
+data class CountHint(@StringRes val text: Int, val count: Int? = null)
+
 /** What to tell the user in [state]: what to do next, or what went wrong. */
-@StringRes
-fun hint(state: CountState): Int =
-    state.error?.message
+fun hint(state: CountState): CountHint =
+    state.error?.message?.let { CountHint(it) }
         ?: when (state.phase) {
-            CountPhase.Empty -> R.string.empty_text
-            CountPhase.Marking -> R.string.mark_exemplar
-            CountPhase.Ready -> R.string.adjust_crop
-            CountPhase.Counting -> R.string.counting
-            CountPhase.Counted -> R.string.correct
+            CountPhase.Empty -> CountHint(R.string.empty_text)
+            CountPhase.Marking,
+            CountPhase.Ready -> CountHint(exemplarHint(state.exemplars.size), state.exemplars.size)
+            CountPhase.Counting -> CountHint(R.string.counting)
+            CountPhase.Counted -> CountHint(R.string.correct)
         }
+
+/** How to mark exemplars with [count] of them already drawn. */
+@StringRes
+private fun exemplarHint(count: Int): Int =
+    when {
+        count == 0 -> R.string.mark_first_exemplar
+        count < MAX_EXEMPLARS -> R.string.mark_more_exemplars
+        else -> R.string.adjust_crop
+    }
 
 /**
  * The primary action, like a camera's shutter stretched into a pill: a white ring around an accent
@@ -370,9 +388,12 @@ fun RoundButton(
     }
 }
 
-/** A short floating text, tappable when [onClick] is given, with an accent [icon] in front. */
+/**
+ * A short floating text, with the marked exemplars out of [MAX_EXEMPLARS] in their own little field
+ * on the right when [count] is given.
+ */
 @Composable
-fun Pill(text: String, modifier: Modifier = Modifier) {
+fun Pill(text: String, modifier: Modifier = Modifier, count: Int? = null) {
     Row(
         modifier
             .heightIn(min = PILL_HEIGHT)
@@ -386,6 +407,24 @@ fun Pill(text: String, modifier: Modifier = Modifier) {
             color = PILL_TEXT,
             textAlign = TextAlign.Center,
         )
+        if (count != null) {
+            Spacer(Modifier.width(COUNTER_GAP))
+            Box(
+                Modifier.clip(RoundedCornerShape(percent = 50))
+                    .background(COUNTER_BACKGROUND)
+                    .padding(
+                        horizontal = COUNTER_PADDING_HORIZONTAL,
+                        vertical = COUNTER_PADDING_VERTICAL,
+                    )
+            ) {
+                Text(
+                    stringResource(R.string.exemplar_counter, count, MAX_EXEMPLARS),
+                    style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
     }
 }
 

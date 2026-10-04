@@ -27,11 +27,11 @@ internal class ShimmerShader {
 
     /**
      * The render effect in view coordinates at [seconds] into the scan: the ring of light spreads
-     * from [exemplar] to [reach] away from it every [period] seconds, contours glow from [contours]
-     * on, and everything shows by [fade], from 0 for not at all to 1 for fully.
+     * from the nearest [exemplars] to [reach] away from it every [period] seconds, contours glow
+     * from [contours] on, and everything shows by [fade], from 0 for not at all to 1 for fully.
      */
     fun effect(
-        exemplar: Rect,
+        exemplars: List<Rect>,
         crop: Rect,
         reach: Float,
         seconds: Float,
@@ -40,13 +40,7 @@ internal class ShimmerShader {
         contours: ContourThresholds,
         density: Density,
     ): RenderEffect {
-        shader.setFloatUniform(
-            "exemplar",
-            exemplar.left,
-            exemplar.top,
-            exemplar.right,
-            exemplar.bottom,
-        )
+        shader.setExemplars(exemplars)
         shader.setFloatUniform("crop", crop.left, crop.top, crop.right, crop.bottom)
         shader.setFloatUniform("reach", reach)
         shader.setFloatUniform("time", seconds)
@@ -64,7 +58,10 @@ internal class ShimmerShader {
         const val SHADER =
             """
             uniform shader content;
-            uniform float4 exemplar;
+            uniform float4 exemplar0;
+            uniform float4 exemplar1;
+            uniform float4 exemplar2;
+            uniform float exemplarCount;
             uniform float4 crop;
             uniform float reach;
             uniform float time;
@@ -94,9 +91,17 @@ internal class ShimmerShader {
             // How much the ring brightens everything it passes.
             const float RING_BRIGHTNESS = 0.026;
 
-            // How far p lies outside the exemplar, from its nearest edge; zero inside.
+            // How far p lies outside a rect, from its nearest edge; zero inside.
+            float distanceToRect(float2 p, float4 e) {
+                return length(max(max(e.xy - p, p - e.zw), float2(0)));
+            }
+
+            // How far p lies outside the nearest exemplar; zero inside any of them.
             float distanceToExemplar(float2 p) {
-                return length(max(max(exemplar.xy - p, p - exemplar.zw), float2(0)));
+                float d = distanceToRect(p, exemplar0);
+                if (exemplarCount > 1.5) d = min(d, distanceToRect(p, exemplar1));
+                if (exemplarCount > 2.5) d = min(d, distanceToRect(p, exemplar2));
+                return d;
             }
 
             float hash(float2 p) {

@@ -84,7 +84,7 @@
 A stack of pipes, a crowd of people, a tray of pills: take a photo, draw a box around
 one of the things you want to count, and how many? finds and marks every object that
 looks like it. Everything runs on your phone. The app has no internet permission, so
-no photo ever leaves the device. [Watch the full demo on YouTube](https://youtu.be/FFGIizGc3XY).
+no photo ever leaves the device. Mark up to three boxes to count more accurately. [Watch the full demo on YouTube](https://youtu.be/FFGIizGc3XY).
 
 <p align="center">
   <a href="#install">Install</a> ·
@@ -114,7 +114,8 @@ no photo ever leaves the device. [Watch the full demo on YouTube](https://youtu.
 ## Usage
 
 1. Take a photo or pick one from your gallery.
-2. Drag a box around one of the objects you want to count.
+2. Drag a box around one of the objects you want to count, up to three in total; tap
+   a box to remove it.
 3. Tap Count. how many? marks every object that looks like it.
 4. Check the result: drag the edges to count only part of the photo, tap a point to
    remove a wrong one, or tap an object to add one that was missed.

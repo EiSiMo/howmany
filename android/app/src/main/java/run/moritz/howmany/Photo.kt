@@ -41,6 +41,7 @@ import kotlinx.coroutines.launch
 import run.moritz.howmany.counting.Box as ImageBox
 import run.moritz.howmany.counting.Heatmap
 import run.moritz.howmany.counting.Point
+import run.moritz.howmany.counting.region
 
 // Taps within the hit radius of a point hit it, at any zoom.
 private val HIT_RADIUS = 24.dp
@@ -53,9 +54,9 @@ private val MIN_CROP_SIZE = 48.dp
 private const val CROPPED_ALPHA = 0.6f
 
 /**
- * Shows the photo with its crop and the [exemplarFrame] (the exemplar until counted) or the counted
+ * Shows the photo with its crop and the [exemplars] (while [showExemplarFrames]) or the counted
  * points, the [uncertain] ones highlighted. While [counting], it zooms smoothly out to the whole
- * photo and scans from the edge of [exemplar]; when the count arrives, it reveals the points and
+ * photo and scans from the edge of the exemplars; when the count arrives, it reveals the points and
  * their [heatmap] from there, as [animation] goes. Two fingers zoom and pan. One finger drags the
  * crop's edges while [onAdjustCrop] is given; elsewhere it drags a box around one object while
  * [onMarkExemplar] is given, and pans otherwise, keeping the crop inside the [countedArea], if
@@ -68,10 +69,10 @@ fun Photo(
     crop: ImageBox,
     countedArea: ImageBox?,
     margin: Margin,
-    exemplarFrame: ImageBox?,
+    exemplars: List<ImageBox>,
+    showExemplarFrames: Boolean,
     points: List<Point>,
     uncertain: Set<Point>,
-    exemplar: ImageBox?,
     heatmap: Heatmap?,
     counting: Boolean,
     animation: CountingAnimation,
@@ -87,7 +88,7 @@ fun Photo(
     var drag by remember(photo) { mutableStateOf<PhotoDrag?>(null) }
     val currentCrop by rememberUpdatedState(crop)
     val cropLimit by rememberUpdatedState(countedArea ?: bounds)
-    val currentExemplarFrame by rememberUpdatedState(exemplarFrame)
+    val currentExemplars by rememberUpdatedState(exemplars)
     val adjustCrop by rememberUpdatedState(onAdjustCrop)
     val markExemplar by rememberUpdatedState(onMarkExemplar)
     val tap by rememberUpdatedState(onTap)
@@ -182,7 +183,7 @@ fun Photo(
                                                 kind.handle,
                                                 (position - start) / current.scale,
                                                 cropLimit,
-                                                keep = currentExemplarFrame,
+                                                keep = currentExemplars.region(),
                                                 minSize = MIN_CROP_SIZE.toPx() / current.scale,
                                             )
                                         adjustCrop?.invoke(moved)
@@ -216,12 +217,12 @@ fun Photo(
         Canvas(
             Modifier.matchParentSize().graphicsLayer {
                 val current = viewport
-                val source = exemplar
+                val sources = current?.let { view -> exemplars.map { it.inView(view) } }.orEmpty()
                 renderEffect =
-                    if (current == null || source == null) null
+                    if (current == null || sources.isEmpty()) null
                     else
                         animation.distortion(
-                            source.inView(current),
+                            sources,
                             crop.inView(current),
                             heatmap?.bounds?.inView(current),
                             density,
@@ -247,7 +248,7 @@ fun Photo(
                     )
                 }
             }
-            if (exemplar != null) {
+            if (exemplars.isNotEmpty()) {
                 with(animation) {
                     drawCountingAnimation(
                         cropRect,
@@ -269,14 +270,10 @@ fun Photo(
                     scale(scale, center) { drawPoint(center, numbers[index + 1], color) }
                 }
             }
-            val dragged = drag
-            val rect =
-                when {
-                    dragged is PhotoDrag.Exemplar -> dragged.rect
-                    exemplarFrame != null -> exemplarFrame.inView(current)
-                    else -> null
-                }
-            if (rect != null) drawExemplarFrame(rect)
+            if (showExemplarFrames) {
+                exemplars.forEach { drawExemplarFrame(it.inView(current)) }
+            }
+            (drag as? PhotoDrag.Exemplar)?.let { drawExemplarFrame(it.rect) }
         }
         if (onAdjustCrop != null) {
             for (handle in SIDE_HANDLES) {

@@ -2,6 +2,7 @@ package run.moritz.howmany.counting
 
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.min
 
 /** An axis-aligned box in image pixels. */
 data class Box(val left: Float, val top: Float, val right: Float, val bottom: Float) {
@@ -32,3 +33,8 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
 
 /** A point in image pixels. */
 data class Point(val x: Float, val y: Float)
+
+/** The smallest box containing all of these, or null if there are none. */
+fun Iterable<Box>.region(): Box? = reduceOrNull { a, b ->
+    Box(min(a.left, b.left), min(a.top, b.top), max(a.right, b.right), max(a.bottom, b.bottom))
+}

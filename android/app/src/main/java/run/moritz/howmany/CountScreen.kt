@@ -87,10 +87,10 @@ fun CountScreen(viewModel: CountViewModel) {
                 crop = crop,
                 countedArea = state.countedArea,
                 margin = margin,
-                exemplarFrame = state.exemplar.takeIf { points == null },
+                exemplars = state.exemplars,
+                showExemplarFrames = points == null,
                 points = points.orEmpty(),
                 uncertain = shown.uncertain,
-                exemplar = state.exemplar,
                 heatmap = state.heatmap,
                 counting = phase == CountPhase.Counting,
                 animation = animation,
@@ -99,7 +99,15 @@ fun CountScreen(viewModel: CountViewModel) {
                     viewModel::markExemplar.takeIf {
                         phase == CountPhase.Marking || phase == CountPhase.Ready
                     },
-                onTap = viewModel::toggle.takeIf { phase == CountPhase.Counted },
+                onTap =
+                    when (phase) {
+                        CountPhase.Counted -> viewModel::toggle
+                        CountPhase.Marking,
+                        CountPhase.Ready -> { at, _ ->
+                            viewModel.removeExemplar(at)
+                        }
+                        else -> null
+                    },
                 zoomOnDoubleTap = phase == CountPhase.Marking || phase == CountPhase.Ready,
                 modifier = Modifier.fillMaxSize(),
             )
