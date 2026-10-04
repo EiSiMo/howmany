@@ -1,0 +1,1 @@
+- The F-Droid release. The app is unchanged; the build now produces the same APK as the GitHub and Play copies so F-Droid can ship it with the same signature.
