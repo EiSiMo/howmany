@@ -230,14 +230,22 @@ fun Photo(
         ) {
             val current = viewport ?: return@Canvas
             val photoRect = bounds.inView(current)
-            drawImage(
-                image,
-                dstOffset = IntOffset(photoRect.left.roundToInt(), photoRect.top.roundToInt()),
-                dstSize = IntSize(photoRect.width.roundToInt(), photoRect.height.roundToInt()),
-            )
             val cropRect = shownCrop.inView(current)
-            clipPath(cropOutline(cropRect), ClipOp.Difference) {
-                drawRect(Color.Black.copy(alpha = CROPPED_ALPHA), photoRect.topLeft, photoRect.size)
+            // The photo is as round as the crop, so no corner sticks out when the crop takes all
+            // of it.
+            clipPath(cropOutline(photoRect)) {
+                drawImage(
+                    image,
+                    dstOffset = IntOffset(photoRect.left.roundToInt(), photoRect.top.roundToInt()),
+                    dstSize = IntSize(photoRect.width.roundToInt(), photoRect.height.roundToInt()),
+                )
+                clipPath(cropOutline(cropRect), ClipOp.Difference) {
+                    drawRect(
+                        Color.Black.copy(alpha = CROPPED_ALPHA),
+                        photoRect.topLeft,
+                        photoRect.size,
+                    )
+                }
             }
             if (exemplar != null) {
                 with(animation) {

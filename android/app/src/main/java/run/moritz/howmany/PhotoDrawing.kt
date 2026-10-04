@@ -64,7 +64,10 @@ val SIDE_HANDLES: List<(Rect) -> Offset> =
         Rect::bottomRight,
     )
 
-/** The crop's outline in view pixels: a rounded rect, as Material shapes medium components. */
+/**
+ * The crop's outline in view pixels, or that of what it frames: a rounded rect, as Material shapes
+ * medium components.
+ */
 fun DrawScope.cropOutline(crop: Rect): Path =
     Path().apply { addRoundRect(RoundRect(crop, CornerRadius(cropRadius(crop)))) }
 

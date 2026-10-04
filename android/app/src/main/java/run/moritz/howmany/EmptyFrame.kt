@@ -55,7 +55,7 @@ fun EmptyFrame(
                     size.width - margin.right,
                     size.height - margin.bottom,
                 )
-            drawRect(fill, frame.topLeft, frame.size)
+            drawPath(cropOutline(frame), fill)
             drawCropHandles(frame, FRAME_COLOR)
         }
         if (!loading)
