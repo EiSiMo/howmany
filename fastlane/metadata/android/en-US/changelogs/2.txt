@@ -1,0 +1,2 @@
+- The photo's corners are rounded like the crop's.
+- Release builds no longer contain the dependency list encrypted for Google.
