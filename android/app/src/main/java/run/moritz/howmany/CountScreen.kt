@@ -1,6 +1,7 @@
 package run.moritz.howmany
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -62,6 +63,12 @@ fun CountScreen(viewModel: CountViewModel) {
     // The count rises with the points the reveal has shown so far.
     val revealed by
         remember(points) { derivedStateOf { points?.count { animation.pointScale(it) > 0 } ?: 0 } }
+
+    // Back steps back towards the empty screen, and leaves the app only from there.
+    BackHandler(enabled = state.canGoBack) {
+        animation.hide(state)
+        viewModel.back()
+    }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         // The photo fills the screen behind the system bars and the controls, fitted between

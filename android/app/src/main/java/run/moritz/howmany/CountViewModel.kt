@@ -108,6 +108,13 @@ data class CountState(
      */
     fun cleared(): CountState =
         if (exemplar != null) CountState(photo = photo, crop = crop) else CountState(photo = photo)
+
+    /** Whether there is a step to go back: there is a photo. */
+    val canGoBack: Boolean
+        get() = phase != CountPhase.Empty
+
+    /** Goes back one step: starts over one step, or with nothing to start over, drops the photo. */
+    fun back(): CountState = if (canStartOver) cleared() else CountState()
 }
 
 /** All of this photo, in its pixels. */
@@ -228,6 +235,12 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
     fun clear() {
         countJob?.cancel()
         _state.update { it.cleared() }
+    }
+
+    /** Goes back one step: starts over one step, or with nothing to start over, drops the photo. */
+    fun back() {
+        countJob?.cancel()
+        _state.update { it.back() }
     }
 
     fun count() {

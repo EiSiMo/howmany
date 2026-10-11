@@ -92,4 +92,18 @@ class CountStateTest {
         assertEquals(null, twice.crop)
         assertFalse(twice.canStartOver)
     }
+
+    @Test
+    fun `goes back one step at a time until there is no photo`() {
+        val count = counting.withCount(result(Point(200f, 200f)))
+
+        val once = count.back()
+        assertEquals(CountPhase.Marking, once.phase)
+        assertEquals(area, once.crop)
+        assertTrue(once.canGoBack)
+        // Without a photo, going back from the crop leaves nothing.
+        val twice = once.back()
+        assertEquals(CountPhase.Empty, twice.phase)
+        assertFalse(twice.canGoBack)
+    }
 }
