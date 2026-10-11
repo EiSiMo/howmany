@@ -8,7 +8,9 @@ import android.util.Log
 import android.util.Size
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import java.io.File
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.time.measureTimedValue
@@ -154,9 +156,11 @@ enum class CountError(@StringRes val message: Int) {
     ExportFailed(R.string.error_export_failed),
 }
 
-class CountViewModel(application: Application) : AndroidViewModel(application) {
+class CountViewModel(application: Application, savedStateHandle: SavedStateHandle) :
+    AndroidViewModel(application) {
     private val _state = MutableStateFlow(CountState())
     val state: StateFlow<CountState> = _state
+    private val saved = SavedCount(savedStateHandle, File(application.cacheDir, "counted"))
 
     // Every session is about counting, so prepare the counter (copying the model out of the APK
     // and loading it, seconds on a phone) in the background right away, while the user picks a
@@ -175,10 +179,37 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
     }
     private var photoJob: Job? = null
     private var countJob: Job? = null
+    private var savePhotoJob: Job? = null
+
+    init {
+        if (saved.hasCount) restore()
+        viewModelScope.launch { _state.collect(saved::save) }
+    }
+
+    /** Brings back the count Android ended the app with in the background, if there is one. */
+    private fun restore() {
+        _state.update { it.copy(loadingPhoto = true) }
+        photoJob = viewModelScope.launch {
+            val count =
+                try {
+                    saved.restore()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Only the count is lost; the user starts afresh.
+                    Log.e(TAG, "Cannot restore the count", e)
+                    null
+                }
+            if (count != null) Log.i(TAG, "Restored the count")
+            _state.value = count ?: CountState()
+        }
+    }
 
     /** Starts over with the photo at [uri], unless it cannot be read; replaces an earlier pick. */
     fun pickPhoto(uri: Uri) {
         photoJob?.cancel()
+        savePhotoJob?.cancel()
+        saved.forgetPhoto()
         _state.update { it.copy(loadingPhoto = true) }
         photoJob = viewModelScope.launch {
             val photo =
@@ -195,6 +226,20 @@ class CountViewModel(application: Application) : AndroidViewModel(application) {
                 }
             countJob?.cancel()
             _state.value = CountState(photo = photo)
+            savePhoto(photo)
+        }
+    }
+
+    /** Keeps [photo] to restore the count with, in the background; the count works without it. */
+    private fun savePhoto(photo: Bitmap) {
+        savePhotoJob = viewModelScope.launch {
+            try {
+                saved.savePhoto(photo)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Cannot save the photo", e)
+            }
         }
     }
 
