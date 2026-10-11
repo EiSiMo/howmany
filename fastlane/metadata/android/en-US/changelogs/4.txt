@@ -1,0 +1,2 @@
+- The back button now steps back, from the count to the photo to the start, instead of closing the app.
+- Your photo and count are kept when you switch to another app and Android closes the app in the background.
