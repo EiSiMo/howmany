@@ -1,0 +1,2 @@
+- Fixed the app closing when you switch to another app after counting a large photo.
+- Fixed the app closing after saving a count to the gallery on phones with less memory.
