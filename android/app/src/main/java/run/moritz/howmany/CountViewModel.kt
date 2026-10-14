@@ -25,7 +25,6 @@ import kotlinx.coroutines.withContext
 import run.moritz.howmany.counting.Box
 import run.moritz.howmany.counting.CountResult
 import run.moritz.howmany.counting.Heatmap
-import run.moritz.howmany.counting.ObjectCounter
 import run.moritz.howmany.counting.Point
 
 private const val TAG = "CountViewModel"
@@ -162,21 +161,8 @@ class CountViewModel(application: Application, savedStateHandle: SavedStateHandl
     val state: StateFlow<CountState> = _state
     private val saved = SavedCount(savedStateHandle, File(application.cacheDir, "counted"))
 
-    // Every session is about counting, so prepare the counter (copying the model out of the APK
-    // and loading it, seconds on a phone) in the background right away, while the user picks a
-    // photo and marks an exemplar. It holds only the model weights until the first count.
-    private val objectCounter = Preloaded {
-        val (counter, duration) =
-            try {
-                measureTimedValue { ObjectCounter.fromAssets(application) }
-            } catch (e: Exception) {
-                // Surfaces only once the user counts, which may be never.
-                Log.e(TAG, "Cannot prepare the counter", e)
-                throw e
-            }
-        Log.i(TAG, "Counter ready in $duration")
-        counter
-    }
+    // Every session is about counting, so the app prepares the counter right away.
+    private val objectCounter = getApplication<HowManyApplication>().objectCounter.take()
     private var photoJob: Job? = null
     private var countJob: Job? = null
     private var savePhotoJob: Job? = null
