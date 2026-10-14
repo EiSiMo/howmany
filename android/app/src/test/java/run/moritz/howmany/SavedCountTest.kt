@@ -1,7 +1,6 @@
 package run.moritz.howmany
 
 import androidx.lifecycle.SavedStateHandle
-import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -36,10 +35,20 @@ class SavedCountTest {
         assertEquals(count.exemplar, restored.exemplar)
         assertEquals(count.points, restored.points)
         assertEquals(count.uncertain, restored.uncertain)
-        assertEquals(2, restored.heatmap!!.columns)
-        assertArrayEquals(floatArrayOf(0.25f, 0.75f), restored.heatmap!!.values, 0f)
-        assertEquals(area, restored.heatmap!!.bounds)
         assertEquals(CountPhase.Counted, restored.phase)
+    }
+
+    @Test
+    fun `keeps no heatmap, too large for what Android keeps`() {
+        val count =
+            counting.withCount(
+                CountResult(emptyList(), Heatmap(256, 192, FloatArray(256 * 192), area))
+            )
+        val handle = SavedStateHandle()
+
+        handle.saveCount(count)
+
+        assertNull(handle.restoredCount()!!.heatmap)
     }
 
     @Test

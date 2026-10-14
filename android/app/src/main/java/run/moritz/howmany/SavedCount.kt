@@ -11,7 +11,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import run.moritz.howmany.counting.Box
-import run.moritz.howmany.counting.Heatmap
 import run.moritz.howmany.counting.Point
 
 private const val TAG = "SavedCount"
@@ -21,9 +20,6 @@ private const val COUNTED_AREA = "countedArea"
 private const val EXEMPLAR = "exemplar"
 private const val POINTS = "points"
 private const val UNCERTAIN = "uncertain"
-private const val HEATMAP_SIZE = "heatmapSize"
-private const val HEATMAP_VALUES = "heatmapValues"
-private const val HEATMAP_BOUNDS = "heatmapBounds"
 
 /**
  * Keeps the count across Android ending the app in the background: the photo as a file in
@@ -85,7 +81,11 @@ class SavedCount(private val handle: SavedStateHandle, private val directory: Fi
     }
 }
 
-/** Remembers [state] apart from its photo; a count still running is lost, so is the error. */
+/**
+ * Remembers [state] apart from its photo; a count still running is lost, so is the error, and the
+ * heatmap: it alone can exceed what Android passes on as the app goes to the background, which
+ * crashes the app, and a restored count need not glow.
+ */
 internal fun SavedStateHandle.saveCount(state: CountState) {
     val counted = state.points != null
     this[CROP] = state.crop?.toArray()
@@ -93,27 +93,17 @@ internal fun SavedStateHandle.saveCount(state: CountState) {
     this[EXEMPLAR] = state.exemplar?.toArray()
     this[POINTS] = state.points?.toArray()
     this[UNCERTAIN] = state.uncertain.toList().toArray()
-    this[HEATMAP_SIZE] = state.heatmap?.let { intArrayOf(it.rows, it.columns) }
-    this[HEATMAP_VALUES] = state.heatmap?.values
-    this[HEATMAP_BOUNDS] = state.heatmap?.bounds?.toArray()
 }
 
 /** The count [saveCount] remembered, without its photo; null if it had no photo. */
 internal fun SavedStateHandle.restoredCount(): CountState? {
     val crop = get<FloatArray>(CROP)?.toBox() ?: return null
-    val size = get<IntArray>(HEATMAP_SIZE)
-    val values = get<FloatArray>(HEATMAP_VALUES)
-    val bounds = get<FloatArray>(HEATMAP_BOUNDS)?.toBox()
     return CountState(
         crop = crop,
         countedArea = get<FloatArray>(COUNTED_AREA)?.toBox(),
         exemplar = get<FloatArray>(EXEMPLAR)?.toBox(),
         points = get<FloatArray>(POINTS)?.toPoints(),
         uncertain = get<FloatArray>(UNCERTAIN)?.toPoints().orEmpty().toSet(),
-        heatmap =
-            if (size != null && values != null && bounds != null) {
-                Heatmap(size[0], size[1], values, bounds)
-            } else null,
     )
 }
 
