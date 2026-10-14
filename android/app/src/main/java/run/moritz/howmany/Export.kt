@@ -178,7 +178,7 @@ private fun shareSheet(context: Context): Intent {
             PendingIntent.getActivity(
                 context,
                 0,
-                Intent(context, MainActivity::class.java).setAction(ACTION_SAVE_EXPORT),
+                saveExportIntent(context),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
         val action =
@@ -192,6 +192,16 @@ private fun shareSheet(context: Context): Intent {
     }
     return chooser
 }
+
+/**
+ * Starts the app to save the last export to the gallery. The open app does it, in place of the
+ * share sheet on top of it: a second one would load a second model, too much memory for some
+ * phones.
+ */
+internal fun saveExportIntent(context: Context): Intent =
+    Intent(context, MainActivity::class.java)
+        .setAction(ACTION_SAVE_EXPORT)
+        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
 /**
  * Where the export goes: always the same file in the cache, so it stays out of the gallery until
