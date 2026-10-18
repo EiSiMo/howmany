@@ -120,6 +120,28 @@ object Diagnostics {
         }
     }
 
+    /**
+     * The app's memory now and at its peak, and the phone's available memory and how low it may get
+     * before Android kills apps, for the log: what tells whether the app ended for lack of it.
+     */
+    fun memory(context: Context): String {
+        val phone =
+            ActivityManager.MemoryInfo().also {
+                context.getSystemService(ActivityManager::class.java).getMemoryInfo(it)
+            }
+        val status = File("/proc/self/status").readLines()
+        fun megabytes(field: String) =
+            status.first { it.startsWith("$field:") }.split(Regex("\\s+"))[1].toLong() / 1024
+        return "App holds ${megabytes("VmRSS")} MB (peak ${megabytes("VmHWM")} MB), phone has " +
+            "%.1f of %.1f GB available, killing apps below %.1f GB"
+                .format(
+                    phone.availMem / BYTES_PER_GB,
+                    phone.totalMem / BYTES_PER_GB,
+                    phone.threshold / BYTES_PER_GB,
+                ) +
+            if (phone.lowMemory) ", low on memory" else ""
+    }
+
     /** The report about [crash], or about how the app runs if null, as plain text. */
     internal fun report(context: Context, crash: Crash?): String = buildString {
         val memory =

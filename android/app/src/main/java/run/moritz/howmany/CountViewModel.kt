@@ -285,6 +285,7 @@ class CountViewModel(application: Application, savedStateHandle: SavedStateHandl
             // A cancelled count still occupies the model until it returns; don't run two at once.
             cancelled?.join()
             Log.i(TAG, "Counting in $crop like $exemplar")
+            Log.i(TAG, Diagnostics.memory(getApplication()))
             val (result, duration) =
                 try {
                     // Waits for the counter if it is still being prepared; a preparation error
@@ -301,6 +302,7 @@ class CountViewModel(application: Application, savedStateHandle: SavedStateHandl
                     return@launch
                 }
             Log.i(TAG, "${result.detections.size} objects in $duration")
+            Log.i(TAG, Diagnostics.memory(getApplication()))
             _state.update { it.withCount(result) }
         }
     }

@@ -32,4 +32,11 @@ class HowManyApplication : Application() {
         Diagnostics.install(this)
         Log.i(TAG, "Starting ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
     }
+
+    // Android warns of running low on memory before it kills apps, though since Android 14 only
+    // once the app is out of sight.
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        Log.i(TAG, "Asked to free memory (level $level). ${Diagnostics.memory(this)}")
+    }
 }
