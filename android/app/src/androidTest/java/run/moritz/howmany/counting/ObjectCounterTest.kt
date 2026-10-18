@@ -10,6 +10,7 @@ import kotlin.time.measureTimedValue
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,12 +48,30 @@ class ObjectCounterTest {
         assertEquals(93f, count.get().toFloat(), 93 * 0.05f)
     }
 
+    /**
+     * Counting gives back the memory it needed, as Android kills apps holding much of it, even in
+     * the foreground.
+     */
+    @Test
+    fun countingGivesBackItsMemory() {
+        val image = instrumentation.context.assets.open("5574.jpg").use(BitmapFactory::decodeStream)
+        // Its own counter, as the others may already have kept memory from earlier counts.
+        val (before, after) =
+            ObjectCounter.fromAssets(instrumentation.targetContext).use {
+                val before = memoryMb("VmRSS")
+                it.detect(image, listOf(Box(280f, 218f, 301f, 240f)))
+                before to memoryMb("VmRSS")
+            }
+        Log.i(TAG, "Resident memory $before MB before counting, $after MB after")
+        assertTrue("Counting kept ${after - before} MB", after - before < 100)
+    }
+
     private fun countsLikeTheBenchmark(name: String, exemplar: Box, expected: Int) {
         val image = instrumentation.context.assets.open(name).use(BitmapFactory::decodeStream)
         val runs =
             List(4) { measureTimedValue { counter.detect(image, listOf(exemplar)).detections } }
         runs.forEach { Log.i(TAG, "$name: ${it.value.size} objects in ${it.duration}") }
-        Log.i(TAG, "$name: peak memory so far ${peakMemoryMb()} MB")
+        Log.i(TAG, "$name: peak memory so far ${memoryMb("VmHWM")} MB")
 
         assertEquals(expected.toFloat(), runs.last().value.size.toFloat(), expected * 0.05f)
     }
@@ -72,11 +91,14 @@ class ObjectCounterTest {
             Log.i(TAG, "Counter created in $duration")
         }
 
-        /** The process's peak resident memory, as Android's low-memory killer sees it. */
-        private fun peakMemoryMb(): Long =
+        /**
+         * The process's resident memory, as Android's low-memory killer sees it: now ("VmRSS") or
+         * at its peak ("VmHWM").
+         */
+        private fun memoryMb(field: String): Long =
             File("/proc/self/status")
                 .readLines()
-                .first { it.startsWith("VmHWM:") }
+                .first { it.startsWith("$field:") }
                 .split(Regex("\\s+"))[1]
                 .toLong() / 1024
 

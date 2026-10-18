@@ -39,6 +39,13 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
                 setMemoryPatternOptimization(false)
             },
         )
+    // The memory arena would keep a count's peak memory, a gigabyte or more, for later counts, and
+    // Android kills apps holding that much even in the foreground. Without the arena, counting
+    // takes up to twice as long.
+    private val runOptions =
+        OrtSession.RunOptions().apply {
+            addRunConfigEntry("memory.enable_memory_arena_shrinkage", "cpu:0")
+        }
     // Closing frees the session only once no detection runs on it anymore, as freeing it under a
     // running one crashes the app natively.
     private val lock = Any()
@@ -76,7 +83,7 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
                     detectInWhole(it, exemplars.map { box -> box.translated(-x, -y) })
                 }
             } finally {
-                synchronized(lock) { if (--running == 0 && closed) session.close() }
+                synchronized(lock) { if (--running == 0 && closed) free() }
             }
         return CountResult(
             result.detections.map { it.copy(box = it.box.translated(x, y)) },
@@ -112,15 +119,20 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
         synchronized(lock) {
             if (closed) return
             closed = true
-            if (running == 0) session.close()
+            if (running == 0) free()
         }
+    }
+
+    private fun free() {
+        session.close()
+        runOptions.close()
     }
 
     private fun tensor(values: FloatBuffer, vararg shape: Int) =
         OnnxTensor.createTensor(environment, values, shape.map { it.toLong() }.toLongArray())
 
     private fun infer(image: OnnxTensor, exemplars: OnnxTensor): ModelOutput =
-        session.run(mapOf("image" to image, "exemplars" to exemplars)).use { result ->
+        session.run(mapOf("image" to image, "exemplars" to exemplars), runOptions).use { result ->
             val objectness = result.tensor("objectness")
             ModelOutput(
                 rows = objectness.info.shape[1].toInt(),
