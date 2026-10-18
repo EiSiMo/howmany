@@ -1,0 +1,1 @@
+- Fixed the app closing after counting on phones with less memory.
