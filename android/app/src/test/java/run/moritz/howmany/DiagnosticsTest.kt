@@ -40,4 +40,13 @@ class DiagnosticsTest {
 
         assertNull(lastCrash(exits, seenUntil = 0))
     }
+
+    @Test
+    fun `tells the app version a process ran`() {
+        assertEquals(
+            "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+            exitVersion(versionSummary()),
+        )
+        assertEquals("unknown version", exitVersion(null))
+    }
 }

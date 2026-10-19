@@ -55,10 +55,16 @@ internal data class ProcessExit(val timestamp: Long, val reason: Int, val import
  */
 object Diagnostics {
     /**
-     * Keeps the app's log, and records Java crashes, as Android keeps only native traces, for the
-     * next start; call once as the app starts.
+     * Keeps the app's log, has Android tell the app version with how the app ends (from Android 11,
+     * which tells how it ended), and records Java crashes, as Android keeps only native traces, for
+     * the next start; call once as the app starts.
      */
     fun install(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            context
+                .getSystemService(ActivityManager::class.java)
+                .setProcessStateSummary(versionSummary())
+        }
         val preferences = preferences(context)
         // Crashes before the first start with diagnostics are none of the user's concern.
         if (!preferences.contains(SEEN_UNTIL)) {
@@ -70,7 +76,8 @@ object Diagnostics {
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             try {
                 file.writeText(
-                    "${Instant.now()} on thread ${thread.name}\n${error.stackTraceToString()}"
+                    "${Instant.now()} in ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) " +
+                        "on thread ${thread.name}\n${error.stackTraceToString()}"
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "Cannot record the crash", e)
@@ -200,9 +207,11 @@ object Diagnostics {
             .getSystemService(ActivityManager::class.java)
             .getHistoricalProcessExitReasons(null, 0, 0)
 
+    /** How [exit] ended, with the app version it ran, which an update since may have changed. */
     @RequiresApi(Build.VERSION_CODES.R)
     private fun describe(exit: ApplicationExitInfo) =
-        "${Instant.ofEpochMilli(exit.timestamp)} ${reasonName(exit.reason)} " +
+        "${Instant.ofEpochMilli(exit.timestamp)} ${exitVersion(exit.processStateSummary)} " +
+            "${reasonName(exit.reason)} " +
             "(importance ${exit.importance}, pss ${exit.pss} kB, rss ${exit.rss} kB): " +
             "${exit.description}"
 
@@ -297,6 +306,17 @@ internal fun lastCrash(exits: List<ProcessExit>, seenUntil: Long): ProcessExit? 
             }
         }
         .maxByOrNull { it.timestamp }
+
+/** The app version, for Android to keep with the app's process and tell with how it ended. */
+internal fun versionSummary(): ByteArray =
+    "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})".encodeToByteArray()
+
+/**
+ * The app version a process ran, from the [summary] it kept; processes of 0.2.2 and before kept
+ * none.
+ */
+internal fun exitVersion(summary: ByteArray?): String =
+    summary?.decodeToString() ?: "unknown version"
 
 private fun reasonName(reason: Int) =
     when (reason) {
