@@ -1,0 +1,2 @@
+- Take photos with any camera app you installed, also when your phone has no preinstalled one.
+- With several camera apps, choose one and the app remembers it. Long press the camera button to choose again.
