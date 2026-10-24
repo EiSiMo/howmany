@@ -33,7 +33,7 @@ android {
 
     defaultConfig {
         applicationId = "run.moritz.howmany"
-        minSdk = 31
+        minSdk = 28
         targetSdk = 37
         versionCode = 6
         versionName = "0.2.2"

@@ -12,12 +12,12 @@ import org.junit.runner.RunWith
 class OfflineTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
+    // Without PackageInfoFlags, which Android has only from 13 on.
+    @Suppress("DEPRECATION")
     private val packageInfo =
         context.packageManager.getPackageInfo(
             context.packageName,
-            PackageManager.PackageInfoFlags.of(
-                (PackageManager.GET_PERMISSIONS or PackageManager.GET_PROVIDERS).toLong()
-            ),
+            PackageManager.GET_PERMISSIONS or PackageManager.GET_PROVIDERS,
         )
 
     @Test

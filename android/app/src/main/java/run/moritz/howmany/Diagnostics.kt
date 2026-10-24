@@ -11,6 +11,7 @@ import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -40,7 +41,8 @@ private const val BYTES_PER_GB = 1e9
  * The app ending abnormally in the foreground, as Android recorded it: a crash in Java or native
  * code, not responding, or killed for lack of memory while in use.
  */
-class Crash internal constructor(internal val info: ApplicationExitInfo)
+class Crash
+internal constructor(internal val info: ApplicationExitInfo, internal val timestamp: Long)
 
 /** How the app's process ended, as far as it tells whether that was a crash. */
 internal data class ProcessExit(val timestamp: Long, val reason: Int, val importance: Int)
@@ -79,20 +81,21 @@ object Diagnostics {
 
     /**
      * The app's last crash, unless the user has already been asked about it; blocks, so call it in
-     * the background.
+     * the background. Always null before Android 11, which does not record how apps ended.
      */
     fun unseenCrash(context: Context): Crash? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
         val seenUntil = preferences(context).getLong(SEEN_UNTIL, Long.MAX_VALUE)
         val exits = exits(context)
         val crash =
             lastCrash(exits.map { ProcessExit(it.timestamp, it.reason, it.importance) }, seenUntil)
                 ?: return null
-        return Crash(exits.first { it.timestamp == crash.timestamp })
+        return Crash(exits.first { it.timestamp == crash.timestamp }, crash.timestamp)
     }
 
     /** Remembers that the user has been asked about [crash] and all before it. */
     fun seen(context: Context, crash: Crash) =
-        preferences(context).edit { putLong(SEEN_UNTIL, crash.info.timestamp) }
+        preferences(context).edit { putLong(SEEN_UNTIL, crash.timestamp) }
 
     /**
      * Opens the mail app with a report, about [crash] if given, to send us. Tells the user if that
@@ -154,14 +157,17 @@ object Diagnostics {
         )
         appendLine(
             "${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE}), Android " +
-                "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.SOC_MODEL}"
+                "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), " +
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Build.SOC_MODEL
+                else Build.HARDWARE
         )
         appendLine(
             "Memory: %.1f GB, %.1f GB available"
                 .format(memory.totalMem / BYTES_PER_GB, memory.availMem / BYTES_PER_GB)
         )
         appendLine("Created ${Instant.now()}")
-        if (crash != null) {
+        // Crashes exist only from Android 11 on, see unseenCrash.
+        if (crash != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             section("Crash")
             appendLine(describe(crash.info))
             // A native crash's trace is a binary tombstone; its text is in the log, from DEBUG.
@@ -174,8 +180,10 @@ object Diagnostics {
             section("Last Java crash")
             append(javaCrash.readText())
         }
-        section("Recent exits")
-        exits(context).take(EXITS_SHOWN).forEach { appendLine(describe(it)) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            section("Recent exits")
+            exits(context).take(EXITS_SHOWN).forEach { appendLine(describe(it)) }
+        }
         section("Log")
         append(log(context))
     }
@@ -186,11 +194,13 @@ object Diagnostics {
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
 
     /** How the app's processes ended recently, newest first. */
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun exits(context: Context): List<ApplicationExitInfo> =
         context
             .getSystemService(ActivityManager::class.java)
             .getHistoricalProcessExitReasons(null, 0, 0)
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun describe(exit: ApplicationExitInfo) =
         "${Instant.ofEpochMilli(exit.timestamp)} ${reasonName(exit.reason)} " +
             "(importance ${exit.importance}, pss ${exit.pss} kB, rss ${exit.rss} kB): " +

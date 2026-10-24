@@ -12,6 +12,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.service.chooser.ChooserAction
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -100,6 +101,7 @@ fun rememberExport(onFailed: () -> Unit): (CountState) -> Unit {
 }
 
 /** Saves the last export to the gallery, in a folder of its own. */
+@RequiresApi(Build.VERSION_CODES.Q)
 suspend fun saveExport(context: Context) =
     withContext(Dispatchers.IO) {
         val resolver = context.contentResolver

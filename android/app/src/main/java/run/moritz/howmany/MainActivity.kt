@@ -2,12 +2,14 @@ package run.moritz.howmany
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.annotation.RequiresApi
 import androidx.core.content.IntentCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CancellationException
@@ -43,7 +45,8 @@ class MainActivity : ComponentActivity() {
      */
     private fun open(intent: Intent) {
         if (intent.action == ACTION_SAVE_EXPORT) {
-            save()
+            // Only the share sheet asks to, from Android 14 on.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) save()
             return
         }
         val image =
@@ -60,6 +63,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun save() {
         lifecycleScope.launch {
             try {

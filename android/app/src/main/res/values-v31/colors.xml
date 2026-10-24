@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The system's accent, like the app's controls. -->
+    <color name="accent">@android:color/system_accent1_200</color>
+</resources>

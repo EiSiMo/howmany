@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The accent before Android 12, which has no system accent; the launcher icon's too. -->
+    <color name="accent">#FFB4C5FF</color>
+</resources>
