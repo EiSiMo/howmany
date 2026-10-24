@@ -3,6 +3,7 @@
     <string name="empty_title">Qu’est-ce que tu veux compter&#160;?</string>
     <string name="empty_text">Prends ou choisis une photo</string>
     <string name="take_photo">Prendre une photo</string>
+    <string name="take_photo_with">Prendre une photo avec</string>
     <string name="pick_photo">Choisir une photo</string>
     <string name="clear">Recommencer</string>
     <string name="export">Partager ou enregistrer</string>

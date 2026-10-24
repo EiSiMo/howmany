@@ -4,6 +4,7 @@
     <string name="empty_title">What do you want to count?</string>
     <string name="empty_text">Take or pick a photo</string>
     <string name="take_photo">Take photo</string>
+    <string name="take_photo_with">Take photo with</string>
     <string name="pick_photo">Pick photo</string>
     <string name="clear">Start over</string>
     <string name="export">Share or save</string>

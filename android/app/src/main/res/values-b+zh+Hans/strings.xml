@@ -3,6 +3,7 @@
     <string name="empty_title">你想数什么？</string>
     <string name="empty_text">拍一张或选一张照片</string>
     <string name="take_photo">拍照</string>
+    <string name="take_photo_with">选择拍照应用</string>
     <string name="pick_photo">选择照片</string>
     <string name="clear">重来</string>
     <string name="export">分享或保存</string>

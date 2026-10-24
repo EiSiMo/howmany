@@ -3,6 +3,7 @@
     <string name="empty_title">¿Qué quieres contar?</string>
     <string name="empty_text">Haz o elige una foto</string>
     <string name="take_photo">Hacer foto</string>
+    <string name="take_photo_with">Hacer foto con</string>
     <string name="pick_photo">Elegir foto</string>
     <string name="clear">Otra vez</string>
     <string name="export">Compartir o guardar</string>
