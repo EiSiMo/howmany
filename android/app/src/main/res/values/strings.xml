@@ -5,6 +5,7 @@
     <string name="empty_text">Take or pick a photo</string>
     <string name="take_photo">Take photo</string>
     <string name="take_photo_with">Take photo with</string>
+    <string name="choose_camera">Choose camera app</string>
     <string name="pick_photo">Pick photo</string>
     <string name="clear">Start over</string>
     <string name="export">Share or save</string>

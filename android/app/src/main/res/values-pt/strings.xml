@@ -4,6 +4,7 @@
     <string name="empty_text">Tire ou escolha uma foto</string>
     <string name="take_photo">Tirar foto</string>
     <string name="take_photo_with">Tirar foto com</string>
+    <string name="choose_camera">Escolher app de câmera</string>
     <string name="pick_photo">Escolher foto</string>
     <string name="clear">De novo</string>
     <string name="export">Compartilhar ou salvar</string>

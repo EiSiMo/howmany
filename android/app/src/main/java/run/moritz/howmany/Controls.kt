@@ -216,6 +216,8 @@ fun Controls(
                 painterResource(R.drawable.ic_take_photo),
                 stringResource(R.string.take_photo),
                 sources.takePhoto,
+                onLongClick = sources.chooseCamera,
+                longClickLabel = stringResource(R.string.choose_camera),
             )
         }
     }
@@ -348,7 +350,10 @@ private fun PillSpinner(color: Color, modifier: Modifier = Modifier) {
     }
 }
 
-/** A secondary action beside the shutter: a small dark disc with [icon]. */
+/**
+ * A secondary action beside the shutter: a small dark disc with [icon]. A long press, if given,
+ * does [onLongClick], which [longClickLabel] names.
+ */
 @Composable
 fun RoundButton(
     icon: Painter,
@@ -356,6 +361,8 @@ fun RoundButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null,
 ) {
     val alpha by animateFloatAsState(if (enabled) 1f else DISABLED_ALPHA)
     Box(
@@ -363,7 +370,14 @@ fun RoundButton(
             .size(SIDE_BUTTON_SIZE)
             .graphicsLayer { this.alpha = alpha }
             .floating()
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+            // A long press gives haptic feedback on its own.
+            .combinedClickable(
+                enabled = enabled,
+                role = Role.Button,
+                onLongClickLabel = longClickLabel,
+                onLongClick = onLongClick,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription, tint = Color.White)

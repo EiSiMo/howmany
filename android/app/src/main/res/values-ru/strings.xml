@@ -4,6 +4,7 @@
     <string name="empty_text">Сделай или выбери фото</string>
     <string name="take_photo">Сделать фото</string>
     <string name="take_photo_with">Сделать фото с помощью</string>
+    <string name="choose_camera">Выбрать приложение камеры</string>
     <string name="pick_photo">Выбрать фото</string>
     <string name="clear">Заново</string>
     <string name="export">Поделиться или сохранить</string>
