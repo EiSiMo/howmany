@@ -76,4 +76,38 @@ class CameraChoiceTest {
             chooseCamera(emptyList(), preinstalled = false, remembered = null),
         )
     }
+
+    @Test
+    fun `the user chooses again among new camera apps`() {
+        assertEquals(
+            CameraChoice.Choose(listOf(stock, open, fossify)),
+            chooseCamera(
+                listOf(stock, open, fossify),
+                preinstalled = true,
+                remembered = open,
+                known = setOf(stock, open),
+            ),
+        )
+    }
+
+    @Test
+    fun `camera apps seen for the first time are not new`() {
+        assertEquals(
+            CameraChoice.Preinstalled,
+            chooseCamera(listOf(stock, open), preinstalled = true, remembered = null, known = null),
+        )
+    }
+
+    @Test
+    fun `gone camera apps are no reason to choose again`() {
+        assertEquals(
+            CameraChoice.App(open),
+            chooseCamera(
+                listOf(stock, open),
+                preinstalled = true,
+                remembered = open,
+                known = setOf(stock, open, fossify),
+            ),
+        )
+    }
 }

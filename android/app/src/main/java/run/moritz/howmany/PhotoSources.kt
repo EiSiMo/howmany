@@ -30,6 +30,7 @@ import java.io.File
 private const val TAG = "PhotoSources"
 private const val CAMERA_PREFERENCES = "camera"
 private const val CHOSEN_CAMERA = "chosen"
+private const val KNOWN_CAMERAS = "known"
 
 /**
  * The ways to get a photo: taking one with a camera app, or picking one from the gallery. Long
@@ -97,22 +98,26 @@ sealed interface CameraChoice {
 /**
  * Chooses which of the camera [apps] takes a photo. The one the user chose before, [remembered],
  * does while it is there; else Android's choice if there is a [preinstalled] camera app, which
- * since Android 11 only those can be, else the user's. Asked to, the user [choose]s again.
+ * since Android 11 only those can be, else the user's. Asked to, the user [choose]s again, as when
+ * there are apps that were not among those [known] before.
  */
 fun chooseCamera(
     apps: List<String>,
     preinstalled: Boolean,
     remembered: String?,
+    known: Set<String>? = null,
     choose: Boolean = false,
-): CameraChoice =
-    when {
-        choose && apps.size > 1 -> CameraChoice.Choose(apps)
+): CameraChoice {
+    val added = known != null && apps.any { it !in known }
+    return when {
+        (choose || added) && apps.size > 1 -> CameraChoice.Choose(apps)
         remembered != null && remembered in apps -> CameraChoice.App(remembered)
         preinstalled -> CameraChoice.Preinstalled
         apps.isEmpty() -> CameraChoice.None
         apps.size == 1 -> CameraChoice.App(apps.single())
         else -> CameraChoice.Choose(apps)
     }
+}
 
 /**
  * Asks a camera app to take a photo into [output], as [chooseCamera] chooses, with the user
@@ -143,12 +148,18 @@ private fun ActivityResultLauncher<Intent>.takePhoto(
             }
             .map { ComponentName(it.activityInfo.packageName, it.activityInfo.name) }
     val preinstalled = packages.queryIntentActivities(request, 0).isNotEmpty()
-    val remembered = rememberedCamera(context)
-    if (remembered != null && apps.none { it.flattenToString() == remembered }) {
+    val names = apps.map { it.flattenToString() }
+    val preferences = cameraPreferences(context)
+    val remembered = preferences.getString(CHOSEN_CAMERA, null)
+    if (remembered != null && remembered !in names) {
         Log.i(TAG, "Forgetting the chosen camera app $remembered, which is gone")
-        rememberCamera(context, null)
     }
-    val choice = chooseCamera(apps.map { it.flattenToString() }, preinstalled, remembered, choose)
+    val known = preferences.getStringSet(KNOWN_CAMERAS, null)
+    val choice = chooseCamera(names, preinstalled, remembered, known, choose)
+    preferences.edit {
+        putString(CHOSEN_CAMERA, remembered?.takeIf { it in names })
+        putStringSet(KNOWN_CAMERAS, names.toSet())
+    }
     Log.i(TAG, "Found ${apps.size} camera apps, preinstalled: $preinstalled, taking $choice")
     val explicit = { app: String ->
         Intent(request).setComponent(ComponentName.unflattenFromString(app))
@@ -189,18 +200,14 @@ class CameraChosen : BroadcastReceiver() {
                 ComponentName::class.java,
             )
         Log.i(TAG, "The user chose the camera app $app")
-        app?.let { rememberCamera(context, it.flattenToString()) }
+        app?.let {
+            cameraPreferences(context).edit { putString(CHOSEN_CAMERA, it.flattenToString()) }
+        }
     }
 }
 
 private fun cameraPreferences(context: Context) =
     context.getSharedPreferences(CAMERA_PREFERENCES, Context.MODE_PRIVATE)
-
-private fun rememberedCamera(context: Context): String? =
-    cameraPreferences(context).getString(CHOSEN_CAMERA, null)
-
-private fun rememberCamera(context: Context, app: String?) =
-    cameraPreferences(context).edit { putString(CHOSEN_CAMERA, app) }
 
 /**
  * Where the camera app writes the photo it takes: always the same file in the cache, so it stays
