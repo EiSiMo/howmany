@@ -9,9 +9,17 @@ class CameraChoiceTest {
     private val fossify = "org.fossify.camera/.activities.MainActivity"
 
     @Test
-    fun `the preinstalled camera app takes the photo unless the user chose one`() {
+    fun `the only camera app takes the photo`() {
         assertEquals(
-            CameraChoice.Preinstalled,
+            CameraChoice.App(stock),
+            chooseCamera(listOf(stock), preinstalled = true, remembered = null),
+        )
+    }
+
+    @Test
+    fun `the user chooses among several camera apps, also with a preinstalled one`() {
+        assertEquals(
+            CameraChoice.Choose(listOf(stock, open)),
             chooseCamera(listOf(stock, open), preinstalled = true, remembered = null),
         )
     }
@@ -20,60 +28,20 @@ class CameraChoiceTest {
     fun `the camera app the user chose takes the photo`() {
         assertEquals(
             CameraChoice.App(open),
-            chooseCamera(listOf(stock, open), preinstalled = true, remembered = open),
-        )
-    }
-
-    @Test
-    fun `a chosen camera app that is gone is forgotten`() {
-        assertEquals(
-            CameraChoice.Preinstalled,
-            chooseCamera(listOf(stock), preinstalled = true, remembered = open),
-        )
-    }
-
-    @Test
-    fun `without a preinstalled camera app the only installed one takes the photo`() {
-        assertEquals(
-            CameraChoice.App(open),
-            chooseCamera(listOf(open), preinstalled = false, remembered = null),
-        )
-    }
-
-    @Test
-    fun `without a preinstalled camera app the user chooses among the installed ones`() {
-        assertEquals(
-            CameraChoice.Choose(listOf(open, fossify)),
-            chooseCamera(listOf(open, fossify), preinstalled = false, remembered = null),
-        )
-    }
-
-    @Test
-    fun `asked to, the user chooses again among all camera apps`() {
-        assertEquals(
-            CameraChoice.Choose(listOf(stock, open)),
             chooseCamera(
                 listOf(stock, open),
                 preinstalled = true,
                 remembered = open,
-                choose = true,
+                known = setOf(stock, open),
             ),
         )
     }
 
     @Test
-    fun `there is nothing to choose with a single camera app`() {
+    fun `the user chooses again when the chosen camera app is gone`() {
         assertEquals(
-            CameraChoice.App(open),
-            chooseCamera(listOf(open), preinstalled = false, remembered = null, choose = true),
-        )
-    }
-
-    @Test
-    fun `without camera apps no photo can be taken`() {
-        assertEquals(
-            CameraChoice.None,
-            chooseCamera(emptyList(), preinstalled = false, remembered = null),
+            CameraChoice.Choose(listOf(stock, fossify)),
+            chooseCamera(listOf(stock, fossify), preinstalled = true, remembered = open),
         )
     }
 
@@ -91,14 +59,6 @@ class CameraChoiceTest {
     }
 
     @Test
-    fun `camera apps seen for the first time are not new`() {
-        assertEquals(
-            CameraChoice.Preinstalled,
-            chooseCamera(listOf(stock, open), preinstalled = true, remembered = null, known = null),
-        )
-    }
-
-    @Test
     fun `gone camera apps are no reason to choose again`() {
         assertEquals(
             CameraChoice.App(open),
@@ -108,6 +68,44 @@ class CameraChoiceTest {
                 remembered = open,
                 known = setOf(stock, open, fossify),
             ),
+        )
+    }
+
+    @Test
+    fun `asked to, the user chooses again among all camera apps`() {
+        assertEquals(
+            CameraChoice.Choose(listOf(stock, open)),
+            chooseCamera(
+                listOf(stock, open),
+                preinstalled = true,
+                remembered = open,
+                known = setOf(stock, open),
+                choose = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `there is nothing to choose with a single camera app`() {
+        assertEquals(
+            CameraChoice.App(open),
+            chooseCamera(listOf(open), preinstalled = false, remembered = null, choose = true),
+        )
+    }
+
+    @Test
+    fun `a preinstalled camera app we cannot see is asked without naming it`() {
+        assertEquals(
+            CameraChoice.Preinstalled,
+            chooseCamera(emptyList(), preinstalled = true, remembered = null),
+        )
+    }
+
+    @Test
+    fun `without camera apps no photo can be taken`() {
+        assertEquals(
+            CameraChoice.None,
+            chooseCamera(emptyList(), preinstalled = false, remembered = null),
         )
     }
 }

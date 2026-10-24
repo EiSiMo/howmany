@@ -161,4 +161,5 @@ fun CountScreen(viewModel: CountViewModel) {
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
+    CameraSheet(sources)
 }

@@ -47,10 +47,6 @@
             android:exported="false"
             android:label="@string/about"
             android:screenOrientation="portrait" />
-        <!-- Hears which camera app the user chose. -->
-        <receiver
-            android:name=".CameraChosen"
-            android:exported="false" />
         <!-- Lets the camera app write the photo it takes into the app's cache, and others read exports and reports. -->
         <provider
             android:name="androidx.core.content.FileProvider"
