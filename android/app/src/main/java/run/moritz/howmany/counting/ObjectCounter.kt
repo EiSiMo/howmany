@@ -5,6 +5,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.Build
 import android.util.Log
 import androidx.core.graphics.scale
 import java.io.File
@@ -46,6 +47,13 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
         OrtSession.RunOptions().apply {
             addRunConfigEntry("memory.enable_memory_arena_shrinkage", "cpu:0")
         }
+
+    init {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R && !NativeMemory.returnFreedAtOnce()) {
+            Log.w(TAG, "The allocator keeps freed memory, so counting keeps gigabytes")
+        }
+    }
+
     // Closing frees the session only once no detection runs on it anymore, as freeing it under a
     // running one crashes the app natively.
     private val lock = Any()

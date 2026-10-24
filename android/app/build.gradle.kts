@@ -90,6 +90,11 @@ android {
     // them untouched and the APK stops being reproducible. See F-Droid's Reproducible Builds.
     packaging { jniLibs { keepDebugSymbols += "**/*.so" } }
 
+    // Native code of our own, see src/main/cpp. A fixed NDK, as another would build other binaries
+    // and the APK would stop being reproducible.
+    ndkVersion = "28.2.13676358"
+    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
+
     buildFeatures {
         compose = true
         buildConfig = true
