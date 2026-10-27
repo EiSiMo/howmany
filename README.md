@@ -102,12 +102,7 @@ no photo ever leaves the device. [Watch the full demo on YouTube](https://youtu.
   <tr>
     <td align="center"><a href="https://github.com/EiSiMo/howmany/releases/latest/download/howmany.apk"><img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png" height="80" alt="Get it on GitHub"></a></td>
     <td align="center"><a href="https://f-droid.org/packages/run.moritz.howmany/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" height="80" alt="Get it on F-Droid"></a></td>
-    <td align="center"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80" alt="Get it on Google Play"></td>
-  </tr>
-  <tr>
-    <td></td>
-    <td></td>
-    <td align="center"><sub>Coming soon</sub></td>
+    <td align="center"><a href="https://play.google.com/store/apps/details?id=run.moritz.howmany"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80" alt="Get it on Google Play"></a></td>
   </tr>
 </table>
 
