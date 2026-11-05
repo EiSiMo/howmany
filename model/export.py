@@ -66,6 +66,12 @@ CONTENT_OFFSET_TOLERANCE = 0.2
 # Export sizes checked besides the check image's: with and without window padding in Hiera.
 EXPORT_CHECK_SIZES = ((768, 1024), (1024, 448), (224, 1024))
 OUTPUTS = ("objectness", "offsets")
+# The last upsampling and the heads run on this many stripes of the output's rows, one after the
+# other. It divides the rows of every input size, which are multiples of 16 (see SIZE_MULTIPLE).
+# Dynamic quantization scales each stripe on its own, so the int8 model's counts differ slightly
+# from those of one pass over all rows. Float nodes in the stripes would cost a third more time on
+# a phone, not less memory.
+STRIPES = 16
 
 app = modal.App("howmany-export")
 # GeCo2's environment, plus dataset.py, which this module imports.
@@ -151,6 +157,21 @@ def _ms_deform_attn_forward(
     inputs = value, grid, weights
     output = _head_by_head(attend, *inputs, dim=0) if head_by_head else attend(*inputs)
     return output.view(batch, heads * channels, queries).transpose(1, 2).contiguous()
+
+
+def _upsampled_rows(features: Any, start: Any, stop: Any) -> Any:
+    """Rows start to stop (exclusive) of UpsamplingBilinear2d(scale_factor=2) on (1, C, H, W)."""
+    import torch
+    from torch.nn import functional as F
+
+    height, width = features.shape[2], features.shape[3]
+    positions = torch.arange(start, stop).float() * (height - 1) / (2 * height - 1)
+    above = positions.floor().long().clamp(max=height - 2)
+    weights = (positions - above).view(1, 1, -1, 1)
+    rows = features.index_select(2, above) * (1 - weights)
+    rows = rows + features.index_select(2, above + 1) * weights
+    size = (rows.shape[2], 2 * width)
+    return F.interpolate(rows, size=size, mode="bilinear", align_corners=True)
 
 
 def _load_model() -> Any:
@@ -258,11 +279,18 @@ def _dense_network(model: Any) -> Any:
         setattr(adapter, f"spatial_shapes{suffix}", torch._shape_as_tensor(level)[2:][None])
         setattr(adapter, f"reference_points{suffix}", torch.stack([x, y], -1).reshape(1, -1, 1, 2))
 
+    # The adapter stops before its last upsampling, whose output is the largest tensor of the model
+    # and costs far more than its size when computed whole. The dense network does it in stripes.
+    _, convolution, activation = adapter.up3.layer
+    adapter.up3 = torch.nn.Identity()
+
     # torch is only installed in the container, so mypy sees it as Any.
     class DenseGeCo2(torch.nn.Module):  # type: ignore[misc]
         def __init__(self) -> None:
             super().__init__()
             self.model = model
+            self.convolution = convolution
+            self.activation = activation
 
         def forward(self, image: Any, exemplars: Any) -> tuple[Any, Any]:
             m = self.model
@@ -285,7 +313,7 @@ def _dense_network(model: Any) -> Any:
             shape = m.shape_or_objectness(sizes).reshape(1, -1, m.emb_dim)
             for level, suffix in ((coarse, ""), (fine, "1"), (middle, "2")):
                 attend_within(level, suffix)
-            adapted, _ = m.adapt_features(
+            features, _ = m.adapt_features(
                 image_embeddings=coarse,
                 image_pe=dense_position(coarse),
                 prototype_embeddings=torch.cat([pool(coarse, BACKBONE_STRIDE), shape], dim=1),
@@ -296,12 +324,23 @@ def _dense_network(model: Any) -> Any:
                 ],
                 hq_pos=[sine_position(fine, fine_stride), sine_position(middle, middle_stride)],
             )
-            _, _, rows, columns = adapted.shape
-            flat = adapted.view(1, m.emb_dim, -1).permute(0, 2, 1)
-            objectness = m.class_embed(flat).view(1, rows, columns)
+            rows, columns = 2 * features.shape[2], 2 * features.shape[3]
+            height = rows // STRIPES
+            stripes: list[Any] = []
+            start = 0
+            for index in range(STRIPES):
+                # The convolution reaches one row into the neighbouring stripes.
+                above, below = int(index > 0), int(index < STRIPES - 1)
+                upsampled = _upsampled_rows(features, start - above, start + height + below)
+                stripe = self.activation(self.convolution(upsampled))
+                flat = stripe[:, :, above : above + height].flatten(2).transpose(1, 2)
+                outputs = torch.cat([m.class_embed(flat), m.bbox_embed(flat).sigmoid()], 2)
+                stripes.append(outputs.view(1, -1, columns, 5))
+                # Starting where the last stripe ended makes them run in turn, not side by side.
+                start = start + stripes[-1].shape[1]
+            outputs = torch.cat(stripes, 1)
             # GeCo2 predicts offsets as fractions of the 1024 x 1024 input it was trained on.
-            offsets = m.bbox_embed(flat).sigmoid().view(1, rows, columns, 4) * INPUT_SIZE
-            return objectness, offsets
+            return outputs[..., 0], outputs[..., 1:] * INPUT_SIZE
 
     return DenseGeCo2().eval()
 
