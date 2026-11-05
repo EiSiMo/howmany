@@ -13,12 +13,17 @@ import androidx.lifecycle.viewModelScope
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,6 +35,7 @@ import run.moritz.howmany.counting.Point
 private const val TAG = "CountViewModel"
 // The model never sees more than 1024 pixels per side; this leaves headroom for display.
 private const val MAX_PHOTO_SIZE = 2048
+private val COUNT_SETTLES = 2.seconds
 
 data class CountState(
     val photo: Bitmap? = null,
@@ -170,6 +176,7 @@ class CountViewModel(application: Application, savedStateHandle: SavedStateHandl
     init {
         if (saved.hasCount) restore()
         viewModelScope.launch { _state.collect(saved::save) }
+        viewModelScope.launch { logCorrectedCounts() }
     }
 
     /** Brings back the count Android ended the app with in the background, if there is one. */
@@ -285,7 +292,7 @@ class CountViewModel(application: Application, savedStateHandle: SavedStateHandl
             // A cancelled count still occupies the model until it returns; don't run two at once.
             cancelled?.join()
             Log.i(TAG, "Counting in $crop like $exemplar")
-            Log.i(TAG, Diagnostics.memory(getApplication()))
+            logConditions()
             val (result, duration) =
                 try {
                     // Waits for the counter if it is still being prepared; a preparation error
@@ -302,10 +309,31 @@ class CountViewModel(application: Application, savedStateHandle: SavedStateHandl
                     return@launch
                 }
             Log.i(TAG, "${result.detections.size} objects in $duration")
-            Log.i(TAG, Diagnostics.memory(getApplication()))
+            logConditions()
             _state.update { it.withCount(result) }
         }
     }
+
+    /** What decides whether counting runs well, so that the log can tell why it did not. */
+    private fun logConditions() {
+        Log.i(TAG, Diagnostics.memory(getApplication()))
+        Log.i(TAG, Diagnostics.power(getApplication()))
+    }
+
+    /**
+     * Logs what the count reads once it settles, so that the log can tell how far the model's count
+     * was from the one the user ended up with. Corrections come tap by tap, or as a dragged crop.
+     */
+    private suspend fun logCorrectedCounts() =
+        _state
+            .map { it.counted?.size }
+            .distinctUntilChanged()
+            .collectLatest { count ->
+                if (count != null) {
+                    delay(COUNT_SETTLES)
+                    Log.i(TAG, "The count reads $count")
+                }
+            }
 
     override fun onCleared() = objectCounter.close()
 

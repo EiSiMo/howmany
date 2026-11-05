@@ -1,5 +1,6 @@
 package run.moritz.howmany
 
+import android.content.res.Resources
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -28,5 +29,15 @@ class DiagnosticsReportTest {
 
         assertTrue(report, report.startsWith("how many? ${BuildConfig.VERSION_NAME}"))
         assertTrue(report, marker in report)
+    }
+
+    @Test
+    fun holdsThePhonesLanguagesAndWhatSlowsItDown() {
+        val report = Diagnostics.report(context, crash = null)
+
+        val languages = Resources.getSystem().configuration.locales.toLanguageTags()
+        assertTrue(report, "Languages: $languages" in report)
+        assertTrue(report, Diagnostics.power(context) in report)
+        assertTrue(report, Diagnostics.power(context).startsWith("Battery saver "))
     }
 }

@@ -6,7 +6,9 @@ import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.os.Build
+import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
@@ -47,9 +49,9 @@ internal data class ProcessExit(val timestamp: Long, val reason: Int, val import
 
 /**
  * What goes wrong in the app, for people to send us by mail: after a crash, or whenever they like.
- * A report holds the app version, the device, how the app ended recently, the crash's stack trace
- * or native trace, and the app's recent log; never photos. The app has no internet access, so the
- * user's mail app sends it.
+ * A report holds the app version, the device and its languages, how the app ended recently, the
+ * crash's stack trace or native trace, and the app's recent log; never photos. The app has no
+ * internet access, so the user's mail app sends it.
  */
 object Diagnostics {
     /**
@@ -142,6 +144,16 @@ object Diagnostics {
             if (phone.lowMemory) ", low on memory" else ""
     }
 
+    /**
+     * The phone's battery saver and how hot it runs, for the log: what tells whether counting is
+     * slow because Android slows the phone down.
+     */
+    fun power(context: Context): String {
+        val power = context.getSystemService(PowerManager::class.java)
+        return "Battery saver ${if (power.isPowerSaveMode) "on" else "off"}, " +
+            "thermal status ${thermalName(power.currentThermalStatus)}"
+    }
+
     /** The report about [crash], or about how the app runs if null, as plain text. */
     internal fun report(context: Context, crash: Crash?): String = buildString {
         val memory =
@@ -160,6 +172,8 @@ object Diagnostics {
             "Memory: %.1f GB, %.1f GB available"
                 .format(memory.totalMem / BYTES_PER_GB, memory.availMem / BYTES_PER_GB)
         )
+        appendLine(power(context))
+        appendLine("Languages: ${Resources.getSystem().configuration.locales.toLanguageTags()}")
         appendLine("Created ${Instant.now()}")
         if (crash != null) {
             section("Crash")
@@ -287,6 +301,18 @@ internal fun lastCrash(exits: List<ProcessExit>, seenUntil: Long): ProcessExit? 
             }
         }
         .maxByOrNull { it.timestamp }
+
+private fun thermalName(status: Int) =
+    when (status) {
+        PowerManager.THERMAL_STATUS_NONE -> "none"
+        PowerManager.THERMAL_STATUS_LIGHT -> "light"
+        PowerManager.THERMAL_STATUS_MODERATE -> "moderate"
+        PowerManager.THERMAL_STATUS_SEVERE -> "severe"
+        PowerManager.THERMAL_STATUS_CRITICAL -> "critical"
+        PowerManager.THERMAL_STATUS_EMERGENCY -> "emergency"
+        PowerManager.THERMAL_STATUS_SHUTDOWN -> "shutdown"
+        else -> "status $status"
+    }
 
 private fun reasonName(reason: Int) =
     when (reason) {
