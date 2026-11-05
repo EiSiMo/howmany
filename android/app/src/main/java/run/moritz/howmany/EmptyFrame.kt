@@ -26,13 +26,13 @@ private val TITLE_PADDING = 32.dp
 /**
  * Where the photo will be, before there is one: the crop's frame inside [margin], filled with a
  * surface that sets it off from the background, and the question what to count, unless a photo is
- * [loading] already. A tap on it calls [onPickPhoto].
+ * [loading] already. A tap on it calls [onTakePhoto]: what people nearly always want.
  */
 @Composable
 fun EmptyFrame(
     margin: Margin,
     loading: Boolean,
-    onPickPhoto: () -> Unit,
+    onTakePhoto: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val fill = MaterialTheme.colorScheme.surfaceContainer
@@ -40,11 +40,11 @@ fun EmptyFrame(
     // No ripple: it would flood the whole screen.
     Box(
         modifier.clickable(
-            onClickLabel = stringResource(R.string.pick_photo),
+            onClickLabel = stringResource(R.string.take_photo),
             role = Role.Button,
             interactionSource = null,
             indication = null,
-            onClick = onPickPhoto,
+            onClick = onTakePhoto,
         )
     ) {
         Canvas(Modifier.fillMaxSize()) {
