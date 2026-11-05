@@ -56,6 +56,35 @@ private val CAMERA_APP_PADDING = 12.dp
 private val CAMERA_APP_GAP = 16.dp
 private val CAMERA_APP_ICON = 40.dp
 
+/**
+ * Lets one photo source open at a time. A source takes a while to appear, on slow phones seconds,
+ * and tapping again meanwhile would stack more sources on top of it, each to be closed by hand.
+ */
+internal class PhotoSourceLock {
+    private var locked = false
+
+    /**
+     * Runs [open], unless a source is open already; tells if it did. The source then counts as open
+     * until [release], unless [open] throws.
+     */
+    fun open(open: () -> Unit): Boolean {
+        if (locked) return false
+        locked = true
+        try {
+            open()
+        } catch (e: Exception) {
+            locked = false
+            throw e
+        }
+        return true
+    }
+
+    /** The open source has handed back. */
+    fun release() {
+        locked = false
+    }
+}
+
 /** A camera app the user can choose, with its [name] and [icon] as the launcher shows them. */
 class CameraApp(val component: ComponentName, val name: String, val icon: ImageBitmap)
 
@@ -84,23 +113,29 @@ fun rememberPhotoSources(onPhoto: (Uri) -> Unit, onNoCamera: () -> Unit): PhotoS
     val context = LocalContext.current
     val photo by rememberUpdatedState(onPhoto)
     val noCamera by rememberUpdatedState(onNoCamera)
+    val lock = remember { PhotoSourceLock() }
     val camera =
         rememberLauncherForActivityResult(StartActivityForResult()) { result ->
+            lock.release()
             val taken = result.resultCode == Activity.RESULT_OK
             Log.i(TAG, if (taken) "Took a photo" else "Took no photo")
             if (taken) photo(takenPhoto(context))
         }
     val picker =
         rememberLauncherForActivityResult(PickVisualMedia()) { uri ->
+            lock.release()
             Log.i(TAG, if (uri != null) "Picked a photo" else "Picked no photo")
             uri?.let(photo)
         }
     return remember(context) {
         val choosing = mutableStateOf<List<CameraApp>?>(null)
+        val open = { source: () -> Unit ->
+            if (!lock.open(source)) Log.i(TAG, "Ignored a tap, as a photo source is opening")
+        }
         // Without a component, Android picks among the preinstalled camera apps.
         val launch = { app: ComponentName? ->
             try {
-                camera.launch(photoRequest(takenPhoto(context)).setComponent(app))
+                open { camera.launch(photoRequest(takenPhoto(context)).setComponent(app)) }
             } catch (e: ActivityNotFoundException) {
                 Log.w(TAG, "No camera app to take a photo", e)
                 noCamera()
@@ -118,7 +153,9 @@ fun rememberPhotoSources(onPhoto: (Uri) -> Unit, onNoCamera: () -> Unit): PhotoS
         PhotoSources(
             takePhoto = { takePhoto(false) },
             chooseCamera = { takePhoto(true) },
-            pickPhoto = { picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) },
+            pickPhoto = {
+                open { picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }
+            },
             choosing = choosing,
             takePhotoWith = { app ->
                 Log.i(TAG, "The user chose the camera app ${app.component.flattenToString()}")
