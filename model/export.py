@@ -68,9 +68,9 @@ EXPORT_CHECK_SIZES = ((768, 1024), (1024, 448), (224, 1024))
 OUTPUTS = ("objectness", "offsets")
 # The last upsampling and the heads run on this many stripes of the output's rows, one after the
 # other. It divides the rows of every input size, which are multiples of 16 (see SIZE_MULTIPLE).
-# Dynamic quantization scales each stripe on its own, so the int8 model's counts differ slightly
-# from those of one pass over all rows. Float nodes in the stripes would cost a third more time on
-# a phone, not less memory.
+# Dynamic quantization scales each stripe's convolution on its own, so the int8 model's counts
+# differ slightly from those of one pass over all rows. It reaches the heads less: see FLOAT_NODES.
+# A float convolution would cost a third more time on a phone, not less memory.
 STRIPES = 16
 # What lies between the linear layers of the first blocks of the backbone, which hold the most
 # tokens, runs on this many stripes of windows. That of the deformable attention runs on this many
@@ -83,8 +83,9 @@ WINDOW_STRIPED_BLOCKS = 6
 QUERY_STRIPES = 16
 
 # Quantization rewrites weights where it first meets them, so of a head's sixteen copies only the
-# first stripe's would be quantized. In the box head it would also make box edges depend on which
-# candidates share the stripe, so all of its copies stay float.
+# first stripe's is quantized: the objectness head runs in float in all the others. In the box head
+# it would also make box edges depend on which candidates share the stripe, so all of its copies
+# stay float.
 FLOAT_NODES = tuple(f"/bbox_embed/layers.{layer}/MatMul" for layer in range(3))
 
 app = modal.App("howmany-export")
@@ -707,5 +708,8 @@ def export() -> None:
     image_bytes = (IMAGE_DIR / CHECK_IMAGE).read_bytes()
     for name, model in export_onnx.remote(image_bytes, CHECK_EXEMPLARS).items():
         target = DATA_DIR / f"geco2-{name}.onnx"
-        target.write_bytes(model)
+        # Replaced, not rewritten: a running counter may have the file open.
+        partial = target.with_suffix(".partial")
+        partial.write_bytes(model)
+        partial.replace(target)
         logger.info("Saved %s (%.0f MB)", target, len(model) / 1e6)
