@@ -50,6 +50,8 @@ def _session() -> onnxruntime.InferenceSession:
         )
     options = onnxruntime.SessionOptions()
     options.intra_op_num_threads = THREADS
+    # export.py optimizes the graph already.
+    options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     return onnxruntime.InferenceSession(
         str(MODEL_PATH), options, providers=["CPUExecutionProvider"]
     )

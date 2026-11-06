@@ -35,6 +35,8 @@ class ObjectCounter private constructor(model: ByteBuffer) : AutoCloseable {
             model,
             OrtSession.SessionOptions().apply {
                 setIntraOpNumThreads(THREADS)
+                // model/export.py optimizes the graph already; here that took half of the load.
+                setOptimizationLevel(OrtSession.SessionOptions.OptLevel.NO_OPT)
                 // Planning all activations up front costs ~1 GB more peak memory, and Android
                 // throttles apps above 3 GB. On a Pixel 8 Pro it is also no faster.
                 setMemoryPatternOptimization(false)

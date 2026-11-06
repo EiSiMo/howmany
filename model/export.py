@@ -8,8 +8,9 @@ benchmark's test images.
 The export covers GeCo2's dense network, up to its objectness map and box offsets; picking boxes
 from them is left to the caller. GeCo2 needs its own environment, so the export runs on Modal. It
 checks the network against GeCo2, the export against the network and that the quantized model runs
-with float heads on a benchmark image, and writes data/geco2-fp32.onnx and its dynamically
-quantized data/geco2-int8.onnx, which the app bundles.
+with float heads on a benchmark image, and writes data/geco2-fp32.onnx and data/geco2-int8.onnx,
+which the app bundles: dynamically quantized, its graph then optimized here, in the ONNX Runtime
+the app uses, as the app would otherwise spend seconds on that on every start.
 
 Usage: uv run modal run export.py
 """
@@ -65,6 +66,8 @@ EXPORT_TOLERANCE = 1e-3
 CONTENT_OFFSET_TOLERANCE = 0.2
 # Export sizes checked besides the check image's: with and without window padding in Hiera.
 EXPORT_CHECK_SIZES = ((768, 1024), (1024, 448), (224, 1024))
+# How far optimizing the graph may move the outputs. It only rearranges the computation.
+OPTIMIZE_TOLERANCE = 1e-5
 OUTPUTS = ("objectness", "offsets")
 # The last upsampling and the heads run on this many stripes of the output's rows, one after the
 # other. It divides the rows of every input size, which are multiples of 16 (see SIZE_MULTIPLE).
@@ -713,7 +716,7 @@ def _check_quantized(path: Path, padded: Any, content: Any, exemplar_sets: Seque
     Quantization ignores excluded names that match nothing, so a renamed node would go unnoticed.
     Dynamic quantization changes the numbers, so only the benchmark tells if they are still good.
     """
-    import onnx  # type: ignore[import-not-found]
+    import onnx
 
     quantized = quantized_head_nodes(node for node in onnx.load(str(path)).graph.node)
     if quantized:
@@ -725,6 +728,61 @@ def _check_quantized(path: Path, padded: Any, content: Any, exemplar_sets: Seque
             objectness.shape,
             boxes.shape[1],
         )
+
+
+def _check_optimized(path: Path, optimized: Path) -> None:
+    """The optimized model, without optimization at runtime, must run like the model."""
+    import numpy as np
+    import onnxruntime
+
+    providers = ["CPUExecutionProvider"]
+    session = onnxruntime.InferenceSession(str(path), providers=providers)
+    options = onnxruntime.SessionOptions()
+    options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+    optimized_session = onnxruntime.InferenceSession(str(optimized), options, providers=providers)
+    random = np.random.default_rng(0)
+    exemplars = np.array([[[100, 100, 180, 180]]], dtype=np.float32)
+    for height, width in EXPORT_CHECK_SIZES:
+        inputs = {
+            "image": random.random((1, 3, height, width), dtype=np.float32),
+            "exemplars": exemplars,
+        }
+        objectness, offsets = (value[0] for value in session.run(list(OUTPUTS), inputs))
+        optimized_objectness, optimized_offsets = (
+            value[0] for value in optimized_session.run(list(OUTPUTS), inputs)
+        )
+        # The tiniest difference moves a local maximum in a flat part of the map.
+        shared = _candidates(objectness) & _candidates(optimized_objectness)
+        for name, error in (
+            ("objectness", _deviation(optimized_objectness, objectness)),
+            ("offsets", _deviation(optimized_offsets[shared], offsets[shared])),
+        ):
+            if error > OPTIMIZE_TOLERANCE:
+                raise RuntimeError(
+                    f"Optimized {name} deviates by {error:.1e} at {height} x {width}"
+                )
+
+
+def optimize(path: Path) -> None:
+    """Replace the model with one whose graph is optimized, so the app need not do that.
+
+    Runs in this environment, not on Modal: the optimized graph is written by the ONNX Runtime
+    version of the lockfile and read by the same version in the app. Update them together, then
+    export again.
+    """
+    import onnxruntime
+
+    optimized = path.with_suffix(".optimized.onnx")
+    options = onnxruntime.SessionOptions()
+    # Not ORT_ENABLE_ALL: that level's layout changes only fit the CPU they are made on.
+    options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
+    options.optimized_model_filepath = str(optimized)
+    try:
+        onnxruntime.InferenceSession(str(path), options, providers=["CPUExecutionProvider"])
+        _check_optimized(path, optimized)
+        optimized.replace(path)
+    finally:
+        optimized.unlink(missing_ok=True)
 
 
 @app.function(image=container_image, cpu=8, memory=32768, timeout=3600)
@@ -765,3 +823,5 @@ def export() -> None:
         unfinished.write_bytes(model)
         unfinished.replace(target)
         logger.info("Saved %s (%.0f MB)", target, len(model) / 1e6)
+    optimize(DATA_DIR / "geco2-int8.onnx")
+    logger.info("Optimized %s", DATA_DIR / "geco2-int8.onnx")
