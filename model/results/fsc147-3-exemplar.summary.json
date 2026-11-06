@@ -1,10 +1,10 @@
 {
   "samples": 100,
-  "mae": 3.66,
-  "rmse": 6.4,
-  "mean_relative_error": 0.10090287194711946,
-  "exact_rate": 0.32,
-  "within_5_percent_rate": 0.53,
-  "within_10_percent_rate": 0.71,
-  "mean_seconds": 2.4029532283700017
+  "mae": 3.94,
+  "rmse": 6.791170738539858,
+  "mean_relative_error": 0.10239743150300198,
+  "exact_rate": 0.31,
+  "within_5_percent_rate": 0.49,
+  "within_10_percent_rate": 0.68,
+  "mean_seconds": 1.2094238674512598
 }

@@ -11,8 +11,8 @@ plugins {
 // asset, so building needs no export. A local export in model/data takes precedence; after a new
 // export, publish it as the next model-v<N> release and update the URL and checksum.
 val modelAsset = "geco2-int8.onnx"
-val publishedModelUrl = "https://github.com/EiSiMo/howmany/releases/download/model-v1/$modelAsset"
-val publishedModelSha256 = "d4ca4eb15fd01c58ef993c100eee41883ceb6c766c4b71d472238d4174f9a3ec"
+val publishedModelUrl = "https://github.com/EiSiMo/howmany/releases/download/model-v2/$modelAsset"
+val publishedModelSha256 = "e0cb2adb1a6777b6dc60c00a7b6bfbe9fab980d9fb2b6e99a2e47e92e2758d4d"
 
 // Signing keys, from .env at the project root or the environment (see .env.example). Without them,
 // release builds stay unsigned, as F-Droid builds them before adding the published signature.
