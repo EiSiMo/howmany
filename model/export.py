@@ -341,6 +341,21 @@ def _dense_network(model: Any, options: dict[str, int]) -> Any:
         if options["mlp"] > 1:
             block.mlp.forward = partial(_in_stripes, block.mlp.forward, dim=1, count=options["mlp"])
 
+    def attend_prototypes(block: Any, image_f: Any, prototypes: Any, count: int) -> Any:
+        """PrototypeAttentionBlock.forward on stripes of the image's tokens in turn."""
+        forward = type(block).forward
+        return _in_stripes(
+            lambda tokens: forward(block, tokens, prototypes), image_f, dim=1, count=count
+        )
+
+    if options["prototypes"] > 1:
+        for layers, count in (
+            (adapter.prototype_attention_l2, max(options["prototypes"] // 4, 1)),
+            (adapter.prototype_attention_l1, options["prototypes"]),
+        ):
+            for block in layers:
+                block.forward = types.MethodType(partial(attend_prototypes, count=count), block)
+
     if options["queries"] > 0:
         for layers, count in (
             (adapter.image_attention, 1),
@@ -669,11 +684,19 @@ def export(
     mlp: int = 1,
     queries: int = 0,
     up2: int = 1,
+    prototypes: int = 1,
     suffix: str = "",
 ) -> None:
     configure_logging()
     image_bytes = (IMAGE_DIR / CHECK_IMAGE).read_bytes()
-    options = {"blocks": blocks, "windows": windows, "mlp": mlp, "queries": queries, "up2": up2}
+    options = {
+        "blocks": blocks,
+        "windows": windows,
+        "mlp": mlp,
+        "queries": queries,
+        "up2": up2,
+        "prototypes": prototypes,
+    }
     for name, model in export_onnx.remote(image_bytes, CHECK_EXEMPLARS, options).items():
         target = DATA_DIR / f"geco2-{name}{suffix}.onnx"
         target.write_bytes(model)
