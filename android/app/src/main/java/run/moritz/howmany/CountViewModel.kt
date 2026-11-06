@@ -13,17 +13,21 @@ import androidx.lifecycle.viewModelScope
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -159,6 +163,29 @@ enum class CountError(@StringRes val message: Int) {
     CountFailed(R.string.error_count_failed),
     /** The count cannot be exported or saved. */
     ExportFailed(R.string.error_export_failed),
+}
+
+/**
+ * Runs [action] on each value that stayed for [settles], or that was still waiting when null came
+ * or collecting ended: only values that were replaced by another one are dropped.
+ */
+internal suspend fun <T : Any> Flow<T?>.forEachSettled(settles: Duration, action: (T) -> Unit) {
+    var waiting: T? = null
+    val settle = {
+        waiting?.let(action)
+        waiting = null
+    }
+    try {
+        onEach { if (it == null) settle() else waiting = it }
+            .collectLatest {
+                if (it != null) {
+                    delay(settles)
+                    settle()
+                }
+            }
+    } finally {
+        settle()
+    }
 }
 
 class CountViewModel(application: Application, savedStateHandle: SavedStateHandle) :
@@ -326,14 +353,10 @@ class CountViewModel(application: Application, savedStateHandle: SavedStateHandl
      */
     private suspend fun logCorrectedCounts() =
         _state
+            .distinctUntilChangedBy { it.points to it.crop }
             .map { it.counted?.size }
             .distinctUntilChanged()
-            .collectLatest { count ->
-                if (count != null) {
-                    delay(COUNT_SETTLES)
-                    Log.i(TAG, "The count reads $count")
-                }
-            }
+            .forEachSettled(COUNT_SETTLES) { Log.i(TAG, "The count reads $it") }
 
     override fun onCleared() = objectCounter.close()
 
