@@ -72,6 +72,15 @@ OUTPUTS = ("objectness", "offsets")
 # from those of one pass over all rows. Float nodes in the stripes would cost a third more time on
 # a phone, not less memory.
 STRIPES = 16
+# What lies between the linear layers of the first blocks of the backbone, which hold the most
+# tokens, runs on this many stripes of windows. That of the deformable attention runs on this many
+# stripes of the fine level's queries, a quarter of them on the middle level's. All of it is float,
+# so it computes what one pass does. Stripes through dynamically quantized layers save more memory
+# but rescale each stripe: they took the photos within 10% from 54% to 46-48%. Input sides of at
+# least 512 give every stripe something to compute.
+WINDOW_STRIPES = 4
+WINDOW_STRIPED_BLOCKS = 6
+QUERY_STRIPES = 16
 
 app = modal.App("howmany-export")
 # GeCo2's environment, plus dataset.py, which this module imports.
@@ -123,6 +132,26 @@ def _head_by_head(attend: Callable[..., Any], *inputs: Any, dim: int) -> Any:
     return torch.cat([attend(*head) for head in heads], dim)
 
 
+def _in_stripes(compute: Callable[..., Any], *inputs: Any, dim: int, count: int) -> Any:
+    """compute(*inputs) for one stripe of the inputs along dim after the other, for a compute that
+    treats the stripes independently and keeps their size along dim.
+
+    The stripes differ by at most one if count does not divide the size, which must be at least
+    count. Each starts where the last one's output ended: that makes ONNX Runtime run them in turn,
+    not side by side.
+    """
+    import torch
+
+    size = inputs[0].shape[dim]
+    outputs: list[Any] = []
+    start = 0
+    for index in range(1, count + 1):
+        stripe = (slice(None),) * dim + (slice(start, size * index // count),)
+        outputs.append(compute(*(x[stripe] for x in inputs)))
+        start = start + outputs[-1].shape[dim]
+    return torch.cat(outputs, dim)
+
+
 def _ms_deform_attn_forward(
     value: Any,
     spatial_shapes: Any,
@@ -130,7 +159,6 @@ def _ms_deform_attn_forward(
     sampling_locations: Any,
     attention_weights: Any,
     im2col_step: int,
-    head_by_head: bool = False,
 ) -> Any:
     """Deformable attention in pure PyTorch, for GeCo2's single-level use.
 
@@ -147,16 +175,46 @@ def _ms_deform_attn_forward(
     value = value.flatten(2).transpose(1, 2).reshape(batch * heads, channels, height, width)
     grid = (2 * sampling_locations[:, :, :, 0] - 1).transpose(1, 2).flatten(0, 1)
     weights = attention_weights.transpose(1, 2).reshape(batch * heads, 1, queries, points)
+    sampled = F.grid_sample(value, grid, mode="bilinear", padding_mode="zeros", align_corners=False)
+    output = (sampled * weights).sum(-1).view(batch, heads * channels, queries)
+    return output.transpose(1, 2).contiguous()
 
-    def attend(value: Any, grid: Any, weights: Any) -> Any:
+
+def _deform_attend(
+    attention: Any,
+    query: Any,
+    reference_points: Any,
+    input_flatten: Any,
+    spatial_shapes: Any,
+    level_start_index: Any,
+    count: int,
+) -> Any:
+    """MSDeformAttn.forward for one feature level, with what follows its linear layers in stripes
+    of the queries. Those layers stay whole: dynamic quantization scales each tensor on its own, so
+    in stripes they would compute something else.
+    """
+    from torch.nn import functional as F
+
+    heads, points = attention.n_heads, attention.n_points
+    height, width = spatial_shapes[0, 0], spatial_shapes[0, 1]
+    value = attention.value_proj(input_flatten).transpose(1, 2)
+    value = value.reshape(heads, attention.d_model // heads, height, width)
+    normalizer = spatial_shapes[0, [1, 0]].float()
+
+    def attend(offsets: Any, weights: Any, reference: Any) -> Any:
+        queries = offsets.shape[1]
+        offsets = offsets.view(1, queries, heads, points, 2)
+        weights = F.softmax(weights.view(1, queries, heads, points), -1)
+        weights = weights.transpose(1, 2).reshape(heads, 1, queries, points)
+        locations = reference[:, :, None] + offsets / normalizer
+        grid = (2 * locations - 1).transpose(1, 2).flatten(0, 1)
         sampled = F.grid_sample(
             value, grid, mode="bilinear", padding_mode="zeros", align_corners=False
         )
-        return (sampled * weights).sum(-1)
+        return (sampled * weights).sum(-1).view(1, attention.d_model, queries).transpose(1, 2)
 
-    inputs = value, grid, weights
-    output = _head_by_head(attend, *inputs, dim=0) if head_by_head else attend(*inputs)
-    return output.view(batch, heads * channels, queries).transpose(1, 2).contiguous()
+    inputs = attention.sampling_offsets(query), attention.attention_weights(query), reference_points
+    return attention.output_proj(_in_stripes(attend, *inputs, dim=1, count=count))
 
 
 def _upsampled_rows(features: Any, start: Any, stop: Any) -> Any:
@@ -244,9 +302,42 @@ def _dense_network(model: Any) -> Any:
         if attention.q_pool is not None:
             raise ValueError(f"Global attention block {index} pools its queries")
         attention.forward = types.MethodType(attend_globally, attention)
-    sys.modules[KERNEL].ms_deform_attn_forward = partial(  # type: ignore[attr-defined]
-        _ms_deform_attn_forward, head_by_head=True
-    )
+
+    def attend_in_windows(attention: Any, x: Any, count: int) -> Any:
+        """MultiScaleAttention.forward with what lies between its linear layers in stripes of
+        windows. Those layers stay whole: see _deform_attend.
+        """
+        batch, height, width, _ = x.shape
+        qkv = attention.qkv(x).reshape(batch, height * width, 3, attention.num_heads, -1)
+
+        def attend(qkv: Any) -> Any:
+            windows = qkv.shape[0]
+            query, key, value = qkv.unbind(2)
+            rows, columns = height, width
+            if attention.q_pool is not None:
+                pooled = query.reshape(windows, height, width, -1).permute(0, 3, 1, 2)
+                query = attention.q_pool(pooled).permute(0, 2, 3, 1)
+                rows, columns = query.shape[1:3]
+                query = query.reshape(windows, rows * columns, attention.num_heads, -1)
+            attended = F.scaled_dot_product_attention(
+                query.transpose(1, 2), key.transpose(1, 2), value.transpose(1, 2)
+            )
+            return attended.transpose(1, 2).reshape(windows, rows, columns, -1)
+
+        return attention.proj(_in_stripes(attend, qkv, dim=0, count=count))
+
+    for block in trunk.blocks[:WINDOW_STRIPED_BLOCKS]:
+        block.attn.forward = types.MethodType(
+            partial(attend_in_windows, count=WINDOW_STRIPES), block.attn
+        )
+
+    for layers, count in (
+        (adapter.image_attention, 1),
+        (adapter.image_attention_l2, QUERY_STRIPES // 4),
+        (adapter.image_attention_l1, QUERY_STRIPES),
+    ):
+        for attention in layers:
+            attention.forward = types.MethodType(partial(_deform_attend, count=count), attention)
 
     def cells(level: Any) -> tuple[Any, Any]:
         """Column and row numbers (1, 2, ...) of a feature level's cells, taken from its shape."""
