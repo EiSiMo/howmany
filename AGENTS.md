@@ -38,7 +38,7 @@ Run from `android/` (JDK 21, Android SDK in `local.properties`, phone with USB d
 ### Model (`model/`)
 Python 3.12+, managed with uv. Everything about the counting model: exporting it for the app, a Python reference counter, and a benchmark of how far its counts are off.
 
-- `export.py` exports GeCo2 (few-shot counting, MIT license) to ONNX and quantizes it to int8. GeCo2 needs its own environment, so this runs on Modal (log in once with `uv run modal setup`) and writes `data/geco2-*.onnx`.
+- `export.py` exports GeCo2 (few-shot counting, MIT license) to ONNX and quantizes it to int8. GeCo2 needs its own environment, so this runs on Modal (log in once with `uv run modal setup`) and writes `data/geco2-*.onnx`. It then optimizes the int8 graph locally, and app and `counter.py` load that as it is: the model fits the ONNX Runtime that wrote it, so update the lockfile and `libs.versions.toml` together, then export again.
 - `counter.py` counts with the exported model exactly as the app does (`count(image_path, exemplars) -> int`). Keep the two in sync.
 - `benchmark.py` runs the counter on a fixed random sample of 100 FSC-147 test images (`manifest.csv`, images downloaded on demand into `data/`, gitignored, not redistributed), or with `--photos` on our own photos. Exemplars are boxes around instances of the object to count; by default the counter gets one, as the user marks one in the app (`--exemplars 3` for FSC-147's few-shot setting). Results go to `results/<fsc147|photos>-<N>-exemplar.csv` and `.summary.json`, and are committed, except those on our own photos (gitignored).
 

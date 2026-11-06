@@ -90,6 +90,9 @@ Notes:
   stripes hurt precision and were dropped. The gain is the first count's peak: most of it goes when
   image sizes mix, for reasons not measured. Now `up2`'s im2col buffer and `blocks.2` limit the peak.
   A 32 x 32 input fails; the app's minimum side is 512. Session creation 5.4 to 7.1 s.
+- Later, on 2 + 5: the graph optimized at export and loaded unoptimized (`model-v3`), 5 alternating
+  rounds on the phone: load 7.30 to 3.72 s, worst image +2 to 4%, peak 974 to 985 MB, model 79 to
+  107 MB. All 200 FSC-147 counts equal `model-v2`, photos MAE 12.05 both.
 - 3: the split's outputs are identical to the whole model's. It saves no peak memory: the decoder
   alone peaks about as high as the whole model. A recount, or a count after encoding ahead, needs
   only the decoder. The app version keeps 140 MB between counts (275 MB before tuning, limit 100),

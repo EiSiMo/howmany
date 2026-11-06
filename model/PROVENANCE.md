@@ -6,12 +6,12 @@ counts with the authors' model as it is; nothing is trained here.
 ## What is bundled
 
 The app ships one pre-exported file, `assets/geco2-int8.onnx`, as the GitHub
-release asset `model-v1`:
+release asset `model-v3`:
 
 | File | Bytes | SHA-256 |
 | --- | --- | --- |
-| `geco2-int8.onnx` | 77,111,674 | `d4ca4eb15fd01c58ef993c100eee41883ceb6c766c4b71d472238d4174f9a3ec` |
-| `geco2-fp32.onnx` (source of the int8 one, not shipped) | 299,458,082 | `82ef5b6687b3fcae8c27a032555cdab2b0f0a6a232b1c33b7c8d2de03b162d16` |
+| `geco2-int8.onnx` | 107,200,868 | `4b232c7dc69d2422dbcebd45377143d342e495487211a25a69e1929dd6be36d0` |
+| `geco2-fp32.onnx` (source of the int8 one, not shipped) | 300,692,841 | `60e27f12fa712b387dde64d80ef29f920ba6195eede744351c4a008abfb8975c` |
 
 ## Upstream
 
@@ -39,6 +39,8 @@ revision, builds the dense network, checks it against GeCo2 on a benchmark
 image, exports it to ONNX, quantizes the weights dynamically to int8, and
 checks the export at several input sizes and exemplar counts. Environment:
 Python 3.10, torch 2.7.1, torchvision 0.22.1, onnx 1.18.0, onnxruntime 1.22.0.
+Back on the local machine it then optimizes the int8 model's graph in the
+lockfile's onnxruntime, 1.30.0, the version the app runs.
 
 ## How the app gets it
 
