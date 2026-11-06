@@ -52,7 +52,8 @@ private val ABOUT_ICON = Color.White.copy(alpha = 0.7f)
 @Composable
 fun CountScreen(viewModel: CountViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val sources = rememberPhotoSources(viewModel::pickPhoto, viewModel::noCamera)
+    val sources =
+        rememberPhotoSources(state.loadingPhoto, viewModel::pickPhoto, viewModel::noCamera)
     val export = rememberExport(viewModel::exportFailed)
     val photo = state.photo
     val crop = state.crop

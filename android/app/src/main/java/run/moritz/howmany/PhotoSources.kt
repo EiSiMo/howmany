@@ -61,27 +61,28 @@ private val CAMERA_APP_ICON = 40.dp
  * and tapping again meanwhile would stack more sources on top of it, each to be closed by hand.
  */
 internal class PhotoSourceLock {
-    private var locked = false
+    /** Whether a source is open, or on its way. */
+    var isOpen = false
+        private set
 
     /**
-     * Runs [open], unless a source is open already; tells if it did. The source then counts as open
-     * until [release], unless [open] throws.
+     * Runs [open], unless a source is open already. The source then counts as open until [release],
+     * unless [open] throws.
      */
-    fun open(open: () -> Unit): Boolean {
-        if (locked) return false
-        locked = true
+    fun open(open: () -> Unit) {
+        if (isOpen) return
+        isOpen = true
         try {
             open()
         } catch (e: Exception) {
-            locked = false
+            isOpen = false
             throw e
         }
-        return true
     }
 
     /** The open source has handed back. */
     fun release() {
-        locked = false
+        isOpen = false
     }
 }
 
@@ -106,13 +107,20 @@ class PhotoSources(
 /**
  * Takes photos with a camera app, which processes them better than a camera feed of our own would,
  * and picks them with the system's photo picker. Either hands the photo to [onPhoto]; cancelling
- * hands over nothing. If there is no camera app, [onNoCamera] is called.
+ * hands over nothing. If there is no camera app, [onNoCamera] is called. Tapping does nothing while
+ * a source is opening or the last photo is still [loading]: the camera app would write the next one
+ * into the file being read.
  */
 @Composable
-fun rememberPhotoSources(onPhoto: (Uri) -> Unit, onNoCamera: () -> Unit): PhotoSources {
+fun rememberPhotoSources(
+    loading: Boolean,
+    onPhoto: (Uri) -> Unit,
+    onNoCamera: () -> Unit,
+): PhotoSources {
     val context = LocalContext.current
     val photo by rememberUpdatedState(onPhoto)
     val noCamera by rememberUpdatedState(onNoCamera)
+    val busy by rememberUpdatedState(loading)
     val lock = remember { PhotoSourceLock() }
     val camera =
         rememberLauncherForActivityResult(StartActivityForResult()) { result ->
@@ -129,32 +137,37 @@ fun rememberPhotoSources(onPhoto: (Uri) -> Unit, onNoCamera: () -> Unit): PhotoS
         }
     return remember(context) {
         val choosing = mutableStateOf<List<CameraApp>?>(null)
-        val open = { source: () -> Unit ->
-            if (!lock.open(source)) Log.i(TAG, "Ignored a tap, as a photo source is opening")
+        val ifFree = { tapped: () -> Unit ->
+            if (lock.isOpen || busy) Log.i(TAG, "Ignored a tap, as a photo is on its way")
+            else tapped()
         }
         // Without a component, Android picks among the preinstalled camera apps.
         val launch = { app: ComponentName? ->
             try {
-                open { camera.launch(photoRequest(takenPhoto(context)).setComponent(app)) }
+                lock.open { camera.launch(photoRequest(takenPhoto(context)).setComponent(app)) }
             } catch (e: ActivityNotFoundException) {
                 Log.w(TAG, "No camera app to take a photo", e)
                 noCamera()
             }
         }
         val takePhoto = { choose: Boolean ->
-            when (val choice = chooseCamera(context, choose)) {
-                CameraChoice.Preinstalled -> launch(null)
-                is CameraChoice.App -> launch(ComponentName.unflattenFromString(choice.app))
-                is CameraChoice.Choose ->
-                    choosing.value = choice.apps.map { cameraApp(context, it) }
-                CameraChoice.None -> noCamera()
+            ifFree {
+                when (val choice = chooseCamera(context, choose)) {
+                    CameraChoice.Preinstalled -> launch(null)
+                    is CameraChoice.App -> launch(ComponentName.unflattenFromString(choice.app))
+                    is CameraChoice.Choose ->
+                        choosing.value = choice.apps.map { cameraApp(context, it) }
+                    CameraChoice.None -> noCamera()
+                }
             }
         }
         PhotoSources(
             takePhoto = { takePhoto(false) },
             chooseCamera = { takePhoto(true) },
             pickPhoto = {
-                open { picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }
+                ifFree {
+                    lock.open { picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }
+                }
             },
             choosing = choosing,
             takePhotoWith = { app ->

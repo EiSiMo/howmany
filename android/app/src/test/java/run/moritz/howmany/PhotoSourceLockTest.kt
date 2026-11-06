@@ -1,7 +1,9 @@
 package run.moritz.howmany
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PhotoSourceLockTest {
@@ -14,6 +16,15 @@ class PhotoSourceLockTest {
     fun `opens a source`() {
         open()
         assertEquals(1, opened)
+    }
+
+    @Test
+    fun `is open from opening until the source hands back`() {
+        assertFalse(lock.isOpen)
+        open()
+        assertTrue(lock.isOpen)
+        lock.release()
+        assertFalse(lock.isOpen)
     }
 
     @Test
