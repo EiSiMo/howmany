@@ -7,8 +7,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.core.graphics.scale
-import java.io.File
+import java.nio.ByteBuffer
 import java.nio.FloatBuffer
+import java.nio.channels.FileChannel
 import kotlin.math.ceil
 import kotlin.math.floor
 import run.moritz.howmany.BuildConfig
@@ -27,11 +28,11 @@ class CountResult(val detections: List<Detection>, val heatmap: Heatmap)
  * Finds every object in an image that looks like the given exemplars, with GeCo2 running on the
  * CPU. Mirrors the Python reference counter in model/counter.py.
  */
-class ObjectCounter private constructor(model: File) : AutoCloseable {
+class ObjectCounter private constructor(model: ByteBuffer) : AutoCloseable {
     private val environment = OrtEnvironment.getEnvironment()
     private val session =
         environment.createSession(
-            model.path,
+            model,
             OrtSession.SessionOptions().apply {
                 setIntraOpNumThreads(THREADS)
                 // Planning all activations up front costs ~1 GB more peak memory, and Android
@@ -152,32 +153,36 @@ class ObjectCounter private constructor(model: File) : AutoCloseable {
 
     companion object {
         /**
-         * Loads the model from the app assets. ONNX Runtime needs it as a file, so this copies it
-         * out of the APK once per app version, which takes seconds; call it in the background.
+         * Loads the model from the app assets, right out of the APK, which stores it uncompressed
+         * for this. Takes seconds; call it in the background.
          */
-        fun fromAssets(context: Context): ObjectCounter = ObjectCounter(modelFile(context))
+        fun fromAssets(context: Context): ObjectCounter {
+            deleteModelCopies(context)
+            return ObjectCounter(mappedModel(context))
+        }
 
-        private fun modelFile(context: Context): File {
-            val asset = BuildConfig.MODEL_ASSET
-            val directory = context.noBackupFilesDir
-            val version =
-                context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
-            val file = File(directory, "$version-$asset")
-            if (file.exists()) return file
-            val partial = File(directory, "$asset.partial")
-            // Earlier app versions' copies, and a copy cut off by the app being killed.
-            directory
-                .listFiles { stale -> stale.name.endsWith("-$asset") || stale == partial }
-                .orEmpty()
-                .forEach { stale ->
-                    if (!stale.delete()) Log.w(TAG, "Cannot delete stale model copy $stale")
+        private fun mappedModel(context: Context): ByteBuffer =
+            context.assets.openFd(BuildConfig.MODEL_ASSET).use { asset ->
+                asset.createInputStream().use { input ->
+                    input.channel.map(
+                        FileChannel.MapMode.READ_ONLY,
+                        asset.startOffset,
+                        asset.declaredLength,
+                    )
                 }
-            context.assets.open(asset).use { input ->
-                partial.outputStream().use { input.copyTo(it) }
             }
-            check(partial.renameTo(file)) { "Cannot move model to $file" }
-            Log.i(TAG, "Copied model to $file")
-            return file
+
+        /** Earlier app versions copied the model out of the APK; updating must free that space. */
+        private fun deleteModelCopies(context: Context) {
+            val asset = BuildConfig.MODEL_ASSET
+            context.noBackupFilesDir
+                .listFiles { copy ->
+                    copy.name.endsWith("-$asset") || copy.name == "$asset.partial"
+                }
+                .orEmpty()
+                .forEach { copy ->
+                    if (!copy.delete()) Log.w(TAG, "Cannot delete old model copy $copy")
+                }
         }
 
         /** Scales the image, pads it to the input size and normalizes it, channels first. */

@@ -71,6 +71,8 @@ android {
     // Lets people pick the app's language in the system settings, among those it translates.
     // Keeps only those languages of the libraries, so the app never mixes in a language it lacks.
     androidResources {
+        // ObjectCounter maps the model right out of the APK instead of keeping a second copy.
+        noCompress += "onnx"
         generateLocaleConfig = true
         localeFilters += listOf("en", "de", "es", "fr", "pt", "ru", "b+zh+Hans")
     }

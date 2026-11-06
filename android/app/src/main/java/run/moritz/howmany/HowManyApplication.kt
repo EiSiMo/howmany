@@ -10,9 +10,9 @@ private const val TAG = "HowManyApplication"
 class HowManyApplication : Application() {
     /**
      * The counter, one for all screens counting at once: each would load the model, too much memory
-     * for some phones. Prepared (copying the model out of the APK and loading it, seconds on a
-     * phone) in the background as soon as the first takes it, while the user picks a photo and
-     * marks an exemplar. It holds only the model weights until the first count.
+     * for some phones. Prepared (loading the model, seconds on a phone) in the background as soon
+     * as the first takes it, while the user picks a photo and marks an exemplar. It holds only the
+     * model weights until the first count.
      */
     val objectCounter = Shared {
         val (counter, duration) =

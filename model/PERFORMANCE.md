@@ -132,6 +132,19 @@ Where a 3.1 s run goes on the PC: backbone about 45%, adapter about 31%, upsampl
 20%. Live tensors peak at about 411 MB in `blocks.2` and about 487 MB in the fine-level adapter
 attention, on top of 212 MB (anon) after loading.
 
+Loading the model right out of the APK instead of copying it, same model, Pixel 8 Pro, 6 alternating
+rounds in fresh processes, medians against the copy:
+
+| Variant | Phone load s | Worst / easy s | Peak MB, one image | Peak MB, mixed | Peak anon MB | Peak MB while loading | Model on the phone |
+|---|---|---|---|---|---|---|---|
+| Copy out of the APK | 6.85 | 6.68 / 1.54 | 863 | 863 | 711 | 469 | compressed in the APK and a 79 MB copy |
+| Mapped from the APK | 6.83 | 6.68 / 1.54 | 863 | 863 | 711 | 544 | 79 MB in the APK |
+
+Counts are the same. The first start is about 0.6 s faster. Mapped pages are resident while loading,
+which raises only that lower peak, and leave once the garbage collector frees the buffer, seen during
+the first count. Until then they are clean file pages, which Android reclaims first. Only the parse
+reads the mapping, so unlike item 1 a count doesn't depend on it.
+
 ## Ruled out
 
 | Idea | Measured | Why not |

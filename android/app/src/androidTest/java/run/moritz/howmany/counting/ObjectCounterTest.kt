@@ -14,6 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
+import run.moritz.howmany.BuildConfig
 
 @RunWith(AndroidJUnit4::class)
 class ObjectCounterTest {
@@ -64,6 +65,18 @@ class ObjectCounterTest {
             }
         Log.i(TAG, "Resident memory $before MB before counting, $after MB after")
         assertTrue("Counting kept ${after - before} MB", after - before < 100)
+    }
+
+    /** Updating from a version that kept a copy of the model outside the APK frees its space. */
+    @Test
+    fun creatingACounterDeletesOldModelCopies() {
+        val context = instrumentation.targetContext
+        val copy = File(context.noBackupFilesDir, "1-${BuildConfig.MODEL_ASSET}")
+        copy.writeText("an old copy")
+
+        ObjectCounter.fromAssets(context).close()
+
+        assertFalse(copy.exists())
     }
 
     private fun countsLikeTheBenchmark(name: String, exemplar: Box, expected: Int) {
