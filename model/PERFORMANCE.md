@@ -10,10 +10,10 @@ model-v2 candidate peaks at 1086 MB on the Pixel 8 Pro.
 
 Keeps counts essentially unchanged:
 - [ ] 1. Load a pre-optimized `.ort` model with mapped weights and no prepacking
-- [ ] 2. More stripes: stages 1 and 2 windows, `up2`, fine-level adapter attention
+- [x] 2. More stripes: stages 1 and 2 windows, `up2`, fine-level adapter attention
 - [ ] 3. Split encoder and decoder, reuse features, encode before the user marks
 - [ ] 4. Tune thread count, `session.dynamic_block_base` and core affinity per phone
-- [ ] 5. Compute box offsets only at objectness peaks
+- [x] 5. Compute box offsets only at objectness peaks
 
 Needs the benchmark to confirm:
 - [ ] 6. `MatMulNBits` with 4-bit weights instead of dynamically quantized MatMul
@@ -24,9 +24,9 @@ Big bets:
 - [ ] 9. A runtime with 16-bit float activations (MNN, ncnn)
 - [ ] 10. Smaller backbone with distillation
 
-Item 4 has no gain. 8 and 9 were spikes without app integration, 10 is an estimate. Boxes stay
-unticked until the merge is decided; `perf/combined` holds 1, 2 and 5 together, its commit `cf0e35f`
-holds 2 and 5 alone.
+Item 4 has no gain. 8 and 9 were spikes without app integration, 10 is an estimate. 2 and 5 are
+merged. 1 is built and passes, but is left out for now: it adds a native crash path and its gain is
+in memory Android cannot reclaim, unmeasured on a low-RAM phone. It waits on `perf/combined`.
 
 ## Measurements
 
@@ -114,7 +114,8 @@ Notes:
 - 9: 22% below the same test's 1090 MB, not an alternating timing. Library 3.4 instead of 33 MB,
   model 109 MB, Apache-2.0. Rel. error 0.1250 instead of 0.1310, within 10% 14 instead of 15 of 20. Three
   silent MNN defects needed working around, one of them only on ARM (`class_embed` bias), so only
-  the Pixel 8 Pro is verified. Estimate 1 to 2 weeks to bring it into the app.
+  the Pixel 8 Pro is verified. JNI and Kotlin alone are estimated at 1 to 2 weeks, but all 184 images
+  on ARM, other phones and reproducible F-Droid builds are unestimated, and they are the larger risk.
 - 10: estimate, not measured. On the phone the backbone takes 40% of the time and sets one of the
   two peaks. A backbone half the size might save 15 to 20% of the time and about 100 to 150 MB, if
   the adapter keeps its feature sizes. It needs distillation and retraining on FSC-147 on rented
