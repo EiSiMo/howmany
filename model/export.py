@@ -21,7 +21,8 @@ import os
 import sys
 import tempfile
 import types
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,8 @@ ASSETS_URL = (
 )
 SAM2_URL = "https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_base_plus.pt"
 TORCH_HUB_CHECKPOINTS = "/root/.cache/torch/hub/checkpoints"
+# The compiled module that Deformable DETR's deformable attention calls into.
+KERNEL = "MultiScaleDeformableAttention"
 PRETRAINED_MODULES = ("backbone.", "sam_mask.")
 # GeCo2 was trained on 1024 x 1024 inputs: the image scaled so exemplars are at most ~80 px,
 # top-left, padded with black.
@@ -63,6 +66,12 @@ CONTENT_OFFSET_TOLERANCE = 0.2
 # Export sizes checked besides the check image's: with and without window padding in Hiera.
 EXPORT_CHECK_SIZES = ((768, 1024), (1024, 448), (224, 1024))
 OUTPUTS = ("objectness", "offsets")
+# The last upsampling and the heads run on this many stripes of the output's rows, one after the
+# other. It divides the rows of every input size, which are multiples of 16 (see SIZE_MULTIPLE).
+# Dynamic quantization scales each stripe on its own, so the int8 model's counts differ slightly
+# from those of one pass over all rows. Float nodes in the stripes would cost a third more time on
+# a phone, not less memory.
+STRIPES = 16
 
 app = modal.App("howmany-export")
 # GeCo2's environment, plus dataset.py, which this module imports.
@@ -102,6 +111,18 @@ container_image = (
 )
 
 
+def _head_by_head(attend: Callable[..., Any], *inputs: Any, dim: int) -> Any:
+    """Attention computed for one head after the other, its inputs' heads along dim.
+
+    The largest tensors of the model are the attention stages', over all heads at once. Computing
+    the heads in turn gives the same result in the memory of one head at a time.
+    """
+    import torch
+
+    heads = zip(*(x.split(1, dim) for x in inputs), strict=True)
+    return torch.cat([attend(*head) for head in heads], dim)
+
+
 def _ms_deform_attn_forward(
     value: Any,
     spatial_shapes: Any,
@@ -109,6 +130,7 @@ def _ms_deform_attn_forward(
     sampling_locations: Any,
     attention_weights: Any,
     im2col_step: int,
+    head_by_head: bool = False,
 ) -> Any:
     """Deformable attention in pure PyTorch, for GeCo2's single-level use.
 
@@ -124,10 +146,32 @@ def _ms_deform_attn_forward(
     height, width = spatial_shapes[0, 0], spatial_shapes[0, 1]
     value = value.flatten(2).transpose(1, 2).reshape(batch * heads, channels, height, width)
     grid = (2 * sampling_locations[:, :, :, 0] - 1).transpose(1, 2).flatten(0, 1)
-    sampled = F.grid_sample(value, grid, mode="bilinear", padding_mode="zeros", align_corners=False)
     weights = attention_weights.transpose(1, 2).reshape(batch * heads, 1, queries, points)
-    output = (sampled * weights).sum(-1).view(batch, heads * channels, queries)
-    return output.transpose(1, 2).contiguous()
+
+    def attend(value: Any, grid: Any, weights: Any) -> Any:
+        sampled = F.grid_sample(
+            value, grid, mode="bilinear", padding_mode="zeros", align_corners=False
+        )
+        return (sampled * weights).sum(-1)
+
+    inputs = value, grid, weights
+    output = _head_by_head(attend, *inputs, dim=0) if head_by_head else attend(*inputs)
+    return output.view(batch, heads * channels, queries).transpose(1, 2).contiguous()
+
+
+def _upsampled_rows(features: Any, start: Any, stop: Any) -> Any:
+    """Rows start to stop (exclusive) of UpsamplingBilinear2d(scale_factor=2) on (1, C, H, W)."""
+    import torch
+    from torch.nn import functional as F
+
+    height, width = features.shape[2], features.shape[3]
+    positions = torch.arange(start, stop).float() * (height - 1) / (2 * height - 1)
+    above = positions.floor().long().clamp(max=height - 2)
+    weights = (positions - above).view(1, 1, -1, 1)
+    rows = features.index_select(2, above) * (1 - weights)
+    rows = rows + features.index_select(2, above + 1) * weights
+    size = (rows.shape[2], 2 * width)
+    return F.interpolate(rows, size=size, mode="bilinear", align_corners=True)
 
 
 def _load_model() -> Any:
@@ -139,9 +183,9 @@ def _load_model() -> Any:
     sys.path.insert(0, GECO2_DIR)
     # The prebuilt CUDA kernel for deformable attention does not match current torch builds;
     # the pure PyTorch reference computes the same thing and is what a mobile export needs.
-    kernel = types.ModuleType("MultiScaleDeformableAttention")
+    kernel = types.ModuleType(KERNEL)
     kernel.ms_deform_attn_forward = _ms_deform_attn_forward  # type: ignore[attr-defined]
-    sys.modules[kernel.__name__] = kernel
+    sys.modules[KERNEL] = kernel
     from models.counter_infer import build_model  # type: ignore[import-not-found]
     from utils.arg_parser import get_argparser  # type: ignore[import-not-found]
 
@@ -186,6 +230,24 @@ def _dense_network(model: Any) -> Any:
 
     trunk._get_pos_embed = trunk_position
 
+    def attend_globally(attention: Any, x: Any) -> Any:
+        """MultiScaleAttention.forward head by head, without the q pooling of a stage's start."""
+        batch, height, width, _ = x.shape
+        qkv = attention.qkv(x).reshape(batch, height * width, 3, attention.num_heads, -1)
+        query, key, value = qkv.permute(2, 0, 3, 1, 4).unbind()
+        attended = _head_by_head(F.scaled_dot_product_attention, query, key, value, dim=1)
+        return attention.proj(attended.transpose(1, 2).reshape(batch, height, width, -1))
+
+    # Windowed attention is small, only global attention needs to go head by head.
+    for index in trunk.global_att_blocks:
+        attention = trunk.blocks[index].attn
+        if attention.q_pool is not None:
+            raise ValueError(f"Global attention block {index} pools its queries")
+        attention.forward = types.MethodType(attend_globally, attention)
+    sys.modules[KERNEL].ms_deform_attn_forward = partial(  # type: ignore[attr-defined]
+        _ms_deform_attn_forward, head_by_head=True
+    )
+
     def cells(level: Any) -> tuple[Any, Any]:
         """Column and row numbers (1, 2, ...) of a feature level's cells, taken from its shape."""
         ones = torch.ones_like(level[0, 0])
@@ -217,11 +279,18 @@ def _dense_network(model: Any) -> Any:
         setattr(adapter, f"spatial_shapes{suffix}", torch._shape_as_tensor(level)[2:][None])
         setattr(adapter, f"reference_points{suffix}", torch.stack([x, y], -1).reshape(1, -1, 1, 2))
 
+    # The adapter stops before its last upsampling, whose output is the largest tensor of the model
+    # and costs far more than its size when computed whole. The dense network does it in stripes.
+    _, convolution, activation = adapter.up3.layer
+    adapter.up3 = torch.nn.Identity()
+
     # torch is only installed in the container, so mypy sees it as Any.
     class DenseGeCo2(torch.nn.Module):  # type: ignore[misc]
         def __init__(self) -> None:
             super().__init__()
             self.model = model
+            self.convolution = convolution
+            self.activation = activation
 
         def forward(self, image: Any, exemplars: Any) -> tuple[Any, Any]:
             m = self.model
@@ -244,7 +313,7 @@ def _dense_network(model: Any) -> Any:
             shape = m.shape_or_objectness(sizes).reshape(1, -1, m.emb_dim)
             for level, suffix in ((coarse, ""), (fine, "1"), (middle, "2")):
                 attend_within(level, suffix)
-            adapted, _ = m.adapt_features(
+            features, _ = m.adapt_features(
                 image_embeddings=coarse,
                 image_pe=dense_position(coarse),
                 prototype_embeddings=torch.cat([pool(coarse, BACKBONE_STRIDE), shape], dim=1),
@@ -255,12 +324,23 @@ def _dense_network(model: Any) -> Any:
                 ],
                 hq_pos=[sine_position(fine, fine_stride), sine_position(middle, middle_stride)],
             )
-            _, _, rows, columns = adapted.shape
-            flat = adapted.view(1, m.emb_dim, -1).permute(0, 2, 1)
-            objectness = m.class_embed(flat).view(1, rows, columns)
+            rows, columns = 2 * features.shape[2], 2 * features.shape[3]
+            height = rows // STRIPES
+            stripes: list[Any] = []
+            start = 0
+            for index in range(STRIPES):
+                # The convolution reaches one row into the neighbouring stripes.
+                above, below = int(index > 0), int(index < STRIPES - 1)
+                upsampled = _upsampled_rows(features, start - above, start + height + below)
+                stripe = self.activation(self.convolution(upsampled))
+                flat = stripe[:, :, above : above + height].flatten(2).transpose(1, 2)
+                outputs = torch.cat([m.class_embed(flat), m.bbox_embed(flat).sigmoid()], 2)
+                stripes.append(outputs.view(1, -1, columns, 5))
+                # Starting where the last stripe ended makes them run in turn, not side by side.
+                start = start + stripes[-1].shape[1]
+            outputs = torch.cat(stripes, 1)
             # GeCo2 predicts offsets as fractions of the 1024 x 1024 input it was trained on.
-            offsets = m.bbox_embed(flat).sigmoid().view(1, rows, columns, 4) * INPUT_SIZE
-            return objectness, offsets
+            return outputs[..., 0], outputs[..., 1:] * INPUT_SIZE
 
     return DenseGeCo2().eval()
 
@@ -307,27 +387,42 @@ def _deviation(actual: Any, expected: Any) -> float:
     return float(np.abs(actual - expected).max() / np.abs(expected).max())
 
 
-def _check_network(model: Any, network: Any, padded: Any, exemplar_sets: Sequence[Any]) -> None:
-    """On the padded input, cropping the positional encodings must change nothing."""
+def _geco2_outputs(model: Any, padded: Any, exemplar_sets: Sequence[Any]) -> list[tuple[Any, Any]]:
+    """GeCo2's own objectness map and box offsets, for each set of exemplars.
+
+    Taken before _dense_network changes how the model computes them, to check the network against.
+    """
     import torch
 
+    # GeCo2 only builds its 1024 x 1024 attention grids when its inputs move to another device,
+    # which never happens on the CPU; the dense network replaces them with its own.
+    adapter = model.adapt_features
+    for suffix, side in (("", 64), ("1", 256), ("2", 128)):
+        shapes, ratios = torch.tensor([[side, side]]), torch.tensor([[1.0, 1.0]])
+        setattr(adapter, f"spatial_shapes{suffix}", shapes)
+        points = adapter.get_reference_points(shapes, ratios, device="cpu")
+        setattr(adapter, f"reference_points{suffix}", points)
+    outputs = []
     for boxes in exemplar_sets:
-        # GeCo2 only builds its 1024 x 1024 attention grids when its inputs move to another
-        # device, which never happens on the CPU; the dense network replaces them with its own.
-        adapter = model.adapt_features
-        for suffix, side in (("", 64), ("1", 256), ("2", 128)):
-            shapes, ratios = torch.tensor([[side, side]]), torch.tensor([[1.0, 1.0]])
-            setattr(adapter, f"spatial_shapes{suffix}", shapes)
-            points = adapter.get_reference_points(shapes, ratios, device="cpu")
-            setattr(adapter, f"reference_points{suffix}", points)
         with torch.no_grad():
             _, _, centerness, coordinates, _ = model(padded, boxes)
+        outputs.append(
+            (centerness[0, 0].numpy(), coordinates[0].permute(1, 2, 0).numpy() * INPUT_SIZE)
+        )
+    return outputs
+
+
+def _check_network(
+    network: Any, padded: Any, exemplar_sets: Sequence[Any], expected: Sequence[tuple[Any, Any]]
+) -> None:
+    """On the padded input, the network must compute what GeCo2 does."""
+    for boxes, (expected_objectness, expected_offsets) in zip(exemplar_sets, expected, strict=True):
         objectness, offsets = _dense(network, padded, boxes)
-        expected_offsets = coordinates[0].permute(1, 2, 0).numpy() * INPUT_SIZE
         for name, error in (
-            ("objectness", _deviation(objectness, centerness[0, 0].numpy())),
+            ("objectness", _deviation(objectness, expected_objectness)),
             ("offsets", _deviation(offsets, expected_offsets)),
         ):
+            logger.info("Network deviates from GeCo2 by %.1e in %s", error, name)
             if error > NETWORK_TOLERANCE:
                 raise RuntimeError(f"Network deviates from GeCo2 by {error:.1e} in {name}")
 
@@ -442,11 +537,12 @@ def export_onnx(image_bytes: bytes, exemplars: list[list[float]]) -> dict[str, b
     configure_logging()
     model = _load_model()
     padded, content, boxes = _check_inputs(image_bytes, exemplars)
-    network = _dense_network(model)
     # One exemplar (a tap) and all of them.
     exemplar_sets = (boxes[:, :1], boxes)
+    expected = _geco2_outputs(model, padded, exemplar_sets)
+    network = _dense_network(model)
 
-    _check_network(model, network, padded, exemplar_sets)
+    _check_network(network, padded, exemplar_sets, expected)
     _check_content_input(model, network, padded, content, exemplar_sets)
     with tempfile.TemporaryDirectory() as directory:
         fp32_path, int8_path = Path(directory) / "fp32.onnx", Path(directory) / "int8.onnx"
