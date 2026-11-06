@@ -103,7 +103,9 @@ Notes:
   follows from one phone, so 4 stays. Block base gives nothing, no spinning is slower, affinities are not applied on Android.
   Counts are the same at every setting.
 - 5: the box head stays in float in every stripe. 0 of 184 counts change. The worst image is 9%
-  faster alone, just below the 10% set as the gain, and 12.6% faster together with 2.
+  faster alone, just below the 10% set as the gain, and 12.6% faster together with 2. Later the
+  objectness head went float as well, as only its first stripe was quantized: 8 of 184 counts
+  change, none by more than 3 (FSC-147 MAE 4.55 to 4.54, photos 12.13 to 12.05).
 - 6: 4-bit fails `countsApplesLikeTheBenchmark` (38 instead of 34). Accuracy level 1 doesn't rescue
   either, and `disable_prepacking` changes MatMulNBits outputs.
 - 7: ONNX Runtime hands Conv to XNNPACK only with fixed sizes, 0 of 23 convolutions here. Fixed
