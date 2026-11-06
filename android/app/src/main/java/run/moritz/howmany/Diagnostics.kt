@@ -49,9 +49,9 @@ internal data class ProcessExit(val timestamp: Long, val reason: Int, val import
 
 /**
  * What goes wrong in the app, for people to send us by mail: after a crash, or whenever they like.
- * A report holds the app version, the device and its languages, how the app ended recently, the
- * crash's stack trace or native trace, and the app's recent log; never photos. The app has no
- * internet access, so the user's mail app sends it.
+ * A report holds the app version, the device with its languages, memory and power state, how the
+ * app ended recently, the crash's stack trace or native trace, and the app's recent log; never
+ * photos. The app has no internet access, so the user's mail app sends it.
  */
 object Diagnostics {
     /**
