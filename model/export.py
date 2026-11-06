@@ -123,6 +123,26 @@ def _head_by_head(attend: Callable[..., Any], *inputs: Any, dim: int) -> Any:
     return torch.cat([attend(*head) for head in heads], dim)
 
 
+def _in_stripes(compute: Callable[..., Any], *inputs: Any, dim: int, count: int) -> Any:
+    """compute(*inputs) for one stripe of the inputs along dim after the other, for a compute that
+    treats the stripes independently and keeps their size along dim.
+
+    The stripes differ by at most one if count does not divide the size, which must be at least
+    count. Each starts where the last one's output ended: that makes ONNX Runtime run them in turn,
+    not side by side.
+    """
+    import torch
+
+    size = inputs[0].shape[dim]
+    outputs: list[Any] = []
+    start = 0
+    for index in range(1, count + 1):
+        stripe = (slice(None),) * dim + (slice(start, size * index // count),)
+        outputs.append(compute(*(x[stripe] for x in inputs)))
+        start = start + outputs[-1].shape[dim]
+    return torch.cat(outputs, dim)
+
+
 def _ms_deform_attn_forward(
     value: Any,
     spatial_shapes: Any,
@@ -159,6 +179,43 @@ def _ms_deform_attn_forward(
     return output.view(batch, heads * channels, queries).transpose(1, 2).contiguous()
 
 
+def _deform_attend(
+    attention: Any,
+    query: Any,
+    reference_points: Any,
+    input_flatten: Any,
+    spatial_shapes: Any,
+    level_start_index: Any,
+    count: int,
+) -> Any:
+    """MSDeformAttn.forward for one feature level, on stripes of the queries in turn.
+
+    Each query only reads the shared value map, so its result does not depend on the others'.
+    """
+    from torch.nn import functional as F
+
+    heads, points = attention.n_heads, attention.n_points
+    height, width = spatial_shapes[0, 0], spatial_shapes[0, 1]
+    value = attention.value_proj(input_flatten).transpose(1, 2)
+    value = value.reshape(heads, attention.d_model // heads, height, width)
+    normalizer = spatial_shapes[0, [1, 0]].float()
+
+    def attend(query: Any, reference: Any) -> Any:
+        queries = query.shape[1]
+        offsets = attention.sampling_offsets(query).view(1, queries, heads, points, 2)
+        weights = attention.attention_weights(query).view(1, queries, heads, points)
+        weights = F.softmax(weights, -1).transpose(1, 2).reshape(heads, 1, queries, points)
+        locations = reference[:, :, None] + offsets / normalizer
+        grid = (2 * locations - 1).transpose(1, 2).flatten(0, 1)
+        sampled = F.grid_sample(
+            value, grid, mode="bilinear", padding_mode="zeros", align_corners=False
+        )
+        output = (sampled * weights).sum(-1).view(1, attention.d_model, queries).transpose(1, 2)
+        return attention.output_proj(output)
+
+    return _in_stripes(attend, query, reference_points, dim=1, count=count)
+
+
 def _upsampled_rows(features: Any, start: Any, stop: Any) -> Any:
     """Rows start to stop (exclusive) of UpsamplingBilinear2d(scale_factor=2) on (1, C, H, W)."""
     import torch
@@ -172,6 +229,33 @@ def _upsampled_rows(features: Any, start: Any, stop: Any) -> Any:
     rows = rows + features.index_select(2, above + 1) * weights
     size = (rows.shape[2], 2 * width)
     return F.interpolate(rows, size=size, mode="bilinear", align_corners=True)
+
+
+def _upsampled_in_stripes(
+    features: Any,
+    convolution: Any,
+    activation: Any,
+    count: int,
+    finish: Callable[[Any], Any] = lambda stripe: stripe,
+    dim: int = 2,
+) -> Any:
+    """An UpsamplingLayer on (1, C, H, W) with its output's rows in stripes, each put through
+    finish, whose results are joined along dim. count must divide 2 H.
+    """
+    import torch
+
+    height = 2 * features.shape[2] // count
+    stripes: list[Any] = []
+    start = 0
+    for index in range(count):
+        # The convolution reaches one row into the neighbouring stripes.
+        above, below = int(index > 0), int(index < count - 1)
+        upsampled = _upsampled_rows(features, start - above, start + height + below)
+        stripe = activation(convolution(upsampled))
+        stripes.append(finish(stripe[:, :, above : above + height]))
+        # Starting where the last stripe ended makes them run in turn, not side by side.
+        start = start + stripes[-1].shape[dim]
+    return torch.cat(stripes, dim)
 
 
 def _load_model() -> Any:
@@ -201,7 +285,7 @@ def _load_model() -> Any:
     return model
 
 
-def _dense_network(model: Any) -> Any:
+def _dense_network(model: Any, options: dict[str, int]) -> Any:
     """Wrap GeCo2 up to its dense outputs, leaving out SAM2 box refinement and post-processing.
 
     Inputs: a normalized (1, 3, H, W) image and (1, K, 4) exemplar boxes in its pixels. The image
@@ -248,6 +332,26 @@ def _dense_network(model: Any) -> Any:
         _ms_deform_attn_forward, head_by_head=True
     )
 
+    # The first two stages hold the most tokens, with the widest hidden layers for their size.
+    for block in trunk.blocks[: options["blocks"]]:
+        if options["windows"] > 1:
+            block.attn.forward = partial(
+                _in_stripes, block.attn.forward, dim=0, count=options["windows"]
+            )
+        if options["mlp"] > 1:
+            block.mlp.forward = partial(_in_stripes, block.mlp.forward, dim=1, count=options["mlp"])
+
+    if options["queries"] > 0:
+        for layers, count in (
+            (adapter.image_attention, 1),
+            (adapter.image_attention_l2, max(options["queries"] // 4, 1)),
+            (adapter.image_attention_l1, options["queries"]),
+        ):
+            for attention in layers:
+                attention.forward = types.MethodType(
+                    partial(_deform_attend, count=count), attention
+                )
+
     def cells(level: Any) -> tuple[Any, Any]:
         """Column and row numbers (1, 2, ...) of a feature level's cells, taken from its shape."""
         ones = torch.ones_like(level[0, 0])
@@ -283,6 +387,15 @@ def _dense_network(model: Any) -> Any:
     # and costs far more than its size when computed whole. The dense network does it in stripes.
     _, convolution, activation = adapter.up3.layer
     adapter.up3 = torch.nn.Identity()
+
+    if options["up2"] > 1:
+        _, convolution2, activation2 = adapter.up2.layer
+        adapter.up2.forward = partial(
+            _upsampled_in_stripes,
+            convolution=convolution2,
+            activation=activation2,
+            count=options["up2"],
+        )
 
     # torch is only installed in the container, so mypy sees it as Any.
     class DenseGeCo2(torch.nn.Module):  # type: ignore[misc]
@@ -324,21 +437,16 @@ def _dense_network(model: Any) -> Any:
                 ],
                 hq_pos=[sine_position(fine, fine_stride), sine_position(middle, middle_stride)],
             )
-            rows, columns = 2 * features.shape[2], 2 * features.shape[3]
-            height = rows // STRIPES
-            stripes: list[Any] = []
-            start = 0
-            for index in range(STRIPES):
-                # The convolution reaches one row into the neighbouring stripes.
-                above, below = int(index > 0), int(index < STRIPES - 1)
-                upsampled = _upsampled_rows(features, start - above, start + height + below)
-                stripe = self.activation(self.convolution(upsampled))
-                flat = stripe[:, :, above : above + height].flatten(2).transpose(1, 2)
+            columns = 2 * features.shape[3]
+
+            def heads(stripe: Any) -> Any:
+                flat = stripe.flatten(2).transpose(1, 2)
                 outputs = torch.cat([m.class_embed(flat), m.bbox_embed(flat).sigmoid()], 2)
-                stripes.append(outputs.view(1, -1, columns, 5))
-                # Starting where the last stripe ended makes them run in turn, not side by side.
-                start = start + stripes[-1].shape[1]
-            outputs = torch.cat(stripes, 1)
+                return outputs.view(1, -1, columns, 5)
+
+            outputs = _upsampled_in_stripes(
+                features, self.convolution, self.activation, STRIPES, heads, dim=1
+            )
             # GeCo2 predicts offsets as fractions of the 1024 x 1024 input it was trained on.
             return outputs[..., 0], outputs[..., 1:] * INPUT_SIZE
 
@@ -527,7 +635,9 @@ def _check_export(
 
 
 @app.function(image=container_image, cpu=8, memory=32768, timeout=3600)
-def export_onnx(image_bytes: bytes, exemplars: list[list[float]]) -> dict[str, bytes]:
+def export_onnx(
+    image_bytes: bytes, exemplars: list[list[float]], options: dict[str, int]
+) -> dict[str, bytes]:
     """Export the dense network to ONNX in float32 and int8, checked against PyTorch on an image.
 
     The network must match GeCo2 on the padded 1024 x 1024 input, find the same boxes on the
@@ -540,7 +650,7 @@ def export_onnx(image_bytes: bytes, exemplars: list[list[float]]) -> dict[str, b
     # One exemplar (a tap) and all of them.
     exemplar_sets = (boxes[:, :1], boxes)
     expected = _geco2_outputs(model, padded, exemplar_sets)
-    network = _dense_network(model)
+    network = _dense_network(model, options)
 
     _check_network(network, padded, exemplar_sets, expected)
     _check_content_input(model, network, padded, content, exemplar_sets)
@@ -553,10 +663,18 @@ def export_onnx(image_bytes: bytes, exemplars: list[list[float]]) -> dict[str, b
 
 
 @app.local_entrypoint()
-def export() -> None:
+def export(
+    blocks: int = 5,
+    windows: int = 1,
+    mlp: int = 1,
+    queries: int = 0,
+    up2: int = 1,
+    suffix: str = "",
+) -> None:
     configure_logging()
     image_bytes = (IMAGE_DIR / CHECK_IMAGE).read_bytes()
-    for name, model in export_onnx.remote(image_bytes, CHECK_EXEMPLARS).items():
-        target = DATA_DIR / f"geco2-{name}.onnx"
+    options = {"blocks": blocks, "windows": windows, "mlp": mlp, "queries": queries, "up2": up2}
+    for name, model in export_onnx.remote(image_bytes, CHECK_EXEMPLARS, options).items():
+        target = DATA_DIR / f"geco2-{name}{suffix}.onnx"
         target.write_bytes(model)
         logger.info("Saved %s (%.0f MB)", target, len(model) / 1e6)
