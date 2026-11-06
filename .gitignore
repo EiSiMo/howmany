@@ -6,5 +6,6 @@ __pycache__/
 .ruff_cache/
 model/data
 NOTES.md
+research/
 .claude/worktrees/
 model/results/photos-*

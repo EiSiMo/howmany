@@ -18,6 +18,7 @@ A fully open source, fully local Android app that counts objects in a photo, suc
 - Once the stack is chosen, add a "Stack & Commands" section to this file (languages, frameworks, exact test/lint/build commands) and keep it current.
 - Once the stack is chosen, set up pre-commit hooks for formatter, linter, type checks and tests. Never bypass them.
 - Commit and push autonomously after each meaningful green step. Use Conventional Commits.
+- Research notes go to `research/<YYYY-MM-DD>-<slug>.md` in the main checkout (gitignored): what was tried and what came of it.
 
 ## Stack & Commands
 ### App (`android/`)
