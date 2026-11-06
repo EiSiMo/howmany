@@ -35,8 +35,8 @@ android {
         applicationId = "run.moritz.howmany"
         minSdk = 31
         targetSdk = 37
-        versionCode = 7
-        versionName = "0.3.0"
+        versionCode = 8
+        versionName = "0.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "MODEL_ASSET", "\"$modelAsset\"")
         // The model needs a modern 64-bit ARM phone; other ABIs would only bloat the APK.
