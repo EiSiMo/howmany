@@ -68,10 +68,25 @@ EXPORT_CHECK_SIZES = ((768, 1024), (1024, 448), (224, 1024))
 OUTPUTS = ("objectness", "offsets")
 # The last upsampling and the heads run on this many stripes of the output's rows, one after the
 # other. It divides the rows of every input size, which are multiples of 16 (see SIZE_MULTIPLE).
-# Dynamic quantization scales each stripe on its own, so the int8 model's counts differ slightly
-# from those of one pass over all rows. Float nodes in the stripes would cost a third more time on
-# a phone, not less memory.
+# Dynamic quantization scales each stripe's convolution on its own, so the int8 model's counts
+# differ slightly from those of one pass over all rows. It reaches the heads less: see FLOAT_NODES.
+# A float convolution would cost a third more time on a phone, not less memory.
 STRIPES = 16
+# What lies between the linear layers of the first blocks of the backbone, which hold the most
+# tokens, runs on this many stripes of windows. That of the deformable attention runs on this many
+# stripes of the fine level's queries, a quarter of them on the middle level's. All of it is float,
+# so it computes what one pass does. Stripes through dynamically quantized layers save more memory
+# but rescale each stripe: they took the photos within 10% from 54% to 46-48%. Input sides of at
+# least 512 give every stripe something to compute.
+WINDOW_STRIPES = 4
+WINDOW_STRIPED_BLOCKS = 6
+QUERY_STRIPES = 16
+
+# Quantization rewrites weights where it first meets them, so of a head's sixteen copies only the
+# first stripe's is quantized: the objectness head runs in float in all the others. In the box head
+# it would also make box edges depend on which candidates share the stripe, so all of its copies
+# stay float.
+FLOAT_NODES = tuple(f"/bbox_embed/layers.{layer}/MatMul" for layer in range(3))
 
 app = modal.App("howmany-export")
 # GeCo2's environment, plus dataset.py, which this module imports.
@@ -123,6 +138,26 @@ def _head_by_head(attend: Callable[..., Any], *inputs: Any, dim: int) -> Any:
     return torch.cat([attend(*head) for head in heads], dim)
 
 
+def _in_stripes(compute: Callable[..., Any], *inputs: Any, dim: int, count: int) -> Any:
+    """compute(*inputs) for one stripe of the inputs along dim after the other, for a compute that
+    treats the stripes independently and keeps their size along dim.
+
+    The stripes differ by at most one if count does not divide the size, which must be at least
+    count. Each starts where the last one's output ended: that makes ONNX Runtime run them in turn,
+    not side by side.
+    """
+    import torch
+
+    size = inputs[0].shape[dim]
+    outputs: list[Any] = []
+    start = 0
+    for index in range(1, count + 1):
+        stripe = (slice(None),) * dim + (slice(start, size * index // count),)
+        outputs.append(compute(*(x[stripe] for x in inputs)))
+        start = start + outputs[-1].shape[dim]
+    return torch.cat(outputs, dim)
+
+
 def _ms_deform_attn_forward(
     value: Any,
     spatial_shapes: Any,
@@ -130,7 +165,6 @@ def _ms_deform_attn_forward(
     sampling_locations: Any,
     attention_weights: Any,
     im2col_step: int,
-    head_by_head: bool = False,
 ) -> Any:
     """Deformable attention in pure PyTorch, for GeCo2's single-level use.
 
@@ -147,16 +181,46 @@ def _ms_deform_attn_forward(
     value = value.flatten(2).transpose(1, 2).reshape(batch * heads, channels, height, width)
     grid = (2 * sampling_locations[:, :, :, 0] - 1).transpose(1, 2).flatten(0, 1)
     weights = attention_weights.transpose(1, 2).reshape(batch * heads, 1, queries, points)
+    sampled = F.grid_sample(value, grid, mode="bilinear", padding_mode="zeros", align_corners=False)
+    output = (sampled * weights).sum(-1).view(batch, heads * channels, queries)
+    return output.transpose(1, 2).contiguous()
 
-    def attend(value: Any, grid: Any, weights: Any) -> Any:
+
+def _deform_attend(
+    attention: Any,
+    query: Any,
+    reference_points: Any,
+    input_flatten: Any,
+    spatial_shapes: Any,
+    level_start_index: Any,
+    count: int,
+) -> Any:
+    """MSDeformAttn.forward for one feature level, with what follows its linear layers in stripes
+    of the queries. Those layers stay whole: dynamic quantization scales each tensor on its own, so
+    in stripes they would compute something else.
+    """
+    from torch.nn import functional as F
+
+    heads, points = attention.n_heads, attention.n_points
+    height, width = spatial_shapes[0, 0], spatial_shapes[0, 1]
+    value = attention.value_proj(input_flatten).transpose(1, 2)
+    value = value.reshape(heads, attention.d_model // heads, height, width)
+    normalizer = spatial_shapes[0, [1, 0]].float()
+
+    def attend(offsets: Any, weights: Any, reference: Any) -> Any:
+        queries = offsets.shape[1]
+        offsets = offsets.view(1, queries, heads, points, 2)
+        weights = F.softmax(weights.view(1, queries, heads, points), -1)
+        weights = weights.transpose(1, 2).reshape(heads, 1, queries, points)
+        locations = reference[:, :, None] + offsets / normalizer
+        grid = (2 * locations - 1).transpose(1, 2).flatten(0, 1)
         sampled = F.grid_sample(
             value, grid, mode="bilinear", padding_mode="zeros", align_corners=False
         )
-        return (sampled * weights).sum(-1)
+        return (sampled * weights).sum(-1).view(1, attention.d_model, queries).transpose(1, 2)
 
-    inputs = value, grid, weights
-    output = _head_by_head(attend, *inputs, dim=0) if head_by_head else attend(*inputs)
-    return output.view(batch, heads * channels, queries).transpose(1, 2).contiguous()
+    inputs = attention.sampling_offsets(query), attention.attention_weights(query), reference_points
+    return attention.output_proj(_in_stripes(attend, *inputs, dim=1, count=count))
 
 
 def _upsampled_rows(features: Any, start: Any, stop: Any) -> Any:
@@ -208,8 +272,8 @@ def _dense_network(model: Any) -> Any:
     is GeCo2's 1024 x 1024 input with the padding cut off: H and W are multiples of 32 up to 1024.
     Positional encodings are those of the 1024 x 1024 input, cropped to H x W, so every pixel is
     encoded as before. Outputs: objectness (1, H/2, W/2) and box offsets (1, H/2, W/2, 4), the
-    distances in input pixels from each cell to the left, top, right and bottom box edges.
-    Mirrors GeCo2's CNT.forward for a batch of one.
+    distances in input pixels from each cell to the left, top, right and bottom box edges, zero
+    away from the cells of _candidates. Mirrors GeCo2's CNT.forward for a batch of one.
     """
     import torch
     from torch.nn import functional as F
@@ -244,9 +308,42 @@ def _dense_network(model: Any) -> Any:
         if attention.q_pool is not None:
             raise ValueError(f"Global attention block {index} pools its queries")
         attention.forward = types.MethodType(attend_globally, attention)
-    sys.modules[KERNEL].ms_deform_attn_forward = partial(  # type: ignore[attr-defined]
-        _ms_deform_attn_forward, head_by_head=True
-    )
+
+    def attend_in_windows(attention: Any, x: Any, count: int) -> Any:
+        """MultiScaleAttention.forward with what lies between its linear layers in stripes of
+        windows. Those layers stay whole: see _deform_attend.
+        """
+        batch, height, width, _ = x.shape
+        qkv = attention.qkv(x).reshape(batch, height * width, 3, attention.num_heads, -1)
+
+        def attend(qkv: Any) -> Any:
+            windows = qkv.shape[0]
+            query, key, value = qkv.unbind(2)
+            rows, columns = height, width
+            if attention.q_pool is not None:
+                pooled = query.reshape(windows, height, width, -1).permute(0, 3, 1, 2)
+                query = attention.q_pool(pooled).permute(0, 2, 3, 1)
+                rows, columns = query.shape[1:3]
+                query = query.reshape(windows, rows * columns, attention.num_heads, -1)
+            attended = F.scaled_dot_product_attention(
+                query.transpose(1, 2), key.transpose(1, 2), value.transpose(1, 2)
+            )
+            return attended.transpose(1, 2).reshape(windows, rows, columns, -1)
+
+        return attention.proj(_in_stripes(attend, qkv, dim=0, count=count))
+
+    for block in trunk.blocks[:WINDOW_STRIPED_BLOCKS]:
+        block.attn.forward = types.MethodType(
+            partial(attend_in_windows, count=WINDOW_STRIPES), block.attn
+        )
+
+    for layers, count in (
+        (adapter.image_attention, 1),
+        (adapter.image_attention_l2, QUERY_STRIPES // 4),
+        (adapter.image_attention_l1, QUERY_STRIPES),
+    ):
+        for attention in layers:
+            attention.forward = types.MethodType(partial(_deform_attend, count=count), attention)
 
     def cells(level: Any) -> tuple[Any, Any]:
         """Column and row numbers (1, 2, ...) of a feature level's cells, taken from its shape."""
@@ -334,7 +431,15 @@ def _dense_network(model: Any) -> Any:
                 upsampled = _upsampled_rows(features, start - above, start + height + below)
                 stripe = self.activation(self.convolution(upsampled))
                 flat = stripe[:, :, above : above + height].flatten(2).transpose(1, 2)
-                outputs = torch.cat([m.class_embed(flat), m.bbox_embed(flat).sigmoid()], 2)
+                objectness = m.class_embed(flat)
+                # Only peaks' offsets are read, so only local maxima get any: see _candidates.
+                scores = objectness.view(1, 1, -1, columns)
+                maxima = scores == F.max_pool2d(scores, kernel_size=3, stride=1, padding=1)
+                cells = maxima.flatten().nonzero()[:, 0]
+                offsets = m.bbox_embed(flat.index_select(1, cells)).sigmoid()
+                targets = cells[None, :, None].expand(1, -1, 4)
+                offsets = torch.zeros_like(flat[..., :4]).scatter(1, targets, offsets)
+                outputs = torch.cat([objectness, offsets], 2)
                 stripes.append(outputs.view(1, -1, columns, 5))
                 # Starting where the last stripe ended makes them run in turn, not side by side.
                 start = start + stripes[-1].shape[1]
@@ -345,13 +450,38 @@ def _dense_network(model: Any) -> Any:
     return DenseGeCo2().eval()
 
 
-def _peaks(objectness: Any) -> Any:
-    """A mask of the objectness map's 3 x 3 local maxima above 1/8 of its maximum, as in GeCo2."""
+def _local_maxima(objectness: Any) -> Any:
+    """A mask of the map's 3 x 3 local maxima, ties included."""
     import numpy as np
 
     padded = np.pad(objectness, 1, constant_values=-np.inf)
     neighbourhood = np.lib.stride_tricks.sliding_window_view(padded, (3, 3)).max(axis=(2, 3))
-    return (neighbourhood == objectness) & (objectness > objectness.max() / 8)
+    return neighbourhood == objectness
+
+
+def _peaks(objectness: Any) -> Any:
+    """A mask of the objectness map's 3 x 3 local maxima above 1/8 of its maximum, as in GeCo2."""
+    return _local_maxima(objectness) & (objectness > objectness.max() / 8)
+
+
+def _candidates(objectness: Any) -> Any:
+    """A mask of the cells the network computes box offsets for, which holds every peak.
+
+    Those are each stripe's own local maxima. A stripe can neither know the threshold, which needs
+    the whole map, nor the next stripe's first row, so there are more candidates than peaks. Every
+    stripe has one at least: its maximum.
+    """
+    import numpy as np
+
+    return np.concatenate([_local_maxima(stripe) for stripe in np.split(objectness, STRIPES)])
+
+
+def _check_candidates(objectness: Any, offsets: Any) -> None:
+    """Fail unless the box offsets exist exactly at the objectness map's candidates."""
+    import numpy as np
+
+    if not np.array_equal(offsets.any(axis=-1), _candidates(objectness)):
+        raise RuntimeError("Box offsets do not match the candidates of the objectness map")
 
 
 def _check_inputs(image_bytes: bytes, exemplars: list[list[float]]) -> tuple[Any, Any, Any]:
@@ -418,9 +548,12 @@ def _check_network(
     """On the padded input, the network must compute what GeCo2 does."""
     for boxes, (expected_objectness, expected_offsets) in zip(exemplar_sets, expected, strict=True):
         objectness, offsets = _dense(network, padded, boxes)
+        _check_candidates(objectness, offsets)
+        candidates = _candidates(objectness)
+        logger.info("%d candidates for %d peaks", candidates.sum(), _peaks(objectness).sum())
         for name, error in (
             ("objectness", _deviation(objectness, expected_objectness)),
-            ("offsets", _deviation(offsets, expected_offsets)),
+            ("offsets", _deviation(offsets[candidates], expected_offsets[candidates])),
         ):
             logger.info("Network deviates from GeCo2 by %.1e in %s", error, name)
             if error > NETWORK_TOLERANCE:
@@ -458,8 +591,10 @@ def _check_content_input(
         found = _peaks(objectness)
         # Peaks found by both, allowing them to move to a neighbouring cell.
         near = np.lib.stride_tricks.sliding_window_view(np.pad(found, 1), (3, 3)).any(axis=(2, 3))
-        expected_offsets = padded_offsets[:rows, :columns][padded_found]
-        offset_error = np.abs(offsets[padded_found] - expected_offsets) / expected_offsets
+        # Stripes differ between the two inputs, so a padded peak may not be a candidate here.
+        compared = padded_found & _candidates(objectness)
+        expected_offsets = padded_offsets[:rows, :columns][compared]
+        offset_error = np.abs(offsets[compared] - expected_offsets) / expected_offsets
         logger.info(
             "%s input vs padded, %d exemplars: %d vs %d peaks (%d within a cell), "
             "offsets at the padded peaks deviate by %.1f%% (median)",
@@ -501,7 +636,12 @@ def _quantize(fp32_path: Path, int8_path: Path) -> None:
     """Quantize the exported model's weights dynamically to int8."""
     from onnxruntime.quantization import QuantType, quantize_dynamic
 
-    quantize_dynamic(str(fp32_path), str(int8_path), weight_type=QuantType.QUInt8)
+    quantize_dynamic(
+        str(fp32_path),
+        str(int8_path),
+        weight_type=QuantType.QUInt8,
+        nodes_to_exclude=list(FLOAT_NODES),
+    )
 
 
 def _check_export(
@@ -514,10 +654,20 @@ def _check_export(
     sizes = [tuple(content.shape[2:]), *EXPORT_CHECK_SIZES]
     for (height, width), boxes in itertools.product(sizes, exemplar_sets):
         image = padded[..., :height, :width]
-        expected = _dense(network, image, boxes)
-        actual = session.run(list(OUTPUTS), {"image": image.numpy(), "exemplars": boxes.numpy()})
-        for name, value, reference in zip(OUTPUTS, actual, expected, strict=True):
-            error = _deviation(value[0], reference)
+        expected_objectness, expected_offsets = _dense(network, image, boxes)
+        objectness, offsets = (
+            value[0]
+            for value in session.run(
+                list(OUTPUTS), {"image": image.numpy(), "exemplars": boxes.numpy()}
+            )
+        )
+        _check_candidates(objectness, offsets)
+        # The tiniest difference moves a local maximum in a flat part of the map.
+        shared = _candidates(objectness) & _candidates(expected_objectness)
+        for name, error in (
+            ("objectness", _deviation(objectness, expected_objectness)),
+            ("offsets", _deviation(offsets[shared], expected_offsets[shared])),
+        ):
             if error > EXPORT_TOLERANCE:
                 raise RuntimeError(
                     f"ONNX {name} deviates by {error:.1e} at {height} x {width} with "
@@ -558,5 +708,8 @@ def export() -> None:
     image_bytes = (IMAGE_DIR / CHECK_IMAGE).read_bytes()
     for name, model in export_onnx.remote(image_bytes, CHECK_EXEMPLARS).items():
         target = DATA_DIR / f"geco2-{name}.onnx"
-        target.write_bytes(model)
+        # Replaced, not rewritten: a running counter may have the file open.
+        partial = target.with_suffix(".partial")
+        partial.write_bytes(model)
+        partial.replace(target)
         logger.info("Saved %s (%.0f MB)", target, len(model) / 1e6)
