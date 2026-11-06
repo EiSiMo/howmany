@@ -7,9 +7,9 @@ benchmark's test images.
 
 The export covers GeCo2's dense network, up to its objectness map and box offsets; picking boxes
 from them is left to the caller. GeCo2 needs its own environment, so the export runs on Modal. It
-checks the network against GeCo2 and the export against the network on a benchmark image, and
-writes data/geco2-fp32.onnx and its dynamically quantized data/geco2-int8.onnx, which the app
-bundles.
+checks the network against GeCo2, the export against the network and that the quantized model runs
+with float heads on a benchmark image, and writes data/geco2-fp32.onnx and its dynamically
+quantized data/geco2-int8.onnx, which the app bundles.
 
 Usage: uv run modal run export.py
 """
@@ -21,7 +21,7 @@ import os
 import sys
 import tempfile
 import types
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -69,7 +69,7 @@ OUTPUTS = ("objectness", "offsets")
 # The last upsampling and the heads run on this many stripes of the output's rows, one after the
 # other. It divides the rows of every input size, which are multiples of 16 (see SIZE_MULTIPLE).
 # Dynamic quantization scales each stripe's convolution on its own, so the int8 model's counts
-# differ slightly from those of one pass over all rows. It reaches the heads less: see FLOAT_NODES.
+# differ slightly from those of one pass over all rows. It leaves out the heads: see FLOAT_NODES.
 # A float convolution would cost a third more time on a phone, not less memory.
 STRIPES = 16
 # What lies between the linear layers of the first blocks of the backbone, which hold the most
@@ -82,11 +82,17 @@ WINDOW_STRIPES = 4
 WINDOW_STRIPED_BLOCKS = 6
 QUERY_STRIPES = 16
 
-# Quantization rewrites weights where it first meets them, so of a head's sixteen copies only the
-# first stripe's is quantized: the objectness head runs in float in all the others. In the box head
-# it would also make box edges depend on which candidates share the stripe, so all of its copies
-# stay float.
-FLOAT_NODES = tuple(f"/bbox_embed/layers.{layer}/MatMul" for layer in range(3))
+# The heads' linear layers, of which each stripe has a copy. Quantization rewrites weights where it
+# first meets them, so it would reach the first stripe's copy only, and that stripe's objects would
+# score differently from the others' across a map with one threshold. In the box head, box edges
+# would also depend on which candidates share the stripe. So every copy stays float.
+HEADS = ("/class_embed/", "/bbox_embed/")
+HEAD_LAYERS = ("/class_embed/class_embed.0", *(f"/bbox_embed/layers.{i}" for i in range(3)))
+FLOAT_NODES = tuple(
+    f"{layer}{suffix}/MatMul"
+    for layer in HEAD_LAYERS
+    for suffix in ("", *(f"_{copy}" for copy in range(1, STRIPES)))
+)
 
 app = modal.App("howmany-export")
 # GeCo2's environment, plus dataset.py, which this module imports.
@@ -158,6 +164,22 @@ def _in_stripes(compute: Callable[..., Any], *inputs: Any, dim: int, count: int)
     return torch.cat(outputs, dim)
 
 
+def _sample_attention(value: Any, locations: Any, weights: Any) -> Any:
+    """What deformable attention computes from its sampling points.
+
+    Takes value as (batch * heads, channels, height, width), locations as (batch, queries, heads,
+    points, 2), relative to the value's size, and weights as (batch, queries, heads, points).
+    """
+    from torch.nn import functional as F
+
+    batch, queries, heads, points, _ = locations.shape
+    grid = (2 * locations - 1).transpose(1, 2).flatten(0, 1)
+    weights = weights.transpose(1, 2).reshape(batch * heads, 1, queries, points)
+    sampled = F.grid_sample(value, grid, mode="bilinear", padding_mode="zeros", align_corners=False)
+    output = (sampled * weights).sum(-1).view(batch, heads * value.shape[1], queries)
+    return output.transpose(1, 2)
+
+
 def _ms_deform_attn_forward(
     value: Any,
     spatial_shapes: Any,
@@ -171,19 +193,14 @@ def _ms_deform_attn_forward(
     Deformable DETR's reference implementation reads the level sizes as Python ints, which an ONNX
     export freezes; this one keeps them as tensors, so the exported input size stays dynamic.
     """
-    from torch.nn import functional as F
-
     batch, _, heads, channels = value.shape
-    _, queries, _, levels, points, _ = sampling_locations.shape
+    levels = sampling_locations.shape[3]
     if levels != 1:
         raise ValueError(f"Expected one feature level, got {levels}")
     height, width = spatial_shapes[0, 0], spatial_shapes[0, 1]
     value = value.flatten(2).transpose(1, 2).reshape(batch * heads, channels, height, width)
-    grid = (2 * sampling_locations[:, :, :, 0] - 1).transpose(1, 2).flatten(0, 1)
-    weights = attention_weights.transpose(1, 2).reshape(batch * heads, 1, queries, points)
-    sampled = F.grid_sample(value, grid, mode="bilinear", padding_mode="zeros", align_corners=False)
-    output = (sampled * weights).sum(-1).view(batch, heads * channels, queries)
-    return output.transpose(1, 2).contiguous()
+    locations, weights = sampling_locations[:, :, :, 0], attention_weights[:, :, :, 0]
+    return _sample_attention(value, locations, weights).contiguous()
 
 
 def _deform_attend(
@@ -211,13 +228,7 @@ def _deform_attend(
         queries = offsets.shape[1]
         offsets = offsets.view(1, queries, heads, points, 2)
         weights = F.softmax(weights.view(1, queries, heads, points), -1)
-        weights = weights.transpose(1, 2).reshape(heads, 1, queries, points)
-        locations = reference[:, :, None] + offsets / normalizer
-        grid = (2 * locations - 1).transpose(1, 2).flatten(0, 1)
-        sampled = F.grid_sample(
-            value, grid, mode="bilinear", padding_mode="zeros", align_corners=False
-        )
-        return (sampled * weights).sum(-1).view(1, attention.d_model, queries).transpose(1, 2)
+        return _sample_attention(value, reference[:, :, None] + offsets / normalizer, weights)
 
     inputs = attention.sampling_offsets(query), attention.attention_weights(query), reference_points
     return attention.output_proj(_in_stripes(attend, *inputs, dim=1, count=count))
@@ -435,9 +446,9 @@ def _dense_network(model: Any) -> Any:
                 # Only peaks' offsets are read, so only local maxima get any: see _candidates.
                 scores = objectness.view(1, 1, -1, columns)
                 maxima = scores == F.max_pool2d(scores, kernel_size=3, stride=1, padding=1)
-                cells = maxima.flatten().nonzero()[:, 0]
-                offsets = m.bbox_embed(flat.index_select(1, cells)).sigmoid()
-                targets = cells[None, :, None].expand(1, -1, 4)
+                peaks = maxima.flatten().nonzero()[:, 0]
+                offsets = m.bbox_embed(flat.index_select(1, peaks)).sigmoid()
+                targets = peaks[None, :, None].expand(1, -1, 4)
                 offsets = torch.zeros_like(flat[..., :4]).scatter(1, targets, offsets)
                 outputs = torch.cat([objectness, offsets], 2)
                 stripes.append(outputs.view(1, -1, columns, 5))
@@ -632,6 +643,15 @@ def _export(network: Any, padded: Any, boxes: Any, path: Path) -> None:
         )
 
 
+def quantized_head_nodes(nodes: Iterable[Any]) -> list[str]:
+    """The names of the ONNX nodes that compute with quantized weights in the heads."""
+    return [
+        node.name
+        for node in nodes
+        if node.op_type == "MatMulInteger" and node.name.startswith(HEADS)
+    ]
+
+
 def _quantize(fp32_path: Path, int8_path: Path) -> None:
     """Quantize the exported model's weights dynamically to int8."""
     from onnxruntime.quantization import QuantType, quantize_dynamic
@@ -644,17 +664,18 @@ def _quantize(fp32_path: Path, int8_path: Path) -> None:
     )
 
 
-def _check_export(
-    path: Path, network: Any, padded: Any, content: Any, exemplar_sets: Sequence[Any]
-) -> None:
-    """The export must match the network at several non-square input sizes and exemplar counts."""
+def _check_runs(
+    path: Path, padded: Any, content: Any, exemplar_sets: Sequence[Any]
+) -> Iterator[tuple[Any, Any, Any, Any]]:
+    """Run an exported model at several non-square input sizes and exemplar counts, failing unless
+    its offsets exist at its candidates. Yields image, exemplars, objectness and offsets.
+    """
     import onnxruntime
 
     session = onnxruntime.InferenceSession(str(path), providers=["CPUExecutionProvider"])
     sizes = [tuple(content.shape[2:]), *EXPORT_CHECK_SIZES]
     for (height, width), boxes in itertools.product(sizes, exemplar_sets):
         image = padded[..., :height, :width]
-        expected_objectness, expected_offsets = _dense(network, image, boxes)
         objectness, offsets = (
             value[0]
             for value in session.run(
@@ -662,6 +683,16 @@ def _check_export(
             )
         )
         _check_candidates(objectness, offsets)
+        yield image, boxes, objectness, offsets
+
+
+def _check_export(
+    path: Path, network: Any, padded: Any, content: Any, exemplar_sets: Sequence[Any]
+) -> None:
+    """The export must match the network at several non-square input sizes and exemplar counts."""
+    for image, boxes, objectness, offsets in _check_runs(path, padded, content, exemplar_sets):
+        height, width = image.shape[2:]
+        expected_objectness, expected_offsets = _dense(network, image, boxes)
         # The tiniest difference moves a local maximum in a flat part of the map.
         shared = _candidates(objectness) & _candidates(expected_objectness)
         for name, error in (
@@ -674,6 +705,26 @@ def _check_export(
                     f"{boxes.shape[1]} exemplars"
                 )
         logger.info("ONNX matches PyTorch at %d x %d, %d exemplars", height, width, boxes.shape[1])
+
+
+def _check_quantized(path: Path, padded: Any, content: Any, exemplar_sets: Sequence[Any]) -> None:
+    """The quantized model must run like the export, with its heads in float.
+
+    Quantization ignores excluded names that match nothing, so a renamed node would go unnoticed.
+    Dynamic quantization changes the numbers, so only the benchmark tells if they are still good.
+    """
+    import onnx  # type: ignore[import-not-found]
+
+    quantized = quantized_head_nodes(node for node in onnx.load(str(path)).graph.node)
+    if quantized:
+        raise RuntimeError(f"Quantization reached the heads: {quantized[:5]}")
+    for _, boxes, objectness, _ in _check_runs(path, padded, content, exemplar_sets):
+        logger.info(
+            "Quantized model finds %d peaks at %s, %d exemplars",
+            _peaks(objectness).sum(),
+            objectness.shape,
+            boxes.shape[1],
+        )
 
 
 @app.function(image=container_image, cpu=8, memory=32768, timeout=3600)
@@ -699,6 +750,7 @@ def export_onnx(image_bytes: bytes, exemplars: list[list[float]]) -> dict[str, b
         _export(network, padded, boxes, fp32_path)
         _quantize(fp32_path, int8_path)
         _check_export(fp32_path, network, padded, content, exemplar_sets)
+        _check_quantized(int8_path, padded, content, exemplar_sets)
         return {"fp32": fp32_path.read_bytes(), "int8": int8_path.read_bytes()}
 
 
@@ -709,7 +761,7 @@ def export() -> None:
     for name, model in export_onnx.remote(image_bytes, CHECK_EXEMPLARS).items():
         target = DATA_DIR / f"geco2-{name}.onnx"
         # Replaced, not rewritten: a running counter may have the file open.
-        partial = target.with_suffix(".partial")
-        partial.write_bytes(model)
-        partial.replace(target)
+        unfinished = target.with_suffix(".partial")
+        unfinished.write_bytes(model)
+        unfinished.replace(target)
         logger.info("Saved %s (%.0f MB)", target, len(model) / 1e6)
