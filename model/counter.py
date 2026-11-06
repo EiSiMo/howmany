@@ -1,7 +1,8 @@
 """Count objects in a photo with GeCo2, as the app does: the Python reference for its counter.
 
 The ONNX model is GeCo2's dense network, exported by export.py: it predicts an objectness map and
-box offsets. Picking one box per objectness peak and suppressing duplicates happens here in NumPy,
+box offsets, the latter only where a peak can be. Picking one box per objectness peak and
+suppressing duplicates happens here in NumPy,
 as in the app. GeCo2's SAM2 box refinement is left out; it only tightens box edges, which objects
 are found stays the same. The model's weights are dynamically quantized to int8, as in the app.
 """

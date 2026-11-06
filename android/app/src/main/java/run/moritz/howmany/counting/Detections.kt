@@ -47,6 +47,7 @@ class Heatmap(val rows: Int, val columns: Int, val values: FloatArray, val bound
 /**
  * The model's output on a grid over its input: an objectness score per cell (row-major), and per
  * cell the distances from the cell to the left, top, right and bottom box edges in input pixels.
+ * The model computes those only where a peak can be, elsewhere they are zero.
  */
 internal class ModelOutput(
     val rows: Int,

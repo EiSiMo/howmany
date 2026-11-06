@@ -82,6 +82,11 @@ WINDOW_STRIPES = 4
 WINDOW_STRIPED_BLOCKS = 6
 QUERY_STRIPES = 16
 
+# Quantization rewrites weights where it first meets them, so of a head's sixteen copies only the
+# first stripe's would be quantized. In the box head it would also make box edges depend on which
+# candidates share the stripe, so all of its copies stay float.
+FLOAT_NODES = tuple(f"/bbox_embed/layers.{layer}/MatMul" for layer in range(3))
+
 app = modal.App("howmany-export")
 # GeCo2's environment, plus dataset.py, which this module imports.
 container_image = (
@@ -266,8 +271,8 @@ def _dense_network(model: Any) -> Any:
     is GeCo2's 1024 x 1024 input with the padding cut off: H and W are multiples of 32 up to 1024.
     Positional encodings are those of the 1024 x 1024 input, cropped to H x W, so every pixel is
     encoded as before. Outputs: objectness (1, H/2, W/2) and box offsets (1, H/2, W/2, 4), the
-    distances in input pixels from each cell to the left, top, right and bottom box edges.
-    Mirrors GeCo2's CNT.forward for a batch of one.
+    distances in input pixels from each cell to the left, top, right and bottom box edges, zero
+    away from the cells of _candidates. Mirrors GeCo2's CNT.forward for a batch of one.
     """
     import torch
     from torch.nn import functional as F
@@ -425,7 +430,15 @@ def _dense_network(model: Any) -> Any:
                 upsampled = _upsampled_rows(features, start - above, start + height + below)
                 stripe = self.activation(self.convolution(upsampled))
                 flat = stripe[:, :, above : above + height].flatten(2).transpose(1, 2)
-                outputs = torch.cat([m.class_embed(flat), m.bbox_embed(flat).sigmoid()], 2)
+                objectness = m.class_embed(flat)
+                # Only peaks' offsets are read, so only local maxima get any: see _candidates.
+                scores = objectness.view(1, 1, -1, columns)
+                maxima = scores == F.max_pool2d(scores, kernel_size=3, stride=1, padding=1)
+                cells = maxima.flatten().nonzero()[:, 0]
+                offsets = m.bbox_embed(flat.index_select(1, cells)).sigmoid()
+                targets = cells[None, :, None].expand(1, -1, 4)
+                offsets = torch.zeros_like(flat[..., :4]).scatter(1, targets, offsets)
+                outputs = torch.cat([objectness, offsets], 2)
                 stripes.append(outputs.view(1, -1, columns, 5))
                 # Starting where the last stripe ended makes them run in turn, not side by side.
                 start = start + stripes[-1].shape[1]
@@ -436,13 +449,38 @@ def _dense_network(model: Any) -> Any:
     return DenseGeCo2().eval()
 
 
-def _peaks(objectness: Any) -> Any:
-    """A mask of the objectness map's 3 x 3 local maxima above 1/8 of its maximum, as in GeCo2."""
+def _local_maxima(objectness: Any) -> Any:
+    """A mask of the map's 3 x 3 local maxima, ties included."""
     import numpy as np
 
     padded = np.pad(objectness, 1, constant_values=-np.inf)
     neighbourhood = np.lib.stride_tricks.sliding_window_view(padded, (3, 3)).max(axis=(2, 3))
-    return (neighbourhood == objectness) & (objectness > objectness.max() / 8)
+    return neighbourhood == objectness
+
+
+def _peaks(objectness: Any) -> Any:
+    """A mask of the objectness map's 3 x 3 local maxima above 1/8 of its maximum, as in GeCo2."""
+    return _local_maxima(objectness) & (objectness > objectness.max() / 8)
+
+
+def _candidates(objectness: Any) -> Any:
+    """A mask of the cells the network computes box offsets for, which holds every peak.
+
+    Those are each stripe's own local maxima. A stripe can neither know the threshold, which needs
+    the whole map, nor the next stripe's first row, so there are more candidates than peaks. Every
+    stripe has one at least: its maximum.
+    """
+    import numpy as np
+
+    return np.concatenate([_local_maxima(stripe) for stripe in np.split(objectness, STRIPES)])
+
+
+def _check_candidates(objectness: Any, offsets: Any) -> None:
+    """Fail unless the box offsets exist exactly at the objectness map's candidates."""
+    import numpy as np
+
+    if not np.array_equal(offsets.any(axis=-1), _candidates(objectness)):
+        raise RuntimeError("Box offsets do not match the candidates of the objectness map")
 
 
 def _check_inputs(image_bytes: bytes, exemplars: list[list[float]]) -> tuple[Any, Any, Any]:
@@ -509,9 +547,12 @@ def _check_network(
     """On the padded input, the network must compute what GeCo2 does."""
     for boxes, (expected_objectness, expected_offsets) in zip(exemplar_sets, expected, strict=True):
         objectness, offsets = _dense(network, padded, boxes)
+        _check_candidates(objectness, offsets)
+        candidates = _candidates(objectness)
+        logger.info("%d candidates for %d peaks", candidates.sum(), _peaks(objectness).sum())
         for name, error in (
             ("objectness", _deviation(objectness, expected_objectness)),
-            ("offsets", _deviation(offsets, expected_offsets)),
+            ("offsets", _deviation(offsets[candidates], expected_offsets[candidates])),
         ):
             logger.info("Network deviates from GeCo2 by %.1e in %s", error, name)
             if error > NETWORK_TOLERANCE:
@@ -549,8 +590,10 @@ def _check_content_input(
         found = _peaks(objectness)
         # Peaks found by both, allowing them to move to a neighbouring cell.
         near = np.lib.stride_tricks.sliding_window_view(np.pad(found, 1), (3, 3)).any(axis=(2, 3))
-        expected_offsets = padded_offsets[:rows, :columns][padded_found]
-        offset_error = np.abs(offsets[padded_found] - expected_offsets) / expected_offsets
+        # Stripes differ between the two inputs, so a padded peak may not be a candidate here.
+        compared = padded_found & _candidates(objectness)
+        expected_offsets = padded_offsets[:rows, :columns][compared]
+        offset_error = np.abs(offsets[compared] - expected_offsets) / expected_offsets
         logger.info(
             "%s input vs padded, %d exemplars: %d vs %d peaks (%d within a cell), "
             "offsets at the padded peaks deviate by %.1f%% (median)",
@@ -592,7 +635,12 @@ def _quantize(fp32_path: Path, int8_path: Path) -> None:
     """Quantize the exported model's weights dynamically to int8."""
     from onnxruntime.quantization import QuantType, quantize_dynamic
 
-    quantize_dynamic(str(fp32_path), str(int8_path), weight_type=QuantType.QUInt8)
+    quantize_dynamic(
+        str(fp32_path),
+        str(int8_path),
+        weight_type=QuantType.QUInt8,
+        nodes_to_exclude=list(FLOAT_NODES),
+    )
 
 
 def _check_export(
@@ -605,10 +653,20 @@ def _check_export(
     sizes = [tuple(content.shape[2:]), *EXPORT_CHECK_SIZES]
     for (height, width), boxes in itertools.product(sizes, exemplar_sets):
         image = padded[..., :height, :width]
-        expected = _dense(network, image, boxes)
-        actual = session.run(list(OUTPUTS), {"image": image.numpy(), "exemplars": boxes.numpy()})
-        for name, value, reference in zip(OUTPUTS, actual, expected, strict=True):
-            error = _deviation(value[0], reference)
+        expected_objectness, expected_offsets = _dense(network, image, boxes)
+        objectness, offsets = (
+            value[0]
+            for value in session.run(
+                list(OUTPUTS), {"image": image.numpy(), "exemplars": boxes.numpy()}
+            )
+        )
+        _check_candidates(objectness, offsets)
+        # The tiniest difference moves a local maximum in a flat part of the map.
+        shared = _candidates(objectness) & _candidates(expected_objectness)
+        for name, error in (
+            ("objectness", _deviation(objectness, expected_objectness)),
+            ("offsets", _deviation(offsets[shared], expected_offsets[shared])),
+        ):
             if error > EXPORT_TOLERANCE:
                 raise RuntimeError(
                     f"ONNX {name} deviates by {error:.1e} at {height} x {width} with "
