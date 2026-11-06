@@ -26,7 +26,7 @@ Big bets:
 
 Item 4 has no gain. 8 and 9 were spikes without app integration, 10 is an estimate. 2 and 5 are
 merged. 1 is built and passes, but is left out for now: it adds a native crash path and its gain is
-in memory Android cannot reclaim, unmeasured on a low-RAM phone. It waits on `perf/combined`.
+in memory Android cannot reclaim, unmeasured on a low-RAM phone. It is built, on top of 2 and 5, but not in the repo.
 
 ## Measurements
 
@@ -110,7 +110,7 @@ Notes:
   sizes peak at 1823 to 1840 MB and run 88 to 149% slower.
 - 8: the WebGPU provider is in the Maven AAR, needs no custom build. A single Conv hangs the
   Mali-G715 (`VK_ERROR_DEVICE_LOST`), which took down `surfaceflinger` and all apps on the phone.
-  Don't run `WebGpuSpikeTest` of `spike/webgpu` again. No GPU time or accuracy exists.
+  Don't repeat that test. No GPU time or accuracy exists.
 - 9: 22% below the same test's 1090 MB, not an alternating timing. Library 3.4 instead of 33 MB,
   model 109 MB, Apache-2.0. Rel. error 0.1250 instead of 0.1310, within 10% 14 instead of 15 of 20. Three
   silent MNN defects needed working around, one of them only on ARM (`class_embed` bias), so only
@@ -141,10 +141,10 @@ attention, on top of 212 MB (anon) after loading.
 | No memory arena | Peak 1258 instead of 866 MB | Higher peak |
 | No constant folding above 1 MB, on top of 1 | 28 MB less total, 10% slower | Mapped weights already cover this tensor |
 | LiteRT on CPU or GPU delegate | 4.6 GB on CPU, 84 of 3182 ops on GPU | Spike `c3abd85`, Pixel 8 Pro |
-| Split with feature cache | Holds 140 MB, 15 to 19% on average | Above the 100 MB limit, at most 24% of counts gain. `perf/split` |
+| Split with feature cache | Holds 140 MB, 15 to 19% on average | Above the 100 MB limit, at most 24% of counts gain. |
 | Encoding before the user marks | 73 to 75% of the work wasted | Input size depends on exemplar and crop |
-| `MatMulNBits` 4-bit | Peak 993 MB, MAE 5.66 and 14.02 | Precision falls, slower. `perf/matmul-nbits` |
+| `MatMulNBits` 4-bit | Peak 993 MB, MAE 5.66 and 14.02 | Precision falls, slower. |
 | `MatMulNBits` 8-bit | Peak -3%, 10.6 s, rel. error 10.70 and 28.00% | Precision falls, slower |
-| Float convolutions | 1147 MB, 11.1 s; on XNNPACK 1823 MB and up | Higher peak, slower. `perf/float-conv` |
-| WebGPU on the Mali-G715 | A single Conv loses the device | Crashes the phone's UI. `spike/webgpu` |
+| Float convolutions | 1147 MB, 11.1 s; on XNNPACK 1823 MB and up | Higher peak, slower. |
+| WebGPU on the Mali-G715 | A single Conv loses the device | Crashes the phone's UI. |
 | 5 threads | On screen up to -8%, without the fastest core +60% | Too risky from one phone |
