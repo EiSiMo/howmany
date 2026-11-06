@@ -73,6 +73,11 @@ OUTPUTS = ("objectness", "offsets")
 # a phone, not less memory.
 STRIPES = 16
 
+# Quantization rewrites weights where it first meets them, so of a head's sixteen copies only the
+# first stripe's would be quantized. In the box head it would also make box edges depend on which
+# candidates share the stripe, so all of its copies stay float.
+FLOAT_NODES = tuple(f"/bbox_embed/layers.{layer}/MatMul" for layer in range(3))
+
 app = modal.App("howmany-export")
 # GeCo2's environment, plus dataset.py, which this module imports.
 container_image = (
@@ -539,7 +544,12 @@ def _quantize(fp32_path: Path, int8_path: Path) -> None:
     """Quantize the exported model's weights dynamically to int8."""
     from onnxruntime.quantization import QuantType, quantize_dynamic
 
-    quantize_dynamic(str(fp32_path), str(int8_path), weight_type=QuantType.QUInt8)
+    quantize_dynamic(
+        str(fp32_path),
+        str(int8_path),
+        weight_type=QuantType.QUInt8,
+        nodes_to_exclude=list(FLOAT_NODES),
+    )
 
 
 def _check_export(
