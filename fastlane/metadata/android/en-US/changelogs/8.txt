@@ -1,6 +1,7 @@
 - Counting needs half the memory: about 1 GB instead of 2.1 GB on a large photo. The app should close far less often on phones with less memory.
 - Large photos count about 5% faster.
 - Takes 24 MB less storage: 143 MB instead of 167 MB. The APK download grows by 53 MB.
-- Getting ready after opening the app takes a little longer: 3.7 s instead of 2.9 s on a Pixel 8 Pro.
+- The app takes a little longer to get ready: 3.7 s instead of 2.9 s on a Pixel 8 Pro.
 - Tap the empty frame to take a photo.
-- Reports now include the phone's memory and power state.
+- Fixed double taps opening two photo sources.
+- Reports now include memory and power state.
