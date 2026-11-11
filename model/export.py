@@ -68,6 +68,10 @@ CONTENT_OFFSET_TOLERANCE = 0.2
 EXPORT_CHECK_SIZES = ((768, 1024), (1024, 448), (224, 1024))
 # How far optimizing the graph may move the outputs. It only rearranges the computation.
 OPTIMIZE_TOLERANCE = 1e-5
+# Optimizing computes ahead whatever depends on no input, and no such result may be larger than
+# this many bytes: Hiera's position embedding, upsampled to the largest input, added 29 MB to the
+# model, to the app's download and to its memory.
+LARGEST_FOLDED_CONSTANT = 1 << 20
 OUTPUTS = ("objectness", "offsets")
 # The last upsampling and the heads run on this many stripes of the output's rows, one after the
 # other. It divides the rows of every input size, which are multiples of 16 (see SIZE_MULTIPLE).
@@ -89,12 +93,17 @@ QUERY_STRIPES = 16
 # first meets them, so it would reach the first stripe's copy only, and that stripe's objects would
 # score differently from the others' across a map with one threshold. In the box head, box edges
 # would also depend on which candidates share the stripe. So every copy stays float.
-HEADS = ("/class_embed/", "/bbox_embed/")
 HEAD_LAYERS = ("/class_embed/class_embed.0", *(f"/bbox_embed/layers.{i}" for i in range(3)))
-FLOAT_NODES = tuple(
-    f"{layer}{suffix}/MatMul"
-    for layer in HEAD_LAYERS
-    for suffix in ("", *(f"_{copy}" for copy in range(1, STRIPES)))
+# Upsampling Hiera's position embedding, see trunk_position. Quantized, the positions are off by up
+# to 0.4%, which changed a third of the benchmark's counts.
+POSITION_NODES = ("/backbone/trunk/MatMul", "/backbone/trunk/MatMul_1")
+FLOAT_NODES = (
+    *POSITION_NODES,
+    *(
+        f"{layer}{suffix}/MatMul"
+        for layer in HEAD_LAYERS
+        for suffix in ("", *(f"_{copy}" for copy in range(1, STRIPES)))
+    ),
 )
 
 app = modal.App("howmany-export")
@@ -297,14 +306,29 @@ def _dense_network(model: Any) -> Any:
     sine = model.backbone.neck.position_encoding
     adapter = model.adapt_features
 
+    # Bicubic upsampling of Hiera's position embedding to the 1024 x 1024 input's token grid, along
+    # one axis: a matrix from the embedding's cells to the grid's. The same along both axes.
+    full = INPUT_SIZE // 4
+    side = trunk.pos_embed.shape[2]
+    if trunk.pos_embed.shape[3] != side:
+        raise RuntimeError(f"Position embedding {tuple(trunk.pos_embed.shape)} is not square")
+    unit = torch.eye(side, device=trunk.pos_embed.device)[None, None]
+    upsampling = F.interpolate(unit, size=(full, side), mode="bicubic")[0, 0]
+
     def trunk_position(size: Any) -> Any:
-        """Hiera's position embedding for a 1024 x 1024 input, cropped to the given token grid."""
-        full = INPUT_SIZE // 4
+        """Hiera's position embedding for a 1024 x 1024 input, cropped to the given token grid.
+
+        Computes only that grid, from the input's size: upsampled to the whole input first, the
+        embedding would be a constant of 29 MB in the model, or take a third of a second a count.
+        """
+        position = upsampling[: size[0]] @ trunk.pos_embed[0] @ upsampling[: size[1]].T
+        # The grid's sides are multiples of the window's, as the input's are of SIZE_MULTIPLE.
         window = trunk.pos_embed_window
-        position = F.interpolate(trunk.pos_embed, size=(full, full), mode="bicubic")
         # repeat, unlike tile, exports to ONNX without a branch on the repeat count.
-        position = position + window.repeat(1, 1, full // window.shape[2], full // window.shape[3])
-        return position[:, :, : size[0], : size[1]].permute(0, 2, 3, 1)
+        position = position + window.repeat(
+            1, 1, size[0] // window.shape[2], size[1] // window.shape[3]
+        )
+        return position.permute(0, 2, 3, 1)
 
     trunk._get_pos_embed = trunk_position
 
@@ -646,13 +670,14 @@ def _export(network: Any, padded: Any, boxes: Any, path: Path) -> None:
         )
 
 
-def quantized_head_nodes(nodes: Iterable[Any]) -> list[str]:
-    """The names of the ONNX nodes that compute with quantized weights in the heads."""
-    return [
-        node.name
-        for node in nodes
-        if node.op_type == "MatMulInteger" and node.name.startswith(HEADS)
-    ]
+def quantized_float_nodes(nodes: Iterable[Any]) -> list[str]:
+    """The names of FLOAT_NODES that are no float multiplications among the ONNX nodes anymore.
+
+    Quantization renames what it rewrites and ignores excluded names that match nothing, so this
+    finds a quantized node as well as one that the export has renamed.
+    """
+    multiplications = {node.name for node in nodes if node.op_type == "MatMul"}
+    return [name for name in FLOAT_NODES if name not in multiplications]
 
 
 def _quantize(fp32_path: Path, int8_path: Path) -> None:
@@ -711,16 +736,15 @@ def _check_export(
 
 
 def _check_quantized(path: Path, padded: Any, content: Any, exemplar_sets: Sequence[Any]) -> None:
-    """The quantized model must run like the export, with its heads in float.
+    """The quantized model must run like the export, with FLOAT_NODES in float.
 
-    Quantization ignores excluded names that match nothing, so a renamed node would go unnoticed.
     Dynamic quantization changes the numbers, so only the benchmark tells if they are still good.
     """
     import onnx
 
-    quantized = quantized_head_nodes(node for node in onnx.load(str(path)).graph.node)
+    quantized = quantized_float_nodes(node for node in onnx.load(str(path)).graph.node)
     if quantized:
-        raise RuntimeError(f"Quantization reached the heads: {quantized[:5]}")
+        raise RuntimeError(f"Quantization reached nodes to keep in float: {quantized[:5]}")
     for _, boxes, objectness, _ in _check_runs(path, padded, content, exemplar_sets):
         logger.info(
             "Quantized model finds %d peaks at %s, %d exemplars",
@@ -763,8 +787,28 @@ def _check_optimized(path: Path, optimized: Path) -> None:
                 )
 
 
+def _check_no_large_constant(path: Path, optimized: Path) -> None:
+    """Optimizing must not have computed a large constant ahead: see LARGEST_FOLDED_CONSTANT."""
+    import onnx
+
+    given = {initializer.name for initializer in onnx.load(str(path)).graph.initializer}
+    folded = {
+        initializer.name: initializer.ByteSize()
+        for initializer in onnx.load(str(optimized)).graph.initializer
+        if initializer.name not in given and initializer.ByteSize() > LARGEST_FOLDED_CONSTANT
+    }
+    if folded:
+        raise RuntimeError(
+            "Optimizing computed large constants ahead, make the network compute them from its "
+            "input's size: "
+            + ", ".join(f"{name} ({size / 1e6:.0f} MB)" for name, size in folded.items())
+        )
+
+
 def optimize(path: Path) -> None:
     """Replace the model with one whose graph is optimized, so the app need not do that.
+
+    Fails if that computes a large constant ahead: see LARGEST_FOLDED_CONSTANT.
 
     Runs in this environment, not on Modal: the optimized graph is written by the ONNX Runtime
     version of the lockfile and read by the same version in the app. Update them together, then
@@ -779,6 +823,7 @@ def optimize(path: Path) -> None:
     options.optimized_model_filepath = str(optimized)
     try:
         onnxruntime.InferenceSession(str(path), options, providers=["CPUExecutionProvider"])
+        _check_no_large_constant(path, optimized)
         _check_optimized(path, optimized)
         optimized.replace(path)
     finally:
