@@ -2,6 +2,7 @@ package run.moritz.howmany.counting
 
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 /** GeCo2 was trained on square images of this many pixels, the scaled image top-left. */
 internal const val INPUT_SIZE = 1024
@@ -12,6 +13,10 @@ private const val SIZE_MULTIPLE = 32
 private const val MIN_INPUT_SIDE = 512
 // GeCo2 scales images so exemplars are at most this many pixels on average.
 private const val EXEMPLAR_SIZE = 80f
+// The model sees at most this many pixels of the image, not counting the padding. Memory and time
+// grow with them, and on FSC-147 and our photos counts are as good as with all 1024 x 1024 down to
+// 0.5 megapixels, worse at 0.4.
+private const val MAX_INPUT_PIXELS = 600_000f
 // Post-processing as in GeCo2: objectness peaks above 1/8 of the maximum become candidate boxes,
 // candidates scoring above 11% of the best are kept, and overlapping duplicates are suppressed.
 private const val PEAK_RATIO = 1f / 8
@@ -60,7 +65,9 @@ internal class ModelOutput(
 internal fun inputScale(imageWidth: Int, imageHeight: Int, exemplars: List<Box>): Float {
     val scale = INPUT_SIZE.toFloat() / max(imageWidth, imageHeight)
     val exemplarSize = exemplars.map { (it.width + it.height) / 2 }.average().toFloat() * scale
-    return scale * min(1f, EXEMPLAR_SIZE / exemplarSize)
+    val exemplarScale = scale * min(1f, EXEMPLAR_SIZE / exemplarSize)
+    val pixels = imageWidth * exemplarScale * imageHeight * exemplarScale
+    return exemplarScale * min(1f, sqrt(MAX_INPUT_PIXELS / pixels))
 }
 
 /** The model input for an image scaled by [scale]: the scaled image and a little padding. */

@@ -19,6 +19,13 @@ class DetectionsTest {
     }
 
     @Test
+    fun `shrinks the image further so the model sees at most 0,6 megapixels of it`() {
+        val scale = inputScale(2000, 2000, listOf(Box(0f, 0f, 100f, 100f)))
+
+        assertEquals(600_000f, 2000 * scale * 2000 * scale, 1f)
+    }
+
+    @Test
     fun `sizes the input to the scaled image, rounded up to a multiple of 32`() {
         assertEquals(InputSize(1024, 512), inputSize(2000, 1000, scale = 0.512f))
         assertEquals(InputSize(608, 512), inputSize(2000, 1000, scale = 0.3f))

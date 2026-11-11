@@ -26,11 +26,12 @@ class ObjectCounterTest {
         countsLikeTheBenchmark("2147.jpg", Box(122f, 133f, 222f, 231f), 34)
 
     /**
-     * Small marbles filling the whole 1024 x 1024 model input: the worst case for time and memory.
+     * Small marbles, a square image at the most pixels the model sees, an 800 x 800 model input:
+     * the worst case for time and memory.
      */
     @Test
     fun countsMarblesLikeTheBenchmark() =
-        countsLikeTheBenchmark("5574.jpg", Box(280f, 218f, 301f, 240f), 93)
+        countsLikeTheBenchmark("5574.jpg", Box(280f, 218f, 301f, 240f), 92)
 
     /** Leaving the app while it counts closes the counter; the count still finishes. */
     @Test
@@ -46,7 +47,7 @@ class ObjectCounterTest {
         closing.close()
 
         assertFalse(count.isDone)
-        assertEquals(93f, count.get().toFloat(), 93 * 0.05f)
+        assertEquals(92f, count.get().toFloat(), 92 * 0.05f)
     }
 
     /**

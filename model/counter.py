@@ -7,6 +7,7 @@ as in the app. GeCo2's SAM2 box refinement is left out; it only tightens box edg
 are found stays the same. The model's weights are dynamically quantized to int8, as in the app.
 """
 
+import math
 from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
@@ -31,6 +32,10 @@ SIZE_MULTIPLE = 32
 MIN_INPUT_SIDE = 512
 # GeCo2 scales images so exemplars are at most this many pixels on average.
 EXEMPLAR_SIZE = 80
+# The model sees at most this many pixels of the image, not counting the padding. Memory and time
+# grow with them, and on FSC-147 and our photos counts are as good as with all 1024 x 1024 down to
+# 0.5 megapixels, worse at 0.4.
+MAX_INPUT_PIXELS = 600_000
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 # Post-processing as in GeCo2: objectness peaks above 1/8 of the maximum become candidate boxes,
@@ -58,11 +63,13 @@ def _session() -> onnxruntime.InferenceSession:
 
 
 def _prepare(image: MatLike, exemplars: Boxes) -> tuple[NDArray[np.float32], float]:
-    """Scale the image so exemplars are at most ~80 px, pad it (see above) and normalize."""
+    """Scale the image so exemplars are at most ~80 px and it has at most MAX_INPUT_PIXELS, pad it
+    (see above) and normalize."""
     height, width = image.shape[:2]
     scale = INPUT_SIZE / max(height, width)
     sizes = (exemplars[:, 2:] - exemplars[:, :2]) * scale
     scale *= min(1.0, EXEMPLAR_SIZE / float(sizes.mean(axis=0).mean()))
+    scale *= min(1.0, math.sqrt(MAX_INPUT_PIXELS / (width * scale * height * scale)))
     resized = cv2.resize(
         image, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR
     )
